@@ -17,9 +17,11 @@
  */
 
 import { syntaxTree } from '@codemirror/language'
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
+import { StateEffect, StateField, type EditorState, type Extension,
+         type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view'
 import { WidgetCasilla, WidgetImagen, WidgetMate, WidgetMermaid, WidgetTabla } from './widgets'
+import { esOscuro } from './contexto'
 
 /** Marcadores que se esconden cuando el cursor no esta en su renglon. */
 const MARCADORES = new Set([
@@ -147,7 +149,7 @@ function construir(estado: EditorState): DecorationSet {
         const m = texto.match(/^([`~]{3,})[ \t]*([\w-]*)\n([\s\S]*?)\n?[`~]{3,}[ \t]*$/)
         if (m && m[2].toLowerCase() === 'mermaid' && !tocado(nodo.from, nodo.to)) {
           marcas.push(Decoration.replace({
-            widget: new WidgetMermaid(m[3], nodo.from),
+            widget: new WidgetMermaid(m[3], nodo.from, esOscuro()),
             block: true,
           }).range(doc.lineAt(nodo.from).from, doc.lineAt(nodo.to).to))
           tapados.push([nodo.from, nodo.to])
@@ -271,12 +273,23 @@ function construir(estado: EditorState): DecorationSet {
   return Decoration.set(marcas, true)
 }
 
+/**
+ * Pide reconstruir las decoraciones sin tocar el documento ni la seleccion.
+ *
+ * Hace falta al cambiar de tema, porque los diagramas llevan el tema dentro.
+ * Antes se forzaba despachando la seleccion actual, y eso tenia un efecto
+ * secundario feo: la tabla se creia con el cursor encima y volvia a texto
+ * crudo. Un efecto propio no toca nada del estado.
+ */
+export const refrescarPresentacion = StateEffect.define<null>()
+
 export function vistaPresentacion(): Extension {
   return StateField.define<DecorationSet>({
     create: (estado) => construir(estado),
     update(valor, tr) {
       // Tambien al mover el cursor: de eso depende que el texto crudo vuelva.
       if (tr.docChanged || tr.selection) return construir(tr.state)
+      if (tr.effects.some((e) => e.is(refrescarPresentacion))) return construir(tr.state)
       return valor.map(tr.changes)
     },
     provide: (f) => EditorView.decorations.from(f),

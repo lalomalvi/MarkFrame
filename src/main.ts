@@ -1,4 +1,5 @@
 import { crearPar, type Par } from './editor'
+import { refrescarPresentacion } from './livepreview'
 import { archivoInicial, escribir, leer, pedirArchivo, pedirDestino,
          type FinDeLinea } from './archivo'
 import { fijarCarpeta } from './contexto'
@@ -13,8 +14,62 @@ const paneles = $('paneles')
 const elNombre = $('nombre')
 const elEstado = $('estado')
 const btGuardar = $<HTMLButtonElement>('guardar')
+const btTema = $('tema')
 const zonaSoltar = $('soltar')
 const velo = $('velo')
+
+// --- tema --------------------------------------------------------------------
+
+type Tema = 'sistema' | 'claro' | 'oscuro'
+const TEMAS: Tema[] = ['sistema', 'claro', 'oscuro']
+const ROTULO: Record<Tema, string> = {
+  sistema: 'Tema: sigue a Windows',
+  claro: 'Tema: claro',
+  oscuro: 'Tema: oscuro',
+}
+
+/** Preferencia de tema. Es una comodidad por equipo, no estado del documento. */
+function temaGuardado(): Tema {
+  try {
+    const t = localStorage.getItem('markflow.tema')
+    if (t === 'claro' || t === 'oscuro' || t === 'sistema') return t
+  } catch { /* sin almacenamiento: se sigue al sistema */ }
+  return 'sistema'
+}
+
+let tema: Tema = temaGuardado()
+
+/**
+ * `redibujar` reconstruye las decoraciones del panel de presentacion. Hace
+ * falta al cambiar de tema porque los diagramas de Mermaid llevan el tema
+ * dentro: sin esto se quedarian con el que tenian al nacer.
+ *
+ * Se pasa como argumento en vez de leer `par`, que todavia no existe cuando
+ * esto corre la primera vez.
+ */
+function aplicarTema(redibujar = true) {
+  const raiz = document.documentElement
+  if (tema === 'sistema') raiz.removeAttribute('data-tema')
+  else raiz.setAttribute('data-tema', tema)
+
+  const oscuroAhora = tema === 'oscuro' ||
+    (tema === 'sistema' && matchMedia('(prefers-color-scheme: dark)').matches)
+  btTema.classList.toggle('tema-oscuro', oscuroAhora)
+  btTema.title = ROTULO[tema]
+
+  if (redibujar) par.presentacion.dispatch({ effects: refrescarPresentacion.of(null) })
+}
+
+btTema.addEventListener('click', () => {
+  tema = TEMAS[(TEMAS.indexOf(tema) + 1) % TEMAS.length]
+  try { localStorage.setItem('markflow.tema', tema) } catch { /* da igual */ }
+  aplicarTema()
+})
+
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => aplicarTema())
+
+// Se pinta el tema antes de construir el editor para que no haya destello.
+aplicarTema(false)
 
 // --- estado del documento ----------------------------------------------------
 
@@ -32,10 +87,11 @@ let guardando = false
  * quedaba escrita en disco sin que nadie lo pidiera. Ahora se guarda con el
  * boton o con Ctrl+S, y al cerrar con cambios el programa pregunta.
  */
-function pintar(mensaje?: string) {
+function pintar(mensaje?: string, fallo = false) {
   elNombre.textContent = nombre + (soloLectura ? '  (solo lectura)' : '')
   btGuardar.disabled = !sucio || soloLectura || guardando
   document.title = (sucio ? '• ' : '') + (ruta ? `${nombre} — MarkFlow` : 'MarkFlow')
+  elEstado.classList.toggle('fallo', fallo)
   if (mensaje !== undefined) { elEstado.textContent = mensaje; return }
   elEstado.textContent = guardando ? 'Guardando…'
     : soloLectura ? 'Solo lectura'
@@ -67,25 +123,69 @@ async function guardar(): Promise<boolean> {
   try {
     await escribir(ruta, par.texto(), finDeLinea)
     sucio = false
+    guardando = false
     pintar()
     return true
   } catch (e) {
-    pintar(String(e))
-    return false
-  } finally {
     guardando = false
-    if (!sucio) pintar()
+    pintar('No se guardó', true)
+    // Un guardado fallido NO puede pasar desapercibido: si sólo se avisa con
+    // texto chico en la barra, el usuario cree que su trabajo esta a salvo.
+    // Paso de verdad el 2026-09-16 con el Acceso controlado a carpetas de
+    // Windows, que bloqueo la escritura sin que el programa lo gritara.
+    await avisar(
+      'No se pudo guardar',
+      `«${nombre}» sigue con los cambios sin guardar. El texto no se ha perdido: ` +
+      'está en la ventana. Guárdalo en otra carpeta o resuelve lo de abajo y ' +
+      'vuelve a intentarlo.',
+      String(e),
+    )
+    return false
   }
 }
 
-// --- el dialogo de cambios sin guardar ---------------------------------------
+// --- dialogo -----------------------------------------------------------------
 
 type Salida = 'guardar' | 'descartar' | 'cancelar'
 
-function preguntarQueHacer(): Promise<Salida> {
-  $('dlg-texto').textContent =
-    `«${nombre}» tiene cambios que no se han guardado.`
+function mostrarDialogo(titulo: string, texto: string, detalle?: string) {
+  $('dlg-titulo').textContent = titulo
+  $('dlg-texto').textContent = texto
+  const d = $('dlg-detalle')
+  d.textContent = detalle ?? ''
+  d.hidden = !detalle
   velo.hidden = false
+}
+
+/** Aviso de una sola salida. */
+function avisar(titulo: string, texto: string, detalle?: string): Promise<void> {
+  mostrarDialogo(titulo, texto, detalle)
+  for (const id of ['dlg-guardar', 'dlg-descartar', 'dlg-cancelar']) $(id).hidden = true
+  const aceptar = $('dlg-aceptar')
+  aceptar.hidden = false
+  aceptar.focus()
+
+  return new Promise((resolver) => {
+    const cerrar = () => {
+      velo.hidden = true
+      document.removeEventListener('keydown', porTecla, true)
+      resolver()
+    }
+    const porTecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); cerrar() }
+    }
+    aceptar.onclick = cerrar
+    document.addEventListener('keydown', porTecla, true)
+  })
+}
+
+function preguntarQueHacer(): Promise<Salida> {
+  mostrarDialogo(
+    'Hay cambios sin guardar',
+    `«${nombre}» tiene cambios que no se han guardado.`,
+  )
+  for (const id of ['dlg-guardar', 'dlg-descartar', 'dlg-cancelar']) $(id).hidden = false
+  $('dlg-aceptar').hidden = true
   $<HTMLButtonElement>('dlg-guardar').focus()
 
   return new Promise((resolver) => {
@@ -131,7 +231,8 @@ async function abrir(destino: string) {
     pintar()
     par.enfocar()
   } catch (e) {
-    pintar(String(e))
+    pintar('No se abrió', true)
+    await avisar('No se pudo abrir el archivo', 'MarkFlow no pudo leerlo.', String(e))
   }
 }
 

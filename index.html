@@ -20,14 +20,41 @@
       <span class="separador"></span>
 
       <div class="grupo" role="group" aria-label="Paneles">
-        <button id="v-fuente" class="boton" title="Solo el markdown">Fuente</button>
-        <button id="v-ambos" class="boton activo" title="Los dos paneles">Ambos</button>
-        <button id="v-presentacion" class="boton" title="Solo el texto formateado">Vista</button>
+        <button id="v-fuente" class="boton" title="Sólo el markdown">
+          <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M6 3.2 2.4 8 6 12.8M10 3.2 13.6 8 10 12.8" />
+          </svg>
+          <span>Fuente</span>
+        </button>
+        <button id="v-ambos" class="boton activo" title="Los dos paneles">
+          <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6" />
+            <path d="M8 2.8 L8 13.2" />
+          </svg>
+          <span>Ambos</span>
+        </button>
+        <button id="v-presentacion" class="boton" title="Sólo el texto formateado">
+          <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M1.4 8s2.4-4.3 6.6-4.3S14.6 8 14.6 8s-2.4 4.3-6.6 4.3S1.4 8 1.4 8Z" />
+            <circle cx="8" cy="8" r="1.9" />
+          </svg>
+          <span>Vista</span>
+        </button>
       </div>
 
       <div class="relleno"></div>
       <span id="nombre" class="nombre">Sin archivo</span>
       <span id="estado" class="estado"></span>
+
+      <button id="tema" class="boton icono" title="Tema: sigue a Windows" aria-label="Cambiar tema">
+        <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+          <circle id="tema-disco" cx="8" cy="8" r="3.4" />
+          <g id="tema-rayos">
+            <path d="M8 .9V2.4M8 13.6v1.5M2.9 2.9 4 4M12 12l1.1 1.1M.9 8h1.5M13.6 8h1.5M2.9 13.1 4 12M12 4l1.1-1.1" />
+          </g>
+          <path id="tema-luna" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8Z" />
+        </svg>
+      </button>
     </header>
 
     <main id="paneles" class="paneles modo-ambos">
@@ -42,10 +69,12 @@
       <div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="dlg-titulo">
         <h2 id="dlg-titulo">Hay cambios sin guardar</h2>
         <p id="dlg-texto"></p>
+        <p id="dlg-detalle" class="detalle" hidden></p>
         <div class="dialogo-botones">
           <button id="dlg-guardar" class="boton primario">Guardar y salir</button>
           <button id="dlg-descartar" class="boton">Salir sin guardar</button>
           <button id="dlg-cancelar" class="boton">Cancelar</button>
+          <button id="dlg-aceptar" class="boton primario" hidden>Entendido</button>
         </div>
       </div>
     </div>

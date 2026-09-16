@@ -12,3 +12,11 @@ export const fijarCarpeta = (ruta: string | null) => {
 }
 
 export const carpetaActual = () => carpeta
+
+/** ¿Estamos en oscuro ahora mismo? Manda `data-tema`; si no, lo dice Windows. */
+export function esOscuro(): boolean {
+  const forzado = document.documentElement.getAttribute('data-tema')
+  if (forzado === 'oscuro') return true
+  if (forzado === 'claro') return false
+  return matchMedia('(prefers-color-scheme: dark)').matches
+}

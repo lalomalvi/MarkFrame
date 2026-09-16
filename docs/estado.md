@@ -28,9 +28,16 @@ mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md)
   **casillas de tarea** que se pican. El frontmatter YAML sale como metadatos.
 - **Guardado explícito**: botón *Guardar*, Ctrl+S, punto en el título cuando hay
   cambios, y diálogo al cerrar o al abrir otro archivo con cambios pendientes.
+  **Si un guardado falla, sale un diálogo**, no un texto chico en la barra.
 - Deshacer y rehacer con botones y con Ctrl+Z / Ctrl+Y.
-- Tema claro/oscuro siguiendo a Windows. Arrastrar y soltar. Arranque con el
-  archivo como argumento.
+- **Tema claro / oscuro / sistema**, con botón que cicla los tres y recuerda la
+  elección. Los diagramas de Mermaid se redibujan con el tema.
+- Arrastrar y soltar. Arranque con el archivo como argumento.
+
+### Paleta
+
+Sale del icono del programa: tinta `#20232a` / `#191c23` y azul de `#0061f5` a
+`#12a2fc`. El acento fue ámbar hasta el 2026-09-16.
 
 ### Números medidos, no supuestos
 
@@ -69,6 +76,8 @@ abren todos, el mayor en 122 ms, y **ninguno cambia un byte** (SHA-256).
   prohibido. Si se quiere, va como pieza aparte y muy probada.
 - **Scroll sincronizado** entre los dos paneles. No se pidió; se nota al usarlo.
 - **Tamaño de letra ajustable.** Zettlr estaba en 18 px; MarkFlow usa 15.5 px.
+- **El icono definitivo.** El que hay es el monograma provisional; Lalo está
+  afinando el suyo.
 
 ---
 
@@ -93,3 +102,12 @@ las historias.
 **Un nodo sólo cuenta como tapado si cabe entero en el bloque.** Comparar sólo su
 inicio daba por tapado al nodo raíz del documento y cortaba el recorrido del
 árbol desde la raíz.
+
+**Para reconstruir las decoraciones, usa `refrescarPresentacion`, no un dispatch
+de selección.** Despachar la selección para forzar el redibujado hace que los
+bloques dibujados —la tabla, sobre todo— se crean con el cursor encima y vuelvan
+a texto crudo.
+
+**Acceso controlado a carpetas.** Defender puede bloquear la escritura en las
+carpetas de Documentos. No es un fallo del programa; la app tiene que estar en
+la lista de permitidas, y eso lo hace Lalo desde Seguridad de Windows.

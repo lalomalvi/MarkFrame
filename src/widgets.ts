@@ -213,26 +213,22 @@ let contador = 0
 
 function cargarMermaid() {
   if (!mermaidListo) {
-    mermaidListo = import('mermaid').then((m) => {
-      const oscuro = matchMedia('(prefers-color-scheme: dark)').matches
-      m.default.initialize({
-        startOnLoad: false,
-        theme: oscuro ? 'dark' : 'default',
-        securityLevel: 'strict',
-        fontFamily: 'Segoe UI Variable Text, Segoe UI, system-ui, sans-serif',
-      })
-      return m.default
-    })
+    mermaidListo = import('mermaid').then((m) => m.default)
   }
   return mermaidListo
 }
 
 export class WidgetMermaid extends WidgetType {
-  constructor(readonly codigo: string, readonly pos: number) {
+  /**
+   * `oscuro` viaja dentro del widget para que `eq` lo tenga en cuenta: al
+   * cambiar de tema, el diagrama deja de ser igual y CodeMirror lo redibuja.
+   * Sin eso, los diagramas se quedaban en el tema con el que nacieron.
+   */
+  constructor(readonly codigo: string, readonly pos: number, readonly oscuro: boolean) {
     super()
   }
   eq(otro: WidgetMermaid) {
-    return otro.codigo === this.codigo
+    return otro.codigo === this.codigo && otro.oscuro === this.oscuro
   }
 
   toDOM(vista: EditorView) {
@@ -241,7 +237,15 @@ export class WidgetMermaid extends WidgetType {
     caja.textContent = 'Dibujando el diagrama…'
 
     cargarMermaid()
-      .then((mermaid) => mermaid.render('mf-diagrama-' + contador++, this.codigo))
+      .then((mermaid) => {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: this.oscuro ? 'dark' : 'default',
+          securityLevel: 'strict',
+          fontFamily: 'Segoe UI Variable Text, Segoe UI, system-ui, sans-serif',
+        })
+        return mermaid.render('mf-diagrama-' + contador++, this.codigo)
+      })
       .then(({ svg }: { svg: string }) => {
         caja.innerHTML = svg
       })
