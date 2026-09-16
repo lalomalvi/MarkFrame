@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Material del relevo de Zettlr: vive en el disco de Lalo, no en el repo.
+# Lleva volcados del registro y su configuracion personal.
+migracion-zettlr/
