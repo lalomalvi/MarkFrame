@@ -12,7 +12,9 @@ const cajaPresentacion = $('caja-presentacion')
 const paneles = $('paneles')
 const elNombre = $('nombre')
 const elEstado = $('estado')
+const btGuardar = $<HTMLButtonElement>('guardar')
 const zonaSoltar = $('soltar')
+const velo = $('velo')
 
 // --- estado del documento ----------------------------------------------------
 
@@ -22,33 +24,43 @@ let finDeLinea: FinDeLinea = 'lf'
 let soloLectura = false
 let sucio = false
 let guardando = false
-let temporizador: number | undefined
 
-const RETARDO_AUTOGUARDADO = 1000
-
+/**
+ * El guardado es EXPLICITO a proposito.
+ *
+ * Hubo autoguardado hasta el 2026-09-16 y Lalo lo quito: una tecla accidental
+ * quedaba escrita en disco sin que nadie lo pidiera. Ahora se guarda con el
+ * boton o con Ctrl+S, y al cerrar con cambios el programa pregunta.
+ */
 function pintar(mensaje?: string) {
   elNombre.textContent = nombre + (soloLectura ? '  (solo lectura)' : '')
+  btGuardar.disabled = !sucio || soloLectura || guardando
+  document.title = (sucio ? '• ' : '') + (ruta ? `${nombre} — MarkFlow` : 'MarkFlow')
   if (mensaje !== undefined) { elEstado.textContent = mensaje; return }
-  elEstado.textContent = guardando ? 'Guardando…' : sucio ? 'Sin guardar' : ruta ? 'Guardado' : ''
+  elEstado.textContent = guardando ? 'Guardando…'
+    : soloLectura ? 'Solo lectura'
+    : sucio ? 'Sin guardar'
+    : ruta ? 'Guardado' : ''
 }
 
-/** Autoguardado: al dejar de escribir y al perder el foco la ventana. */
 function alEditar() {
+  if (sucio) return
   sucio = true
   pintar()
-  window.clearTimeout(temporizador)
-  temporizador = window.setTimeout(guardar, RETARDO_AUTOGUARDADO)
 }
 
 const par: Par = crearPar(cajaFuente, cajaPresentacion, '', alEditar)
 
-async function guardar() {
-  if (!sucio || guardando || soloLectura) return
+/** Devuelve true si el documento quedo a salvo en disco. */
+async function guardar(): Promise<boolean> {
+  if (guardando || soloLectura) return false
+  if (!sucio) return true
   if (!ruta) {
     const destino = await pedirDestino(nombre.endsWith('.md') ? nombre : 'sin-titulo.md')
-    if (!destino) return
+    if (!destino) return false
     ruta = destino
     nombre = destino.split(/[\\/]/).pop() ?? destino
+    fijarCarpeta(destino)
   }
   guardando = true
   pintar()
@@ -56,27 +68,66 @@ async function guardar() {
     await escribir(ruta, par.texto(), finDeLinea)
     sucio = false
     pintar()
+    return true
   } catch (e) {
     pintar(String(e))
+    return false
   } finally {
     guardando = false
+    if (!sucio) pintar()
   }
 }
 
+// --- el dialogo de cambios sin guardar ---------------------------------------
+
+type Salida = 'guardar' | 'descartar' | 'cancelar'
+
+function preguntarQueHacer(): Promise<Salida> {
+  $('dlg-texto').textContent =
+    `«${nombre}» tiene cambios que no se han guardado.`
+  velo.hidden = false
+  $<HTMLButtonElement>('dlg-guardar').focus()
+
+  return new Promise((resolver) => {
+    const responder = (r: Salida) => {
+      velo.hidden = true
+      document.removeEventListener('keydown', porTecla, true)
+      resolver(r)
+    }
+    const porTecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); responder('cancelar') }
+    }
+    $('dlg-guardar').onclick = () => responder('guardar')
+    $('dlg-descartar').onclick = () => responder('descartar')
+    $('dlg-cancelar').onclick = () => responder('cancelar')
+    document.addEventListener('keydown', porTecla, true)
+  })
+}
+
+/** true = se puede continuar (cerrar o abrir otro archivo). */
+async function permisoParaDescartar(): Promise<boolean> {
+  if (!sucio || soloLectura) return true
+  const r = await preguntarQueHacer()
+  if (r === 'cancelar') return false
+  if (r === 'descartar') return true
+  return await guardar()
+}
+
+// --- abrir -------------------------------------------------------------------
+
 async function abrir(destino: string) {
+  if (!(await permisoParaDescartar())) return
   try {
     const doc = await leer(destino)
-    window.clearTimeout(temporizador)
     ruta = doc.ruta
     nombre = doc.nombre
-    // Antes de cargar el texto: las imagenes relativas se resuelven contra esta
-    // carpeta en cuanto el panel de presentacion las dibuje.
-    fijarCarpeta(doc.ruta)
     finDeLinea = doc.fin_de_linea
     soloLectura = doc.solo_lectura
     sucio = false
+    // Antes de cargar el texto: las imagenes relativas se resuelven contra esta
+    // carpeta en cuanto el panel de presentacion las dibuje.
+    fijarCarpeta(doc.ruta)
     par.cargar(doc.texto)
-    document.title = `${doc.nombre} — MarkFlow`
     pintar()
     par.enfocar()
   } catch (e) {
@@ -92,6 +143,7 @@ async function elegirYAbrir() {
 // --- barra -------------------------------------------------------------------
 
 $('abrir').addEventListener('click', elegirYAbrir)
+btGuardar.addEventListener('click', () => { guardar().then(() => par.enfocar()) })
 $('deshacer').addEventListener('click', () => { par.deshacer(); par.enfocar() })
 $('rehacer').addEventListener('click', () => { par.rehacer(); par.enfocar() })
 
@@ -116,10 +168,15 @@ window.addEventListener('keydown', (e) => {
   else if (k === 's') { e.preventDefault(); guardar() }
 })
 
-// Guardar al perder el foco la ventana: si te vas a otro programa, ya quedo.
-window.addEventListener('blur', () => { if (sucio) guardar() })
-
-getCurrentWindow().onCloseRequested(async () => { if (sucio) await guardar() })
+getCurrentWindow().onCloseRequested(async (ev) => {
+  if (sucio && !soloLectura) {
+    ev.preventDefault()
+    if (await permisoParaDescartar()) {
+      // `destroy` cierra sin volver a disparar este evento.
+      await getCurrentWindow().destroy()
+    }
+  }
+})
 
 // --- arrastrar y soltar un .md sobre la ventana ------------------------------
 

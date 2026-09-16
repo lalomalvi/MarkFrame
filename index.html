@@ -10,6 +10,7 @@
   <body>
     <header class="barra">
       <button id="abrir" class="boton" title="Abrir un archivo (Ctrl+O)">Abrir</button>
+      <button id="guardar" class="boton" title="Guardar (Ctrl+S)" disabled>Guardar</button>
 
       <span class="separador"></span>
 
@@ -36,5 +37,17 @@
     </main>
 
     <div id="soltar" class="soltar" hidden><span>Suelta el archivo para abrirlo</span></div>
+
+    <div id="velo" class="velo" hidden>
+      <div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="dlg-titulo">
+        <h2 id="dlg-titulo">Hay cambios sin guardar</h2>
+        <p id="dlg-texto"></p>
+        <div class="dialogo-botones">
+          <button id="dlg-guardar" class="boton primario">Guardar y salir</button>
+          <button id="dlg-descartar" class="boton">Salir sin guardar</button>
+          <button id="dlg-cancelar" class="boton">Cancelar</button>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

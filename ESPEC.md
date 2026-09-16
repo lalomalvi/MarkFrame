@@ -26,7 +26,7 @@ uno del proyecto más ordenado.
 1. **Velocidad de apertura.** Es el criterio que gana cualquier empate.
 2. **Edición sin fricción.**
 3. **Visualización fiel.**
-4. **Autoguardado** y **deshacer / rehacer**.
+4. **Guardado explícito** y **deshacer / rehacer**.
 
 ---
 
@@ -80,8 +80,18 @@ su función. La decisión es consciente y consta aquí.
 
 ## 3. Comportamiento fijado
 
-- **Autoguardado:** al dejar de escribir (~1 s) y al perder el foco la ventana.
-  Sin botón de guardar.
+- **Guardado explícito.** Botón *Guardar* en la barra, o Ctrl+S. El botón está
+  apagado mientras no haya cambios, y el título de la ventana lleva un punto
+  cuando los hay.
+- **Al cerrar con cambios, el programa pregunta**: *Guardar y salir*, *Salir sin
+  guardar*, *Cancelar*.
+
+> **Hubo autoguardado, y se quitó el 2026-09-16.** La v1 guardaba sola un
+> segundo después de teclear. Ese mismo día, durante una prueba automatizada,
+> una pulsación accidental cayó en la ventana y quedó escrita en un archivo real
+> —una transcripción de la NTC de concreto— sin que nadie lo pidiera. Se reparó,
+> pero el episodio mostró el problema: **con autoguardado, un roce del teclado
+> es indistinguible de una decisión.** Decisión de Lalo: guardado a botón.
 - **Deshacer / rehacer:** botones en la barra **y** Ctrl+Z / Ctrl+Y.
 - **Tema:** sigue el tema claro/oscuro de Windows.
 - **Asociación `.md`:** la registra **el instalador**, bajo doble clic del usuario,

@@ -43,7 +43,7 @@ título puesto**. Cinco intentos seguidos.
 | Dos paneles, ambos editables | ✅ |
 | Edición *inside*: marcadores que se ocultan y vuelven con el cursor | ✅ |
 | Abrir y guardar en cualquier ruta, sin bóvedas | ✅ |
-| Autoguardado (1 s tras teclear, y al perder foco) | ✅ |
+| Guardado explícito: botón, Ctrl+S, y pregunta al cerrar | ✅ 2026-09-16 |
 | Deshacer / rehacer, botones y Ctrl+Z / Ctrl+Y | ✅ |
 | Alternar paneles: Fuente · Ambos · Vista | ✅ |
 | Tema claro/oscuro siguiendo a Windows | ✅ |
@@ -173,6 +173,24 @@ pulsación cayó en la ventana de MarkFlow y el autoguardado la persistió.
 
 **Regla que queda:** ninguna prueba de MarkFlow toca archivos reales. Se copian
 al scratchpad y se prueba ahí.
+
+## Cambio de criterio: fuera el autoguardado — 2026-09-16
+
+A raíz del incidente, Lalo lo quitó. Ahora:
+
+- Botón **Guardar** en la barra, apagado mientras no haya cambios, más Ctrl+S.
+- Un punto en el título de la ventana cuando hay cambios sin guardar.
+- Al cerrar con cambios, diálogo propio: *Guardar y salir* · *Salir sin guardar*
+  · *Cancelar*. También al abrir otro archivo con cambios pendientes.
+
+Verificado sobre copia, los cuatro pasos:
+
+```
+1. escribir y esperar 4 s  -> NO guardo solo
+2. Ctrl+S                  -> guardo
+3. cerrar con cambios      -> saco el dialogo, no escribio
+4. Guardar y salir         -> guardo y cerro
+```
 
 ## Lo que sigue
 

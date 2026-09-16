@@ -43,7 +43,9 @@ reporte. Los tiempos de arranque se **miden** y se anotan con su número.
 prueba ahí. El 2026-09-16 una prueba sobre los originales le metió una letra al
 frontmatter de una transcripción de la NTC: se automatizó la interfaz, una
 pulsación cayó en la ventana y el autoguardado la escribió a disco. El programa
-hizo lo que se le pidió; el método estaba mal.
+hizo lo que se le pidió; el método estaba mal. De ahí salió también la decisión
+de quitar el autoguardado —— **el guardado es explícito, no lo vuelvas a
+automatizar** sin que Lalo lo pida.
 
 ## Registro de Windows
 
