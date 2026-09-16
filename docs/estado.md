@@ -1,221 +1,95 @@
 # Estado vigente
 
-**Última actualización: 2026-09-16**
+**Última actualización: 2026-09-16.** MarkFlow v0.1.0, las cuatro etapas cerradas.
 
-## Dónde vamos
+Esto es **estado**, no bitácora. El relato de cómo se llegó aquí está en los
+mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md).
 
-**Etapa 1 — cimientos.** ✅ Terminada el 2026-09-16.
+---
 
-| Pieza | Estado |
+## Qué hay hoy
+
+| | |
 |---|---|
-| Cadena de Rust | ✅ rustup 1.29.1, rustc 1.98.1, toolchain `stable-x86_64-pc-windows-msvc` |
-| Enlazador MSVC | ✅ verificado compilando y enlazando un binario de prueba |
-| WebView2 Runtime | ✅ ya venía en la máquina, v153.0.4234.32 |
-| Repo | ✅ local, rama `main`, sin remoto por decisión del 2026-09-16 |
-| Esqueleto de Tauri 2 | ✅ plantilla `vanilla-ts` con Vite 8 y TypeScript 6 |
-| Identidad en la config | ✅ `MarkFlow`, `com.lalomalvi.markflow`, ventana 1200×800 |
-| Primera compilación release | ✅ `MarkFlow.exe`, **4.02 MB** |
-| Instaladores | ✅ `.msi` 1.91 MB y `.exe` (NSIS) 1.29 MB |
-| Ventana nativa que abre | ✅ verificado: abre, título `MarkFlow`, se cierra limpio |
+| Repo | `lalomalvi/MarkFlow`, privado. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
+| Ejecutable | `MarkFlow.exe`, ~7 MB |
+| Instalador | `MarkFlow_0.1.0_x64-setup.exe`, 4.08 MB, NSIS, **sin UAC** |
+| Cadena | Rust 1.98.1 (MSVC), Node 22, Tauri 2, Vite 8, TypeScript 6 |
+| WebView2 | ya venía en la máquina, v153 |
 
-Etapas 2, 3 y 4: sin empezar. Ver [ESPEC.md](../ESPEC.md) §4.
+### Lo que el programa hace
 
-## Arranque medido — 2026-09-16
+- Abre cualquier `.md` de cualquier carpeta. **Sin bóvedas**, sin registrar nada.
+- Dos paneles lado a lado, los dos editables, con edición *inside*. Se puede
+  dejar sólo uno: *Fuente* · *Ambos* · *Vista*.
+- Dibuja en el panel de presentación: **tablas** (con alineaciones), **Mermaid**,
+  **KaTeX** en línea y en bloque, **imágenes** locales y remotas, **avisos**
+  (`[!NOTA]`, `[!AVISO]`, `[!PELIGRO]`, `[!TIP]`, `[!EJEMPLO]`, `[!CITA]`) y
+  **casillas de tarea** que se pican. El frontmatter YAML sale como metadatos.
+- **Guardado explícito**: botón *Guardar*, Ctrl+S, punto en el título cuando hay
+  cambios, y diálogo al cerrar o al abrir otro archivo con cambios pendientes.
+- Deshacer y rehacer con botones y con Ctrl+Z / Ctrl+Y.
+- Tema claro/oscuro siguiendo a Windows. Arrastrar y soltar. Arranque con el
+  archivo como argumento.
 
-Criterio: desde lanzar el proceso hasta que la ventana existe **y ya tiene su
-título puesto**. Cinco intentos seguidos.
+### Números medidos, no supuestos
 
-| | ms |
+| | |
 |---|---|
-| Primerísimo arranque, en frío | 1215 |
-| Mediana de 5 | **111** |
-| Mínimo / máximo | 96 / 329 |
+| Arranque, `.md` sencillo | **110 ms** (mediana de 5) |
+| Arranque, con diagrama y fórmulas | **92 ms** |
+| Línea base del esqueleto vacío | 111 ms |
+| Bundle de entrada | 279 KB — Mermaid y KaTeX cargan aparte, bajo demanda |
+| Pruebas del núcleo | **10 de 10** (`cargo test --lib`) |
 
-> **Cuidado al comparar después.** Este número es del esqueleto vacío: la ventana
-> todavía muestra la plantilla de Tauri, sin CodeMirror ni pipeline de markdown.
-> Es la **línea base**, no el número final. Volver a medir al cerrar la etapa 2 y
-> anotar cuánto costó el editor.
+El criterio de la medición llega hasta que la ventana existe con su título; los
+diagramas se dibujan un instante después.
 
-## Etapa 2 — ✅ terminada el 2026-09-16
+**Prueba de aceptación:** los cinco archivos que quedaron abiertos en Zettlr
+—acentos, tildes en mayúsculas, paréntesis, espacios, uno en `D:`, uno de 83 KB—
+abren todos, el mayor en 122 ms, y **ninguno cambia un byte** (SHA-256).
 
-| Pieza | Estado |
-|---|---|
-| Dos paneles, ambos editables | ✅ |
-| Edición *inside*: marcadores que se ocultan y vuelven con el cursor | ✅ |
-| Abrir y guardar en cualquier ruta, sin bóvedas | ✅ |
-| Guardado explícito: botón, Ctrl+S, y pregunta al cerrar | ✅ 2026-09-16 |
-| Deshacer / rehacer, botones y Ctrl+Z / Ctrl+Y | ✅ |
-| Alternar paneles: Fuente · Ambos · Vista | ✅ |
-| Tema claro/oscuro siguiendo a Windows | ✅ |
-| Arrastrar y soltar un `.md` sobre la ventana | ✅ |
-| Arranque con un `.md` como argumento | ✅ |
-
-### Verificado de punta a punta
-
-Escribir en el panel de **presentación** → autoguardado → revisar el disco:
-
-```
-ANTES      bytes=662 CR=32
-DESPUES    bytes=702 CR=34   marca presente, CRLF=34, LF sueltos=0
-TRAS UNDO  bytes=662 CR=32   vuelta al original byte por byte
-```
-
-7 de 7 pruebas del núcleo pasan (`cargo test --lib`): ida y vuelta sin alterar
-bytes, CRLF y LF detectados, BOM descartado, UTF-8 inválido rechazado en vez de
-corromper, sin temporales regados, y escritura fuera de toda carpeta de proyecto.
-
-### Arranque, medido otra vez
-
-| | Línea base (etapa 1) | Con el editor completo |
-|---|---|---|
-| Mediana de 5 | 111 ms | **111 ms** |
-| Mínimo | 96 ms | 96 ms |
-
-El editor no le costó nada medible a la aparición de la ventana. Ojo con el
-matiz: el criterio mide hasta que la ventana existe con su título, que ocurre
-un instante antes de que CodeMirror termine de pintar el documento.
-
-### El fallo que hubo que arreglar
-
-**Ctrl+Z no deshacía.** El `historyKeymap` de CodeMirror ejecuta el undo sólo en
-la vista enfocada, y con dos vistas eso deja las historias desfasadas: el panel
-donde escribiste deshace y el otro no, así que al archivo no llegaba nada. Se
-sacó ese keymap y los atajos se enrutan a las dos vistas a la vez. Está anotado
-en `src/editor.ts` para que nadie lo "simplifique" de vuelta.
-
-## Etapa 3 — ✅ terminada el 2026-09-16
-
-Seis cosas que el panel de presentación ahora dibuja, todas con el mismo
-mecanismo: un widget que tapa el texto y **desaparece en cuanto el cursor entra**.
-
-| | Estado |
-|---|---|
-| Tablas, con alineaciones `:---` `---:` `:---:` | ✅ negrita, código y enlaces dentro de las celdas |
-| Diagramas Mermaid | ✅ tema claro/oscuro según Windows |
-| Fórmulas KaTeX, en línea y en bloque | ✅ |
-| Imágenes locales y remotas | ✅ las lee el núcleo, con caché y tope de 25 MB |
-| Avisos `[!NOTA]` `[!AVISO]` `[!PELIGRO]` | ✅ también `tip`, `ejemplo`, `cita` |
-| Casillas de tarea | ✅ se pican con el ratón y editan el documento |
-
-### Arranque: Mermaid no lo tocó
-
-| | Mediana de 5 |
-|---|---|
-| Línea base (esqueleto vacío) | 111 ms |
-| Etapa 2 (editor completo) | 111 ms |
-| `.md` sencillo | **110 ms** |
-| `.md` con diagrama y fórmulas | **92 ms** |
-
-Mermaid y sus dependencias pesan 2.4 MB pero viven en trozos aparte: el bundle
-de entrada sigue en 279 KB y sólo se descargan si el documento trae un diagrama.
-Matiz: la medición llega hasta que la ventana existe con su título; el diagrama
-se dibuja un instante después.
-
-### Dos fallos que costaron la etapa
-
-**Barras invertidas comidas por heredoc.** Tres sitios quedaron rotos al escribir
-archivos con `cat > x <<EOF`: `[\\/]` quedó en `[\/]` y `r"\\?\"` en `r"\?\"`.
-Compilaba, pasaba tipos y pruebas, y las imágenes no aparecían. Está anotado en
-`CLAUDE.md` como regla del proyecto y hay una prueba que fija el prefijo.
-
-**La arquitectura del módulo de presentación cambió.** CodeMirror prohíbe que un
-plugin de vista genere decoraciones que se traguen saltos de línea, y una tabla o
-un diagrama hacen eso. Ahora es un `StateField`. El precio: recorre el documento
-entero en vez de sólo lo visible. Si algún día un `.md` enorme va lento, es ahí.
-
-## Etapa 4 — ✅ terminada el 2026-09-16
-
-| Pieza | Estado |
-|---|---|
-| Instalador | ✅ `MarkFlow_0.1.0_x64-setup.exe`, 4.08 MB |
-| Sin permisos de administrador | ✅ `installMode: currentUser`, sin UAC |
-| Se desinstala desde Windows | ✅ y quita sus asociaciones al irse |
-| ProgId propio | ✅ `MarkFlow.nota` — **no** se llama `Markdown`, que es el de Zettlr |
-| Extensiones registradas | ✅ `.md`, `.markdown`, `.mdown`, `.mkd` |
-| Arranque con el archivo como argumento | ✅ |
-| Frontmatter YAML como metadatos, no como título | ✅ |
-
-Se dejó de generar el `.msi`: WiX instala para toda la máquina y pide
-administrador. Un solo instalador, y sin UAC.
-
-### Prueba de aceptación — los cinco archivos de Zettlr
-
-Los cinco que quedaron abiertos en Zettlr (ver el documento de migración):
-rutas con acentos, tildes en mayúsculas, paréntesis, espacios y una en `D:`.
-
-```
-1.  CLAUDE.md                          1335 ms (en frio)   intacto
-2.  NOTA.md            (unidad D:)      317 ms             intacto
-3.  1.1100-Diagrama-Balance-Obra.md     138 ms             intacto
-4.  03_Criterios-Analisis-Diseno.md     122 ms             intacto   83 KB
-5.  12_Diaphragms.md                    123 ms             intacto
-```
-
-Integridad comprobada con SHA-256 antes y después. El de 83 KB abriendo en
-122 ms confirma que el `StateField` no penaliza a esta escala.
-
-### Lo que falta, y no lo puede hacer el instalador
-
-Windows 11 protege la asociación efectiva con un `UserChoice` firmado por hash.
-Zettlr la tiene tomada hoy. **Ningún instalador puede arrebatarla**, y el
-registro no se toca a mano. El relevo exige que Lalo lo haga desde Windows:
-clic derecho en un `.md` → *Abrir con* → *Elegir otra aplicación* → MarkFlow →
-**Usar siempre**.
-
-### Incidente del 2026-09-16 — un archivo real alterado
-
-Durante la prueba, `03_Criterios-Analisis-Diseno.md` quedó con una letra `a`
-delante del frontmatter. **Reparado y verificado**; los otros cuatro, intactos.
-
-La causa fue el método de prueba, no el programa: se abrieron los **originales**
-en vez de copias, mientras se automatizaba la interfaz con ratón y teclado. Una
-pulsación cayó en la ventana de MarkFlow y el autoguardado la persistió.
-
-**Regla que queda:** ninguna prueba de MarkFlow toca archivos reales. Se copian
-al scratchpad y se prueba ahí.
-
-## Cambio de criterio: fuera el autoguardado — 2026-09-16
-
-A raíz del incidente, Lalo lo quitó. Ahora:
-
-- Botón **Guardar** en la barra, apagado mientras no haya cambios, más Ctrl+S.
-- Un punto en el título de la ventana cuando hay cambios sin guardar.
-- Al cerrar con cambios, diálogo propio: *Guardar y salir* · *Salir sin guardar*
-  · *Cancelar*. También al abrir otro archivo con cambios pendientes.
-
-Verificado sobre copia, los cuatro pasos:
-
-```
-1. escribir y esperar 4 s  -> NO guardo solo
-2. Ctrl+S                  -> guardo
-3. cerrar con cambios      -> saco el dialogo, no escribio
-4. Guardar y salir         -> guardo y cerro
-```
+---
 
 ## Lo que sigue
 
-- **Instalar** con `MarkFlow_0.1.0_x64-setup.exe` y tomar la asociación a mano.
-- Luego la **fase C** de la migración: desinstalar Zettlr (650 MB).
+1. **Instalar** con `MarkFlow_0.1.0_x64-setup.exe`.
+2. **Tomar la asociación a mano**, porque ningún instalador puede: clic derecho
+   en un `.md` → *Abrir con* → *Elegir otra aplicación* → MarkFlow → *Usar
+   siempre*. Windows 11 protege la asociación efectiva con un `UserChoice`
+   firmado por hash, y hoy la tiene Zettlr.
+3. **Fase C de la migración**: desinstalar Zettlr y recuperar 650 MB. El plan
+   está en `migracion-zettlr/MIGRACION.md` (local, fuera del repo).
 
-## Decisiones tomadas hoy
+## Sin decidir
 
-- **Nombre:** MarkFlow.
-- **Sin bóvedas.** Anula lo propuesto el 2026-08-15 en `notasynodos/ESCRITORIO.md` §4.
-- **Motor:** Tauri, no Electron ni Python.
-- **Repo local, sin GitHub por ahora.**
-- **Proyecto aparte de `notasynodos`**, que no se toca.
+- **Tablas editables desde la presentación.** Hoy se dibujan, y para tocarlas el
+  cursor las devuelve a texto. Editar celda por celda sobre la tabla dibujada
+  exigiría escribir de vuelta al markdown, que es lo que este proyecto tiene
+  prohibido. Si se quiere, va como pieza aparte y muy probada.
+- **Scroll sincronizado** entre los dos paneles. No se pidió; se nota al usarlo.
+- **Tamaño de letra ajustable.** Zettlr estaba en 18 px; MarkFlow usa 15.5 px.
 
-## Pendiente de decidir
+---
 
-- **Tablas editables desde la presentación.** Hoy la tabla se dibuja, y para
-  tocarla hay que meter el cursor, que la devuelve a texto. Editar celda por
-  celda sobre la tabla dibujada exigiría escribir de vuelta al markdown, que es
-  justo lo que este proyecto tiene prohibido. Si se quiere, va como pieza aparte
-  y muy probada.
-- **Scroll sincronizado entre los dos paneles.** No se pidió; se nota al usarlo.
+## Trampas conocidas, para no volver a caer
 
-## Ya decidido
+**No escribas rutas ni regex con heredoc de bash.** Se come una barra invertida
+de cada par, en silencio. Compila, pasa los tipos y las pruebas, y falla en
+ejecución. Detalle en [CLAUDE.md](../CLAUDE.md).
 
-- El icono: monograma **MF** sobre azul tinta, con la barra ámbar. Hecho.
-- Repo en GitHub: `lalomalvi/MarkFlow`, **privado**. Usa HTTPS con el token de
-  `gh` porque la clave SSH no está disponible desde la sesión de trabajo.
+**No pruebes sobre archivos reales de Lalo.** Cópialos al scratchpad. Una prueba
+sobre los originales le metió un carácter a una transcripción de la NTC.
+
+**El módulo de presentación es un `StateField`, no un `ViewPlugin`.** CodeMirror
+prohíbe que un plugin de vista genere decoraciones que se traguen saltos de
+línea, y los widgets de tabla y diagrama hacen justo eso. El precio es recorrer
+el documento entero: si un `.md` enorme va lento, es ahí.
+
+**Deshacer se ejecuta en las dos vistas a la vez**, y por eso no se usa el
+`historyKeymap` de CodeMirror: ése deshace sólo en la vista enfocada y desfasa
+las historias.
+
+**Un nodo sólo cuenta como tapado si cabe entero en el bloque.** Comparar sólo su
+inicio daba por tapado al nodo raíz del documento y cortaba el recorrido del
+árbol desde la raíz.
