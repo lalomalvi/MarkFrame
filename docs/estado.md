@@ -123,10 +123,61 @@ plugin de vista genere decoraciones que se traguen saltos de línea, y una tabla
 un diagrama hacen eso. Ahora es un `StateField`. El precio: recorre el documento
 entero en vez de sólo lo visible. Si algún día un `.md` enorme va lento, es ahí.
 
+## Etapa 4 — ✅ terminada el 2026-09-16
+
+| Pieza | Estado |
+|---|---|
+| Instalador | ✅ `MarkFlow_0.1.0_x64-setup.exe`, 4.08 MB |
+| Sin permisos de administrador | ✅ `installMode: currentUser`, sin UAC |
+| Se desinstala desde Windows | ✅ y quita sus asociaciones al irse |
+| ProgId propio | ✅ `MarkFlow.nota` — **no** se llama `Markdown`, que es el de Zettlr |
+| Extensiones registradas | ✅ `.md`, `.markdown`, `.mdown`, `.mkd` |
+| Arranque con el archivo como argumento | ✅ |
+| Frontmatter YAML como metadatos, no como título | ✅ |
+
+Se dejó de generar el `.msi`: WiX instala para toda la máquina y pide
+administrador. Un solo instalador, y sin UAC.
+
+### Prueba de aceptación — los cinco archivos de Zettlr
+
+Los cinco que quedaron abiertos en Zettlr (ver el documento de migración):
+rutas con acentos, tildes en mayúsculas, paréntesis, espacios y una en `D:`.
+
+```
+1.  CLAUDE.md                          1335 ms (en frio)   intacto
+2.  NOTA.md            (unidad D:)      317 ms             intacto
+3.  1.1100-Diagrama-Balance-Obra.md     138 ms             intacto
+4.  03_Criterios-Analisis-Diseno.md     122 ms             intacto   83 KB
+5.  12_Diaphragms.md                    123 ms             intacto
+```
+
+Integridad comprobada con SHA-256 antes y después. El de 83 KB abriendo en
+122 ms confirma que el `StateField` no penaliza a esta escala.
+
+### Lo que falta, y no lo puede hacer el instalador
+
+Windows 11 protege la asociación efectiva con un `UserChoice` firmado por hash.
+Zettlr la tiene tomada hoy. **Ningún instalador puede arrebatarla**, y el
+registro no se toca a mano. El relevo exige que Lalo lo haga desde Windows:
+clic derecho en un `.md` → *Abrir con* → *Elegir otra aplicación* → MarkFlow →
+**Usar siempre**.
+
+### Incidente del 2026-09-16 — un archivo real alterado
+
+Durante la prueba, `03_Criterios-Analisis-Diseno.md` quedó con una letra `a`
+delante del frontmatter. **Reparado y verificado**; los otros cuatro, intactos.
+
+La causa fue el método de prueba, no el programa: se abrieron los **originales**
+en vez de copias, mientras se automatizaba la interfaz con ratón y teclado. Una
+pulsación cayó en la ventana de MarkFlow y el autoguardado la persistió.
+
+**Regla que queda:** ninguna prueba de MarkFlow toca archivos reales. Se copian
+al scratchpad y se prueba ahí.
+
 ## Lo que sigue
 
-**Etapa 4 — programa terminado.** Instalador, asociación `.md` y arranque con el
-archivo como argumento (esto último ya funciona).
+- **Instalar** con `MarkFlow_0.1.0_x64-setup.exe` y tomar la asociación a mano.
+- Luego la **fase C** de la migración: desinstalar Zettlr (650 MB).
 
 ## Decisiones tomadas hoy
 

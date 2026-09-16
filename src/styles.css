@@ -272,3 +272,15 @@ body { display: flex; flex-direction: column; }
 .mf-aviso-peligro { --aviso-borde: #ef4444; --aviso-fondo: color-mix(in srgb, #ef4444 11%, transparent); }
 .mf-aviso-ejemplo { --aviso-borde: #8b5cf6; --aviso-fondo: color-mix(in srgb, #8b5cf6 10%, transparent); }
 .mf-aviso-cita    { --aviso-borde: var(--tenue); }
+
+/* frontmatter YAML: la cabecera de procedencia, no un titulo */
+.mf-frontmatter {
+  font-family: var(--fuente-mono);
+  font-size: .82em;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--apagado);
+  background: var(--codigo-fondo);
+  border-left: 2px solid var(--borde);
+  padding-left: .7em;
+}

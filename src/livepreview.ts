@@ -91,7 +91,34 @@ function construir(estado: EditorState): DecorationSet {
   const lineasVistas = new Set<string>()
   /** Bloques ya tapados por un widget: dentro no se decora nada mas. */
   const tapados: Array<[number, number]> = []
-  const estaTapado = (p: number) => tapados.some(([a, b]) => p >= a && p < b)
+
+  /**
+   * Un nodo esta tapado solo si cabe ENTERO dentro de un bloque tapado.
+   *
+   * Comparar unicamente su inicio no sirve: el nodo raiz del documento empieza
+   * en 0, asi que un frontmatter que tape desde 0 lo daba por tapado y cortaba
+   * el recorrido del arbol de raiz — el panel de presentacion se quedaba sin
+   * decorar nada. Paso el 2026-09-16.
+   */
+  const estaTapado = (desde: number, hasta = desde) =>
+    tapados.some(([a, b]) => desde >= a && hasta <= b)
+
+  // --- frontmatter YAML -----------------------------------------------------
+  // Sin esto, los `---` que lo cierran hacen que markdown lea la linea de
+  // arriba como titulo subrayado, y la cabecera entera sale en letra enorme.
+  // Los .md de DOCs ocr empiezan todos asi, de modo que se nota siempre.
+  if (doc.lines >= 2 && doc.line(1).text.trim() === '---') {
+    for (let n = 2; n <= doc.lines; n++) {
+      const l = doc.line(n)
+      if (l.text.trim() === '---' || l.text.trim() === '...') {
+        for (let k = 1; k <= n; k++) {
+          marcas.push(Decoration.line({ class: 'mf-frontmatter' }).range(doc.line(k).from))
+        }
+        tapados.push([0, l.to])
+        break
+      }
+    }
+  }
 
   syntaxTree(estado).iterate({
     enter: (nodo) => {
@@ -151,7 +178,7 @@ function construir(estado: EditorState): DecorationSet {
         return false
       }
 
-      if (estaTapado(nodo.from)) return false
+      if (estaTapado(nodo.from, nodo.to)) return false
 
       // --- avisos destacados -------------------------------------------------
 
@@ -220,7 +247,7 @@ function construir(estado: EditorState): DecorationSet {
   for (const m of texto.matchAll(/\$\$([\s\S]+?)\$\$/g)) {
     const desde = m.index!
     const hasta = desde + m[0].length
-    if (enCodigo(desde) || estaTapado(desde) || tocado(desde, hasta)) continue
+    if (enCodigo(desde) || estaTapado(desde, hasta) || tocado(desde, hasta)) continue
     marcas.push(Decoration.replace({
       widget: new WidgetMate(m[1].trim(), true, desde),
       block: true,
@@ -233,7 +260,7 @@ function construir(estado: EditorState): DecorationSet {
   for (const m of texto.matchAll(/\$(?![\s$])((?:[^$\n\\]|\\.)+?)(?<![\s\\])\$/g)) {
     const desde = m.index!
     const hasta = desde + m[0].length
-    if (enCodigo(desde) || estaTapado(desde) || tocado(desde, hasta)) continue
+    if (enCodigo(desde) || estaTapado(desde, hasta) || tocado(desde, hasta)) continue
     marcas.push(Decoration.replace({
       widget: new WidgetMate(m[1], false, desde),
     }).range(desde, hasta))

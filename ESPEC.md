@@ -96,7 +96,7 @@ su función. La decisión es consciente y consta aquí.
 | 1 | Cimientos: cadena de Rust, repo, esqueleto de Tauri, ventana que abre | ✅ 2026-09-16 |
 | 2 | Núcleo: dos vistas sobre un documento, live preview, abrir/guardar en cualquier ruta | ✅ 2026-09-16 |
 | 3 | Widgets: tablas, Mermaid, KaTeX, imágenes, avisos, casillas | ✅ 2026-09-16 |
-| 4 | Programa: instalador, asociación `.md`, arranque con argumento | ⬜ |
+| 4 | Programa: instalador, asociación `.md`, arranque con argumento | ✅ 2026-09-16 |
 
 ## 5. Auxiliares que el panel de presentación dibuja
 

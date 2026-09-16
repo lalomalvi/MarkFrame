@@ -39,6 +39,12 @@ dar nada por bueno.
 Es un programa de escritorio: compila y **ábrelo**. «Debería funcionar» no es
 reporte. Los tiempos de arranque se **miden** y se anotan con su número.
 
+**Y nunca pruebes sobre archivos reales de Lalo.** Cópialos al scratchpad y
+prueba ahí. El 2026-09-16 una prueba sobre los originales le metió una letra al
+frontmatter de una transcripción de la NTC: se automatizó la interfaz, una
+pulsación cayó en la ventana y el autoguardado la escribió a disco. El programa
+hizo lo que se le pidió; el método estaba mal.
+
 ## Registro de Windows
 
 El instalador registra la asociación `.md`. **No se edita el registro a mano**,

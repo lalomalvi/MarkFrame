@@ -33,13 +33,43 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown",
+          "mdown",
+          "mkd"
+        ],
+        "name": "MarkFlow.nota",
+        "description": "Nota Markdown",
+        "mimeType": "text/markdown",
+        "role": "Editor"
+      }
+    ],
+    "publisher": "Luis Eduardo Martinez Villasenor",
+    "copyright": "Uso personal",
+    "shortDescription": "Editor y lector de Markdown",
+    "longDescription": "Abre cualquier archivo .md de cualquier carpeta y lo edita. Dos paneles, autoguardado, tablas, diagramas y formulas.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "languages": [
+          "Spanish",
+          "English"
+        ]
+      }
+    }
   }
 }
