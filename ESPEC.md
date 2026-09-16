@@ -93,12 +93,32 @@ su función. La decisión es consciente y consta aquí.
 
 | | Etapa | Estado |
 |---|---|---|
-| 1 | Cimientos: cadena de Rust, repo, esqueleto de Tauri, ventana que abre | en curso |
-| 2 | Núcleo: dos vistas sobre un documento, live preview, abrir/guardar en cualquier ruta | ⬜ |
-| 3 | Oficio: autoguardado, deshacer/rehacer, alternar paneles, tema | ⬜ |
-| 4 | Programa: icono, instalador, asociación `.md`, arranque con argumento | ⬜ |
+| 1 | Cimientos: cadena de Rust, repo, esqueleto de Tauri, ventana que abre | ✅ 2026-09-16 |
+| 2 | Núcleo: dos vistas sobre un documento, live preview, abrir/guardar en cualquier ruta | ✅ 2026-09-16 |
+| 3 | Widgets: tablas, Mermaid, KaTeX, imágenes, avisos, casillas | ✅ 2026-09-16 |
+| 4 | Programa: instalador, asociación `.md`, arranque con argumento | ⬜ |
 
-## 5. Fuera de la v1
+## 5. Auxiliares que el panel de presentación dibuja
+
+Decidido el 2026-09-16, a petición de Lalo. Todos usan el mismo mecanismo: un
+widget que tapa el texto y **se quita cuando el cursor entra al bloque**, así que
+ninguno escribe de vuelta al markdown.
+
+- **Tablas**, con alineaciones, y negrita/código/enlaces dentro de las celdas.
+- **Mermaid**, con el tema siguiendo al de Windows.
+- **KaTeX**, en línea y en bloque. `$100 y $200` no cuenta como fórmula: se exige
+  que no haya espacio pegado a los delimitadores.
+- **Imágenes** locales y remotas. Las locales las lee el núcleo y las entrega
+  listas para pintar, en vez de usar el protocolo de recursos del webview, que
+  depende de un «scope» de carpetas y este programa no tiene carpetas.
+- **Avisos** `[!NOTA]`, `[!AVISO]`, `[!PELIGRO]`, `[!TIP]`, `[!EJEMPLO]`, `[!CITA]`,
+  en español y en inglés.
+- **Casillas de tarea**, que se pican con el ratón.
+
+Mermaid y KaTeX **se cargan la primera vez que hacen falta**, no al arrancar: un
+`.md` sin diagramas no paga sus 2.4 MB.
+
+## 6. Fuera de la v1
 
 A propósito, para que no se extrañen sin aviso: búsqueda global, explorador de
 carpetas, pestañas y exportar a PDF. Ninguno sirve al «abre rápido y edita».

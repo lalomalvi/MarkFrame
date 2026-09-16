@@ -64,10 +64,13 @@ fn leer(ruta: String) -> Result<Documento, String> {
         .map(|m| m.permissions().readonly())
         .unwrap_or(false);
 
+    // `canonicalize` devuelve la forma larga de Windows, con el prefijo `\\?\`.
+    // Sirve internamente, pero no se le enseña al usuario ni se usa para armar
+    // otras rutas: hay que quitarlo.
     let absoluta = fs::canonicalize(&p).unwrap_or(p.clone());
     let absoluta = absoluta
         .to_string_lossy()
-        .trim_start_matches(r"\?\")
+        .trim_start_matches(r"\\?\")
         .to_string();
 
     Ok(Documento {
@@ -108,6 +111,56 @@ fn escribir(ruta: String, texto: String, fin_de_linea: FinDeLinea) -> Result<(),
     Ok(())
 }
 
+/// Limite para las imagenes incrustadas. Arriba de esto, en vez de tragarse
+/// 60 MB de RAM por una foto, se avisa y ya.
+const TOPE_IMAGEN: u64 = 25 * 1024 * 1024;
+
+fn tipo_por_extension(p: &Path) -> Option<&'static str> {
+    let ext = p.extension()?.to_string_lossy().to_lowercase();
+    Some(match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        "avif" => "image/avif",
+        "ico" => "image/x-icon",
+        _ => return None,
+    })
+}
+
+/// Entrega una imagen del disco lista para pintar.
+///
+/// Se hace desde aqui y no con el protocolo de recursos del webview porque ese
+/// depende de un «scope» de carpetas, y este programa no tiene carpetas
+/// autorizadas: una imagen puede estar junto a cualquier `.md` del disco.
+#[tauri::command]
+fn leer_imagen(ruta: String) -> Result<String, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let p = PathBuf::from(&ruta);
+    // El mensaje lleva la ruta completa a proposito: cuando una imagen no
+    // aparece, lo que hace falta saber es DONDE la busco el programa.
+    let meta = fs::metadata(&p)
+        .map_err(|_| format!("No se encontro la imagen. Se busco en: {}", p.display()))?;
+
+    if meta.len() > TOPE_IMAGEN {
+        return Err(format!(
+            "«{}» pesa {} MB y no se incrusta (tope: {} MB)",
+            nombre_de(&p),
+            meta.len() / 1024 / 1024,
+            TOPE_IMAGEN / 1024 / 1024
+        ));
+    }
+
+    let tipo = tipo_por_extension(&p)
+        .ok_or_else(|| format!("«{}» no parece una imagen", nombre_de(&p)))?;
+
+    let bytes = fs::read(&p).map_err(|e| format!("No se pudo leer la imagen: {e}"))?;
+    Ok(format!("data:{};base64,{}", tipo, STANDARD.encode(bytes)))
+}
+
 /// El `.md` con el que Windows lanzo el programa, si lo hubo.
 #[tauri::command]
 fn archivo_inicial() -> Option<String> {
@@ -122,7 +175,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![leer, escribir, archivo_inicial])
+        .invoke_handler(tauri::generate_handler![leer, escribir, leer_imagen, archivo_inicial])
         .run(tauri::generate_context!())
         .expect("error al arrancar MarkFlow");
 }
@@ -215,6 +268,43 @@ mod pruebas {
             .filter(|e| e.file_name().to_string_lossy().ends_with(".markflow-tmp"))
             .collect();
         assert!(sobrantes.is_empty(), "quedaron temporales: {sobrantes:?}");
+        limpiar(p);
+    }
+
+    /// La ruta que sale de `leer` se usa para armar la de las imagenes vecinas.
+    /// Si conserva el prefijo largo de Windows, esas rutas no resuelven y las
+    /// imagenes no aparecen. Paso de verdad el 2026-09-16.
+    #[test]
+    fn la_ruta_devuelta_no_lleva_el_prefijo_largo_de_windows() {
+        let p = temporal(b"# nota\n");
+        let d = leer(p.to_string_lossy().into_owned()).unwrap();
+        assert!(!d.ruta.starts_with(r"\\?\"), "quedo el prefijo: {}", d.ruta);
+        assert!(d.ruta.ends_with("nota.md"), "ruta inesperada: {}", d.ruta);
+        limpiar(p);
+    }
+
+    #[test]
+    fn una_imagen_se_entrega_como_dato_listo_para_pintar() {
+        let dir = std::env::temp_dir().join(format!("markflow-img-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("punto.png");
+        // PNG de 1x1 valido.
+        let png: &[u8] = &[
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+            0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89,
+        ];
+        fs::write(&p, png).unwrap();
+        let d = leer_imagen(p.to_string_lossy().into_owned()).unwrap();
+        assert!(d.starts_with("data:image/png;base64,"), "encabezado inesperado: {}", &d[..40.min(d.len())]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn lo_que_no_es_imagen_se_rechaza_con_un_mensaje_claro() {
+        let p = temporal(b"# no soy una imagen");
+        let r = leer_imagen(p.to_string_lossy().into_owned());
+        assert!(r.is_err());
         limpiar(p);
     }
 

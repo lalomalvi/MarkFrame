@@ -1,6 +1,7 @@
 import { crearPar, type Par } from './editor'
 import { archivoInicial, escribir, leer, pedirArchivo, pedirDestino,
          type FinDeLinea } from './archivo'
+import { fijarCarpeta } from './contexto'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
@@ -47,7 +48,7 @@ async function guardar() {
     const destino = await pedirDestino(nombre.endsWith('.md') ? nombre : 'sin-titulo.md')
     if (!destino) return
     ruta = destino
-    nombre = destino.split(/[\/]/).pop() ?? destino
+    nombre = destino.split(/[\\/]/).pop() ?? destino
   }
   guardando = true
   pintar()
@@ -68,6 +69,9 @@ async function abrir(destino: string) {
     window.clearTimeout(temporizador)
     ruta = doc.ruta
     nombre = doc.nombre
+    // Antes de cargar el texto: las imagenes relativas se resuelven contra esta
+    // carpeta en cuanto el panel de presentacion las dibuje.
+    fijarCarpeta(doc.ruta)
     finDeLinea = doc.fin_de_linea
     soloLectura = doc.solo_lectura
     sucio = false

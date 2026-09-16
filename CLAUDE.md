@@ -21,6 +21,19 @@ más importante, **por qué se descartó lo otro**. El estado vigente vive en
 3. **Aquí no hay bóvedas.** Si una propuesta obliga al usuario a registrar una
    carpeta antes de abrir un archivo, está mal por definición.
 
+## Nunca escribas rutas ni regex con heredoc de bash
+
+Este programa vive de manipular rutas de Windows, así que el código está lleno
+de barras invertidas. **Un heredoc de bash se come una de cada par en silencio.**
+El 2026-09-16 eso metió tres errores de golpe: `[\\/]` quedó en `[\/]` (la clase
+dejó de aceptar `\`, y ninguna ruta de Windows se recortaba) y `r"\\?\"` quedó en
+`r"\?\"` (el prefijo largo de Windows dejó de quitarse). Compilaba, pasaba los
+tipos, y las imágenes simplemente no aparecían.
+
+Cualquier archivo con `\` se escribe con las herramientas de edición, no con
+`cat > archivo <<EOF`. Si ya lo hiciste, audítalo con `grep -n -F '\'` antes de
+dar nada por bueno.
+
 ## Verificar, no suponer
 
 Es un programa de escritorio: compila y **ábrelo**. «Debería funcionar» no es

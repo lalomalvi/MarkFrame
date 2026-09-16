@@ -83,10 +83,50 @@ donde escribiste deshace y el otro no, así que al archivo no llegaba nada. Se
 sacó ese keymap y los atajos se enrutan a las dos vistas a la vez. Está anotado
 en `src/editor.ts` para que nadie lo "simplifique" de vuelta.
 
+## Etapa 3 — ✅ terminada el 2026-09-16
+
+Seis cosas que el panel de presentación ahora dibuja, todas con el mismo
+mecanismo: un widget que tapa el texto y **desaparece en cuanto el cursor entra**.
+
+| | Estado |
+|---|---|
+| Tablas, con alineaciones `:---` `---:` `:---:` | ✅ negrita, código y enlaces dentro de las celdas |
+| Diagramas Mermaid | ✅ tema claro/oscuro según Windows |
+| Fórmulas KaTeX, en línea y en bloque | ✅ |
+| Imágenes locales y remotas | ✅ las lee el núcleo, con caché y tope de 25 MB |
+| Avisos `[!NOTA]` `[!AVISO]` `[!PELIGRO]` | ✅ también `tip`, `ejemplo`, `cita` |
+| Casillas de tarea | ✅ se pican con el ratón y editan el documento |
+
+### Arranque: Mermaid no lo tocó
+
+| | Mediana de 5 |
+|---|---|
+| Línea base (esqueleto vacío) | 111 ms |
+| Etapa 2 (editor completo) | 111 ms |
+| `.md` sencillo | **110 ms** |
+| `.md` con diagrama y fórmulas | **92 ms** |
+
+Mermaid y sus dependencias pesan 2.4 MB pero viven en trozos aparte: el bundle
+de entrada sigue en 279 KB y sólo se descargan si el documento trae un diagrama.
+Matiz: la medición llega hasta que la ventana existe con su título; el diagrama
+se dibuja un instante después.
+
+### Dos fallos que costaron la etapa
+
+**Barras invertidas comidas por heredoc.** Tres sitios quedaron rotos al escribir
+archivos con `cat > x <<EOF`: `[\\/]` quedó en `[\/]` y `r"\\?\"` en `r"\?\"`.
+Compilaba, pasaba tipos y pruebas, y las imágenes no aparecían. Está anotado en
+`CLAUDE.md` como regla del proyecto y hay una prueba que fija el prefijo.
+
+**La arquitectura del módulo de presentación cambió.** CodeMirror prohíbe que un
+plugin de vista genere decoraciones que se traguen saltos de línea, y una tabla o
+un diagrama hacen eso. Ahora es un `StateField`. El precio: recorre el documento
+entero en vez de sólo lo visible. Si algún día un `.md` enorme va lento, es ahí.
+
 ## Lo que sigue
 
-**Etapa 3 — pulido**, y antes de eso una decisión sobre las tablas (abajo).
-**Etapa 4 — instalador y asociación `.md`.**
+**Etapa 4 — programa terminado.** Instalador, asociación `.md` y arranque con el
+archivo como argumento (esto último ya funciona).
 
 ## Decisiones tomadas hoy
 
@@ -98,12 +138,15 @@ en `src/editor.ts` para que nadie lo "simplifique" de vuelta.
 
 ## Pendiente de decidir
 
-- **Las tablas.** Hoy se ven como markdown crudo, con los `|` a la vista, también
-  en el panel de presentación. Obsidian las dibuja como tabla de verdad. Hacerlo
-  exige un widget de reemplazo, que es bastante más trabajo y es justo la zona
-  donde Folio se tropezó. **Falta que Lalo diga si entra en la v1.**
-- **¿Subirlo a GitHub privado?** Todo listo, esperando el sí.
+- **Tablas editables desde la presentación.** Hoy la tabla se dibuja, y para
+  tocarla hay que meter el cursor, que la devuelve a texto. Editar celda por
+  celda sobre la tabla dibujada exigiría escribir de vuelta al markdown, que es
+  justo lo que este proyecto tiene prohibido. Si se quiere, va como pieza aparte
+  y muy probada.
+- **Scroll sincronizado entre los dos paneles.** No se pidió; se nota al usarlo.
 
 ## Ya decidido
 
 - El icono: monograma **MF** sobre azul tinta, con la barra ámbar. Hecho.
+- Repo en GitHub: `lalomalvi/MarkFlow`, **privado**. Usa HTTPS con el token de
+  `gh` porque la clave SSH no está disponible desde la sesión de trabajo.
