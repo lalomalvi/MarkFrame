@@ -22,6 +22,35 @@ El estado del programa está en [estado.md](estado.md). Esto es sólo la cola.
 | **B5 · Monograma de la barra** | ✅ |
 | **Sprint de interfaz** | ✅ Buscador, panel de formato, iconos, separador, aviso rojo |
 
+## Lo cerrado el 2026-09-17, segunda vuelta
+
+| | |
+|---|---|
+| El panel dice qué formato hay puesto | ✅ |
+| Enlace y código en línea en el panel | ✅ |
+| Atajos de formato, con su lista en Configuración | ✅ |
+| **Índice del documento** | ✅ |
+| Pruebas de frontera | ✅ 14, y encontraron un fallo |
+| Rendimiento | **Medido: no hay nada que mejorar** |
+
+### El rendimiento, zanjado con números
+
+**Velocidad:** `construir()` tarda 2.4 ms con 100 KB. El archivo `.md` más grande
+de Lalo tiene **35 KB** y ninguno de sus 108 pasa de 100 KB. El punto de
+inflexión está en medio mega —— quince veces por encima de lo que escribe.
+
+**Memoria:** 436 MB, de los que **406 son Chromium y 30 el núcleo propio**. Se
+intentó bajarla apagando servicios de navegador y **no sirvió de nada** (446,
+439, 436 contra 436). Lo único que movería la aguja es la GPU (~120 MB, pero el
+scroll con diagramas se nota) o el sandbox, que no se negocia.
+
+**Conclusión: los 406 MB son el precio de WebView2**, y ese precio se pagó al
+elegir Tauri —— a cambio el instalador son 4.9 MB en vez de los 80 de una app
+Electron, y el arranque 110 ms. Si algún día molesta de verdad, la salida no es
+una bandera: es no usar un navegador para dibujar, y eso es otro programa.
+
+**No volver a abrir esto sin un dato nuevo.**
+
 ## Lo que no está en ninguna lista, y conviene tener presente
 
 **Los cuatro fallos del 2026-09-17 los encontró Lalo usando el programa, no las

@@ -92,6 +92,16 @@
 
       <span class="separador"></span>
 
+      <button id="v-indice" class="boton icono" title="Índice del documento (Ctrl+Shift+O)"
+              aria-label="Índice del documento" aria-pressed="false">
+        <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.4 4h1.2M2.4 8h1.2M2.4 12h1.2" />
+          <path d="M6.2 4h7.4M6.2 8h5.6M6.2 12h6.4" />
+        </svg>
+      </button>
+
+      <span class="separador"></span>
+
       <div class="grupo" role="group" aria-label="Paneles">
         <button id="v-fuente" class="boton" title="Sólo el markdown">
           <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
@@ -171,6 +181,21 @@
     </header>
 
     <main id="paneles" class="paneles modo-ambos">
+      <!-- El indice. Fuera del reparto del divisor a proposito: ese reparte los
+           dos paneles de texto, y el indice tiene su propio ancho fijo. -->
+      <aside id="indice" class="indice" aria-label="Indice del documento" hidden>
+        <div class="indice-cabeza">
+          <span>Índice</span>
+          <button id="indice-cerrar" class="boton icono" title="Ocultar el índice"
+                  aria-label="Ocultar el índice">
+            <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6" />
+            </svg>
+          </button>
+        </div>
+        <nav id="indice-lista" class="indice-lista"></nav>
+      </aside>
+
       <section id="caja-fuente" class="panel"></section>
       <div id="division" class="division" role="separator" aria-orientation="vertical"
            title="Arrastra para repartir. Doble clic: mitad y mitad"></div>

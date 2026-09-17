@@ -569,8 +569,74 @@ fn guardia_de_navegacion<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
         .build()
 }
 
+/// Apaga los servicios de navegador que este programa no usa.
+///
+/// ## Esto NO ahorra memoria, y se puso creyendo que si
+///
+/// Queda escrito para que nadie lo vuelva a intentar por ese camino. Medido con
+/// `pruebas\memoria.ps1` el 2026-09-17:
+///
+/// - **sin banderas:** 436 MB
+/// - **con banderas:** 446, 439, 436 MB en tres corridas
+///
+/// O sea: **nada**, dentro de la variacion normal de Chromium. Las banderas
+/// llegan —— se comprobo leyendo la linea de comandos del proceso—— y aun asi la
+/// memoria no se mueve. De los 436 MB, 406 son Chromium y solo 30 el nucleo
+/// propio; lo que ocupa es el motor de render, no los servicios que se apagan
+/// aqui.
+///
+/// **Lo unico que moveria la aguja se descarto a proposito:**
+///
+/// - **La GPU** (~120 MB, el segundo bocado). `--disable-gpu` manda el dibujado
+///   a la CPU y el scroll de un documento con diagramas se nota. La memoria no
+///   vale ese precio en el uso diario.
+/// - **El sandbox.** `--no-sandbox` ahorraria mas y tiraria por la ventana la
+///   barrera que separa el codigo del documento del resto del equipo. Se acaba
+///   de auditar precisamente eso. **No se negocia.**
+///
+/// ## Entonces por que se quedan
+///
+/// Porque lo que apagan **no deberia estar encendido en este programa**, y eso
+/// vale por si mismo: sincronizacion con una cuenta que no existe, extensiones
+/// que nadie instala, un actualizador de componentes, traduccion y sugerencias
+/// que hablan con Microsoft, y **red en segundo plano** —— esto ultimo encaja con
+/// la doctrina de la casa, que bloquea las imagenes remotas por lo mismo.
+///
+/// Menos piezas encendidas es menos que pueda fallar o filtrar. Pero **no se
+/// vuelva a vender como una mejora de memoria**.
+fn apagar_lo_de_navegador() {
+    const BANDERAS: &[&str] = &[
+        // Servicios de navegador que aqui nadie usa.
+        "--disable-sync",
+        "--disable-extensions",
+        "--disable-component-update",
+        "--disable-background-networking",
+        "--disable-breakpad",
+        // Y las funciones de interfaz que WebView2 trae de Edge.
+        "--disable-features=msWebOOUI,msPdfOOUI,Translate,BackForwardCache,\
+         AudioServiceOutOfProcess,OptimizationHints",
+    ];
+
+    // Se respeta lo que ya hubiera puesto quien arranca el programa, en vez de
+    // pisarselo: quien depura WebView2 pasa sus propias banderas por aqui.
+    let previo = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+    let mias = BANDERAS.join(" ");
+    let todo = if previo.trim().is_empty() {
+        mias
+    } else {
+        format!("{previo} {mias}")
+    };
+
+    // SEGURIDAD: `set_var` no es seguro si otro hilo lee el entorno a la vez.
+    // Aqui se llama lo primero en `run()`, antes de que exista cualquier otro
+    // hilo, que es la unica forma correcta de usarlo.
+    unsafe { std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", todo) };
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    apagar_lo_de_navegador();
+
     tauri::Builder::default()
         // Va PRIMERO, y no es cosmetico: el complemento decide si este proceso
         // sigue vivo o le pasa el relevo al que ya estaba. Registrarlo despues

@@ -51,6 +51,8 @@ export interface Preferencias {
   /** Fraccion de ancho del panel de fuente, de 0 a 1. */
   division: number
   modo: 'fuente' | 'ambos' | 'presentacion'
+  /** El indice de titulos, abierto o cerrado. */
+  indice: boolean
 }
 
 export const DE_FABRICA: Preferencias = {
@@ -70,6 +72,7 @@ export const DE_FABRICA: Preferencias = {
   ultimoArchivo: null,
   division: 0.5,
   modo: 'ambos',
+  indice: false,
 }
 
 /** Familias empaquetadas. `null` = la del sistema, sin descargar nada. */
@@ -147,6 +150,7 @@ function sanear(p: Preferencias): Preferencias {
     ultimoArchivo: typeof p.ultimoArchivo === 'string' ? p.ultimoArchivo : null,
     division: enRango(p.division, 0.05, 0.95, D.division),
     modo: enLista(p.modo, ['fuente', 'ambos', 'presentacion'] as const, D.modo),
+    indice: typeof p.indice === 'boolean' ? p.indice : D.indice,
   }
 }
 

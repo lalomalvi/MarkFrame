@@ -31,6 +31,7 @@ import { destinoSeguro, rutaAbsoluta, permitirRemotas, olvidarPermisosSueltos,
          celdasCon, saneadaParaCelda,
          WidgetImagen, WidgetTabla } from '../src/widgets.ts'
 import { acotada, MARCAS, formatosActivos, tramoConFormato } from '../src/formato.ts'
+import { titulosDe, tituloEn } from '../src/indice.ts'
 
 let hechas = 0
 function prueba(nombre: string, fn: () => void) {
@@ -445,6 +446,69 @@ prueba('reconoce el codigo en linea', () => {
   assert.deepEqual([...activosEn('esto es `codigo` en linea', 'codigo')], ['codigo'])
   // Y dentro de una cerca de varias lineas NO es código en línea.
   assert.deepEqual([...activosEn('```\nno es en linea\n```', 'no es')], [])
+})
+
+// --- el índice del documento ------------------------------------------------ //
+
+const titulosTexto = (doc: string) => titulosDe(estadoMd(doc)).map((t) => t.texto)
+
+prueba('saca los titulos con su nivel y en orden', () => {
+  const doc = '# Uno\n\ntexto\n\n## Dos\n\n### Tres\n\n## Cuatro\n'
+  const ts = titulosDe(estadoMd(doc))
+  assert.deepEqual(ts.map((t) => [t.nivel, t.texto]), [
+    [1, 'Uno'], [2, 'Dos'], [3, 'Tres'], [2, 'Cuatro'],
+  ])
+  // Y cada uno apunta a donde empieza de verdad.
+  for (const t of ts) assert.ok(doc.slice(t.desde).startsWith('#'))
+})
+
+prueba('una almohadilla dentro de codigo NO es un titulo', () => {
+  // Éste es el motivo de leer el árbol en vez de usar una expresión regular:
+  // un `#` en un bloque de código es un comentario de shell, no una sección.
+  const doc = '# De verdad\n\n```bash\n# solo un comentario\n```\n\n## Tambien de verdad\n'
+  assert.deepEqual(titulosTexto(doc), ['De verdad', 'Tambien de verdad'])
+})
+
+prueba('los titulos subrayados tambien cuentan', () => {
+  // `===` y `---` debajo del texto son títulos válidos en markdown, y una regex
+  // de almohadillas no los vería.
+  assert.deepEqual(titulosTexto('Uno\n===\n\nDos\n---\n'), ['Uno', 'Dos'])
+})
+
+prueba('las almohadillas de cierre no se cuelan en el rotulo', () => {
+  assert.deepEqual(titulosTexto('## Con cierre ##\n'), ['Con cierre'])
+  assert.deepEqual(titulosTexto('###   con espacios de sobra   ###\n'), ['con espacios de sobra'])
+})
+
+prueba('un titulo vacio existe y no rompe el indice', () => {
+  const ts = titulosDe(estadoMd('##\n\ntexto\n'))
+  assert.equal(ts.length, 1)
+  assert.equal(ts[0].texto, '', 'vacío, y la interfaz lo pinta como «(sin título)»')
+})
+
+prueba('un documento sin titulos da una lista vacia', () => {
+  assert.deepEqual(titulosTexto('solo texto\n\ny mas texto\n'), [])
+  assert.deepEqual(titulosTexto(''), [])
+})
+
+prueba('saber en que seccion cae el cursor', () => {
+  const doc = '# Uno\n\naaa\n\n## Dos\n\nbbb\n'
+  const ts = titulosDe(estadoMd(doc))
+  assert.equal(tituloEn(ts, 0), 0, 'sobre el primer título')
+  assert.equal(tituloEn(ts, doc.indexOf('aaa')), 0, 'en el cuerpo de la primera')
+  assert.equal(tituloEn(ts, doc.indexOf('bbb')), 1, 'en el cuerpo de la segunda')
+  assert.equal(tituloEn([], 5), -1, 'sin títulos no hay sección')
+})
+
+prueba('el indice no se dispara con un documento de puros titulos', () => {
+  // Un archivo generado puede traer miles. El tope está para que la interfaz no
+  // se atasque pintando una lista que nadie va a recorrer.
+  const doc = '# t\n'.repeat(3000)
+  const arranque = Date.now()
+  const ts = titulosDe(estadoMd(doc))
+  const tardo = Date.now() - arranque
+  assert.ok(ts.length <= 500, `salieron ${ts.length}, el tope son 500`)
+  assert.ok(tardo < 2000, `tardo ${tardo} ms`)
 })
 
 // --- saber qué formato lleva ya lo seleccionado ----------------------------- //

@@ -12,6 +12,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { conectarBuscador } from './buscar.ts'
 import { panelDeFormato, ATAJOS } from './formato.ts'
+import { crearIndice } from './indice.ts'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -39,10 +40,25 @@ let activa = -1
 const laActiva = (): Pestana | null => abiertas[activa] ?? null
 
 function alEditar() {
+  pedirRefrescoIndice()
   const p = laActiva()
   if (!p || p.sucio) return
   p.sucio = true
   pintar()
+}
+
+/**
+ * Pide releer los titulos, con retardo.
+ *
+ * Escribir dispara esto en cada tecla, y releer los titulos cuesta recorrer el
+ * arbol entero. Con el retardo, escribir un parrafo del tiron lo relee **una
+ * vez**, al parar. Y si el indice esta cerrado no se hace nada en absoluto.
+ */
+let relojIndice: number | undefined
+function pedirRefrescoIndice() {
+  if (!P.indice) return
+  window.clearTimeout(relojIndice)
+  relojIndice = window.setTimeout(() => indice.refrescar(), 400)
 }
 
 const par: Par = crearPar(cajaFuente, cajaPresentacion, '', alEditar)
@@ -378,6 +394,7 @@ async function abrirRuta(destino: string) {
     fijarCarpeta(doc.ruta)
     // Los permisos de imagen remota son por documento: no se heredan.
     olvidarPermisosSueltos()
+    if (P.indice) indice.refrescar()
     par.cargar(doc.texto)
     par.verNumeros(P.numerosLinea)
     par.fijarSangria(P.sangria)
@@ -708,7 +725,11 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !panelOp.hidden) { abrirOpciones(false); return }
   if (!e.ctrlKey || e.altKey) return
   const k = e.key.toLowerCase()
-  if (k === 'o') { e.preventDefault(); elegirYAbrir() }
+  // **Lo de Shift va antes.** `Ctrl+O` a secas abre un archivo, y si se
+  // comprueba primero se queda también el `Ctrl+Shift+O` del índice: la letra
+  // es la misma y el `else if` de abajo no se alcanza nunca.
+  if (k === 'o' && e.shiftKey) { e.preventDefault(); verIndice(!P.indice) }
+  else if (k === 'o') { e.preventDefault(); elegirYAbrir() }
   else if (k === 's') { e.preventDefault(); guardar() }
   else if (k === ',') { e.preventDefault(); abrirOpciones(!!panelOp.hidden) }
   else if (k === 't') { e.preventDefault(); nuevaVacia() }
@@ -819,6 +840,44 @@ const buscador = conectarBuscador({
 panelDeFormato(par.presentacion, cajaPresentacion)
 panelDeFormato(par.fuente, cajaFuente)
 
+// --- indice del documento ----------------------------------------------------
+
+const cajaIndice = $('indice')
+
+const indice = crearIndice($('indice-lista'), vistaALaVista)
+
+/**
+ * Abre o cierra el indice, y lo recuerda.
+ *
+ * Se guarda en las preferencias porque es una decision de como trabajas, no del
+ * archivo: si lo tenias abierto, la siguiente nota tambien lo abre. Igual que el
+ * modo de panel.
+ */
+function verIndice(ver: boolean, recordarlo = true) {
+  P.indice = ver
+  cajaIndice.hidden = !ver
+  $('v-indice').classList.toggle('activo', ver)
+  $('v-indice').setAttribute('aria-pressed', String(ver))
+  if (ver) indice.refrescar()
+  if (recordarlo) recordar()
+  // El panel de al lado cambia de ancho: hay que avisar a las vistas.
+  requestAnimationFrame(() => { par.fuente.requestMeasure(); par.presentacion.requestMeasure() })
+}
+
+$('v-indice').addEventListener('click', () => verIndice(!P.indice))
+$('indice-cerrar').addEventListener('click', () => verIndice(false))
+
+/**
+ * El indice se mantiene al dia con dos disparadores distintos, y eso es
+ * deliberado: **releer los titulos cuesta recorrer el arbol**, y mover el cursor
+ * no cambia ningun titulo. Confundir las dos cosas seria pagar el indice entero
+ * cada vez que alguien pulsa una flecha.
+ */
+for (const v of [par.fuente, par.presentacion]) {
+  v.dom.addEventListener('mouseup', () => { if (P.indice) indice.seguirCursor() })
+  v.dom.addEventListener('keyup', () => { if (P.indice) indice.seguirCursor() })
+}
+
 // --- una sola ventana --------------------------------------------------------
 
 /**
@@ -839,6 +898,7 @@ llenarAtajos()
 conectarOpciones()
 aplicarTodo()
 ponerModo(P.modo, false)
+verIndice(P.indice, false)
 nuevaVacia()
 
 archivoInicial().then((a) => {

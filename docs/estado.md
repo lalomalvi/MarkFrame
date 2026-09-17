@@ -35,8 +35,13 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 - **Tablas editables**: un clic en una celda la edita. Ver más abajo.
 - **Buscar dentro de la nota** (Ctrl+F), en la barra arriba a la derecha. Enter y
   Shift+Enter recorren, con contador de coincidencias.
-- **Panel de formato al seleccionar**: resaltar, negrita, cursiva y tachado, sin
-  salir de la vista.
+- **Panel de formato al seleccionar**: resaltar, negrita, cursiva, tachado,
+  código en línea y enlace, sin salir de la vista. **Los botones se encienden si
+  el texto ya lleva ese formato.**
+- **Índice del documento** (Ctrl+Shift+O): los títulos en un panel lateral, con
+  la sección actual marcada y un clic para saltar. Se recuerda abierto o cerrado.
+- **Atajos de formato** —— Ctrl+B, Ctrl+I, Ctrl+E, Ctrl+K y compañía—, con la
+  lista completa en Configuración.
 - **Sintaxis**: notas al pie `[^1]`, `==resaltado==`, avisos con los 13 tipos de
   Obsidian y título propio, en inglés y español, mayúscula o minúscula.
 - **Convivencia con agentes**: al recuperar el foco **y al volver a una pestaña**,
@@ -377,6 +382,37 @@ esto empieza a notarse. Cualquier optimización del panel de presentación hoy
 sería trabajo sin beneficio medible.
 
 La detección de formato del panel tarda **0.01 ms** —— ni se mide.
+
+### La memoria: 436 MB, y el intento de bajarla no funcionó
+
+| | |
+|---|---|
+| `markflow.exe` (el núcleo propio) | **30 MB** |
+| WebView2 principal | 134 MB |
+| proceso de GPU | 116 MB |
+| renderizador | 89 MB |
+| dos servicios + crashpad | 66 MB |
+| **total** | **436 MB** |
+
+Medido con `pruebas\memoria.ps1`, que **suma sólo los procesos de WebView2 que
+cuelgan de MarkFlow**: WebView2 los comparte con otras aplicaciones, y en esta
+máquina hay dieciocho de otras cosas. Sumarlos todos da 1.5 GB, que es una cifra
+alarmante y falsa.
+
+**Se intentó bajarla apagando los servicios de navegador y no sirvió de nada:**
+446, 439 y 436 MB en tres corridas, contra 436 sin banderas. Las banderas llegan
+—— se comprobó leyendo la línea de comandos del proceso—— pero lo que ocupa es el
+motor de render, no los servicios que se apagan.
+
+**Las banderas se quedaron, y no por la memoria**: apagan sincronización,
+extensiones, actualizador de componentes, traducción y **red en segundo plano**,
+que no deberían estar encendidos en este programa —— lo último encaja con la
+doctrina de bloquear las imágenes remotas. Está escrito así en
+`apagar_lo_de_navegador()` para que nadie lo vuelva a vender como ahorro de
+memoria.
+
+Lo único que movería la aguja se descartó a propósito: **la GPU** (unos 120 MB,
+pero el scroll con diagramas se nota) y **el sandbox**, que no se negocia.
 
 ### Lo que sí pesa, y por qué no se ha tocado
 
