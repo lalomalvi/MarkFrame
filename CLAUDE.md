@@ -21,6 +21,25 @@ más importante, **por qué se descartó lo otro**. El estado vigente vive en
 3. **Aquí no hay bóvedas.** Si una propuesta obliga al usuario a registrar una
    carpeta antes de abrir un archivo, está mal por definición.
 
+## El enemigo es el documento, no el sistema de archivos
+
+El puente nativo alcanza **cualquier ruta del disco, a propósito**: es la regla 3
+puesta en código, y quien pueda ejecutar el programa ya podía leer esos archivos.
+No lo «arregles» metiendo una frontera de rutas —— romperías la razón de existir
+del programa sin cerrar nada.
+
+La consecuencia sí es la que manda: **cualquier ejecución de código dentro del
+webview hereda ese puente entero.** Por eso el modelo de amenaza es **un `.md` de
+procedencia desconocida**, y la única defensa real es que nada del documento se
+vuelva ejecutable ni navegable. Antes de añadir cualquier widget que meta un
+atributo en el DOM, pregúntate qué pasa si el contenido lo escribió un atacante.
+
+**Y el error de forma que ya costó tres hallazgos: mirar cómo empieza una cadena
+en vez de a dónde apunta.** `/^https?:/` no dice nada sobre el destino. Resuelve
+y decide sobre lo resuelto —— vale para enlaces, para rutas y para imágenes.
+
+Detalle y lo que quedó abierto: [auditoria/INFORME.md](auditoria/INFORME.md).
+
 ## Nunca escribas rutas ni regex con heredoc de bash
 
 Este programa vive de manipular rutas de Windows, así que el código está lleno

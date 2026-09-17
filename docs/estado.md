@@ -1,9 +1,11 @@
 # Estado vigente
 
-**Última actualización: 2026-09-16.** MarkFlow v0.1.0, las cuatro etapas cerradas.
+**Última actualización: 2026-09-16.** MarkFlow v0.1.0, las cuatro etapas cerradas
+y la auditoría de seguridad aplicada.
 
 Esto es **estado**, no bitácora. El relato de cómo se llegó aquí está en los
-mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md).
+mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md);
+la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 
 ---
 
@@ -12,10 +14,16 @@ mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md)
 | | |
 |---|---|
 | Repo | `lalomalvi/MarkFlow`, privado. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
-| Ejecutable | `MarkFlow.exe`, ~7 MB |
-| Instalador | `MarkFlow_0.1.0_x64-setup.exe`, **4.93 MB**, NSIS, **sin UAC** |
+| Revisión | `9073dc7` — árbol limpio, subido |
+| Ejecutable | `markflow.exe`, **7.76 MB** |
+| Instalador | `MarkFlow_0.1.0_x64-setup.exe`, **4.92 MB**, NSIS, **sin UAC** |
 | Cadena | Rust 1.98.1 (MSVC), Node 22, Tauri 2, Vite 8, TypeScript 6 |
 | WebView2 | ya venía en la máquina, v153 |
+
+> ⚠️ **Lo instalado en `%LOCALAPPDATA%\MarkFlow` es del build de las 16:43, de
+> antes de la auditoría.** El instalador vigente es de las 22:57 y es el que
+> lleva los arreglos de seguridad. Mientras no se reinstale, lo que corre en la
+> máquina es la versión con el agujero del enlace `javascript:` abierto.
 
 ### Lo que el programa hace
 
@@ -46,8 +54,8 @@ mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md)
 - Arrastrar y soltar, **varios archivos a la vez**, uno por pestaña. Arranque con
   el archivo como argumento.
 - **Divisor arrastrable** en modo Ambos, con doble clic para volver al 50/50.
-- **Panel de Opciones** (Ctrl+`,`), sin botón de aceptar: cada cambio se aplica
-  y se guarda al instante.
+- **Panel de Configuración** (Ctrl+`,`), sin botón de aceptar: cada cambio se
+  aplica y se guarda al instante.
 
 ### Paleta
 
@@ -74,11 +82,6 @@ extensión si cabe.
 Abrir un archivo **ya abierto** no lo duplica: va a su pestaña. Y una pestaña en
 blanco y sin tocar se reaprovecha en vez de sumar otra.
 
-`npm run probar` corre **13 pruebas**: 9 de frontera de las pestañas —nombres de
-300 caracteres, vacíos, extensiones más largas que el límite entero, acentos,
-rutas con barras mezcladas y mayúsculas distintas— y 4 que comprueban que todo
-`id` que busca el código exista en el HTML.
-
 ### La barra de título
 
 `decorations: false` en la configuración de Tauri. A cambio hay que dibujar los
@@ -100,7 +103,7 @@ se parte cada tres palabras; un cuarto de 2560 son 640, de sobra. Al pasarse del
 mínimo por un margen claro, el panel **se cierra** y se pasa al modo único, en
 vez de topar contra un muro.
 
-### Opciones
+### Configuración
 
 | Aspecto | Letra | Editor |
 |---|---|---|
@@ -112,11 +115,18 @@ vez de topar contra un muro.
 
 También se recuerdan el reparto del divisor y el modo de panel.
 
+**Lo que se lee de `localStorage` se sanea antes de usarse.** No contra un
+atacante —quien pueda escribir ahí ya tiene más de lo que esto protege— sino
+contra el programa mismo: un valor de `profundidad` fuera de los tres esperados
+dejaba un `undefined` que **mataba el arranque en todos los arranques**, sin nada
+en la interfaz para deshacerlo. Un ajuste guardado por una versión vieja no puede
+dejar el programa inservible para siempre.
+
 ### Tipografías
 
 Empaquetadas, **sólo los subconjuntos latino y latino extendido**: el paquete
 completo trae 42 ficheros por familia con cirílico, griego y vietnamita. Son 22
-archivos, 859 KB, y suben el instalador de 4.08 a 4.93 MB.
+archivos, 859 KB.
 
 - **Texto:** Newsreader y Space Grotesk (las de Notas y Nodos), Source Serif 4,
   Inter, y la del sistema.
@@ -142,7 +152,69 @@ El bloque se busca subiendo por el árbol del documento hasta el hijo directo de
 la raíz —el párrafo, la tabla, la lista entera—, que es la unidad que uno
 reconoce como «esto de aquí».
 
-### Números medidos, no supuestos
+---
+
+## Seguridad
+
+Auditoría de seis fases del **2026-09-16**, protocolo de Cloudflare: 5 cazadores
+aislados, 112 comprobaciones, 20 candidatos, 5 validadores adversariales.
+**Nueve hallazgos cerrados.** El informe completo, con lo rechazado y por qué,
+está en [auditoria/INFORME.md](../auditoria/INFORME.md).
+
+**El modelo de amenaza es un `.md` de procedencia desconocida**, porque el
+programa se va a publicar. No es el sistema de archivos.
+
+### Doctrina: el puente nativo no restringe rutas, a propósito
+
+`leer`, `escribir` y `leer_imagen` alcanzan cualquier ruta del disco. **Es el
+requisito número uno del proyecto** —abrir cualquier `.md` de cualquier carpeta a
+cualquier hora— y quien pueda ejecutar el programa ya podía leer esos archivos.
+
+La consecuencia es la que hay que tener presente: **cualquier ejecución de código
+dentro del webview hereda ese puente entero.** Por eso la defensa no está en la
+frontera de rutas, sino en que nunca corra código que venga del documento.
+
+### Lo que lo sostiene
+
+| Capa | Qué hace |
+|---|---|
+| Lista blanca en `destinoSeguro()` | Un enlace sólo sobrevive si su esquema es `http`, `https` o `mailto`. Todo lo demás sale como texto plano |
+| Política de contenido | `script-src 'self'`. El `'unsafe-inline'` de estilos es obligado por KaTeX y Mermaid; el de scripts no está |
+| Guardián de navegación | Complemento propio: los enlaces se abren en el navegador del sistema, no reemplazan la aplicación. `tauri::Builder` no tiene ese gancho |
+| `rutaAbsoluta()` | Rechaza **UNC**. Decide por destino resuelto, no por prefijo de cadena |
+| Sin `protocol-asset` | Tenía alcance `**` y ni un consumidor. Las imágenes las sirve `leer_imagen` como data URL |
+| `TOPE_VISTA` = 2 MB | Red de seguridad del panel de presentación, no parche de un fallo |
+| `TOPE_DOCUMENTO` = 64 MB · `TOPE_CACHE` = 24 | |
+| `escribir()` | Temporal con `create_new` y nombre irrepetible (pid + nanos + contador), `sync_all`, `rename`, y limpieza del temporal ante cualquier fallo |
+
+### La lección, en una línea
+
+**Mirar a dónde apunta, no cómo empieza.** Los tres hallazgos más graves son ese
+mismo error: `esRemota` comprobaba `/^https?:/`; `enriquecer()` escapaba
+caracteres sin validar el esquema. La diferencia entre comprobar un prefijo y
+resolver el destino es toda la superficie de ataque de este programa.
+
+Y varios de los peores son la contrapartida de decisiones acertadas: la barra de
+título propia convierte un cuelgue en una ventana que no se puede cerrar, y la
+escritura atómica con temporal abre la vía del enlace simbólico. No hay decisión
+sin contrapartida; hay contrapartidas que no se ven al decidir.
+
+### Lo que la auditoría dejó abierto
+
+- **La política de contenido y el guardián de navegación no se han probado con
+  todas las funciones.** Compilan, y el ataque conocido está cerrado y verificado,
+  pero KaTeX, Mermaid, las imágenes y los diálogos merecen una pasada completa.
+- **El instalador no va firmado.** Al publicar, Windows mostrará el aviso de
+  editor desconocido en cada instalación.
+- **`leer_imagen` no mira las dimensiones declaradas.** Un PNG de 100 KB que
+  declare 20000×20000 descomprime a ~1.6 GB. Anotado fuera de encargo por un
+  validador; no revisado.
+- **Sin control de instancia única.** Dos ventanas sobre la misma nota ya no
+  comparten el temporal, pero pueden seguir pisándose el guardado.
+
+---
+
+## Números medidos, no supuestos
 
 | | |
 |---|---|
@@ -150,26 +222,44 @@ reconoce como «esto de aquí».
 | Arranque, con diagrama y fórmulas | **92 ms** |
 | Línea base del esqueleto vacío | 111 ms |
 | Bundle de entrada | 279 KB — Mermaid y KaTeX cargan aparte, bajo demanda |
-| Pruebas del núcleo | **10 de 10** (`cargo test --lib`) |
+| Pruebas del núcleo | **16 de 16** (`cargo test --lib`) |
+| Pruebas del frontend | **13 de 13** (`npm run probar`) |
 
 El criterio de la medición llega hasta que la ventana existe con su título; los
 diagramas se dibujan un instante después.
+
+Las 13 del frontend son 9 de frontera de las pestañas —nombres de 300
+caracteres, vacíos, extensiones más largas que el límite entero, acentos, rutas
+con barras mezcladas y mayúsculas distintas— y 4 que comprueban que todo `id` que
+busca el código exista en el HTML.
 
 **Prueba de aceptación:** los cinco archivos que quedaron abiertos en Zettlr
 —acentos, tildes en mayúsculas, paréntesis, espacios, uno en `D:`, uno de 83 KB—
 abren todos, el mayor en 122 ms, y **ninguno cambia un byte** (SHA-256).
 
+**El ataque crítico, repetido después del arreglo:** la celda muestra
+`[PINCHAR AQUI](javascript:…)` como texto, sin enlace; el fondo sigue oscuro
+(R=22 G=24 B=30) y la aplicación sigue en pie. Antes del arreglo, la misma
+prueba dejó la ventana en blanco y sin botones de cerrar — hubo que matar el
+proceso.
+
+**`cargo` no está en el PATH de la sesión.** Se invoca por ruta completa:
+`~/.cargo/bin/cargo.exe`.
+
 ---
 
 ## Lo que sigue
 
-1. **Instalar** con `MarkFlow_0.1.0_x64-setup.exe`.
+1. **Reinstalar** con el `MarkFlow_0.1.0_x64-setup.exe` de las 22:57, que es el
+   que lleva los arreglos de la auditoría.
 2. **Tomar la asociación a mano**, porque ningún instalador puede: clic derecho
    en un `.md` → *Abrir con* → *Elegir otra aplicación* → MarkFlow → *Usar
    siempre*. Windows 11 protege la asociación efectiva con un `UserChoice`
-   firmado por hash, y hoy la tiene Zettlr.
-3. **Fase C de la migración**: desinstalar Zettlr y recuperar 650 MB. El plan
-   está en `migracion-zettlr/MIGRACION.md` (local, fuera del repo).
+   firmado por hash, y **hoy la sigue teniendo Zettlr**.
+3. **Fase C de la migración**: correr `migracion-zettlr/salida-zettlr.ps1
+   -Ejecutar` para desinstalar Zettlr y recuperar ~650 MB. El script **se niega
+   mientras el punto 2 no esté hecho**, a propósito: no deja a Lalo sin editor
+   de `.md`.
 
 ## Sin decidir
 
@@ -197,7 +287,15 @@ sobre los originales le metió un carácter a una transcripción de la NTC.
 **El módulo de presentación es un `StateField`, no un `ViewPlugin`.** CodeMirror
 prohíbe que un plugin de vista genere decoraciones que se traguen saltos de
 línea, y los widgets de tabla y diagrama hacen justo eso. El precio es recorrer
-el documento entero: si un `.md` enorme va lento, es ahí.
+el documento entero: si un `.md` enorme va lento, es ahí — y es la razón de que
+exista `TOPE_VISTA`.
+
+**Toda expresión regular que corra en `construir()` se paga en cada tecla**, en
+el hilo de la interfaz. La auditoría encontró dos con coste cuadrático: 5×10¹¹
+pasos con 1 MB en la de nota al pie, segundos por pulsación con 30 KB en la de
+Mermaid. El error de forma es el mismo: dejar dentro de la parte repetida el
+mismo carácter con el que arranca cada intento. Acota la longitud o excluye el
+carácter de arranque de la clase.
 
 **Deshacer se ejecuta en las dos vistas a la vez**, y por eso no se usa el
 `historyKeymap` de CodeMirror: ése deshace sólo en la vista enfocada y desfasa
@@ -211,6 +309,17 @@ inicio daba por tapado al nodo raíz del documento y cortaba el recorrido del
 de selección.** Despachar la selección para forzar el redibujado hace que los
 bloques dibujados —la tabla, sobre todo— se crean con el cursor encima y vuelvan
 a texto crudo.
+
+**Un `div` con `aria-modal` no bloquea nada.** Con un diálogo en pantalla, Ctrl+Tab
+cargaba el contenido de una pestaña dentro de otra y Ctrl+W dejaba la promesa sin
+resolver para siempre. El manejador de teclas corta en seco si el velo está
+visible.
+
+**Lo que lance dentro de `toDOM` se lleva el panel entero.** CodeMirror lo llama
+sin protección, y el eslabón que importa es éste: si revienta el panel de
+presentación, **el de fuente nunca recibe el cambio — y fuente es lo que se
+guarda**. `decodeURI` lanza con un nombre de archivo tan legal como
+`descuento-50%.png`.
 
 **Acceso controlado a carpetas.** Defender puede bloquear la escritura en las
 carpetas de Documentos. No es un fallo del programa; la app tiene que estar en
@@ -245,3 +354,8 @@ suelta el foco tras el clic.
 hueco entre bloques.** Tomarla por «el bloque» enmarcaba el archivo entero. Por
 eso `bloqueEn` comprueba raíz, nodo vacío y nodo desmesurado antes de aceptarlo,
 y si no, cae al renglón.
+
+**Los scripts de PowerShell van en UTF-8 CON BOM y sin acentos en los
+identificadores.** PowerShell 5.1 lee como ANSI un `.ps1` sin BOM, y un
+`$claveElección` se vuelve un error de sintaxis sin relación aparente con la
+línea que lo causa.
