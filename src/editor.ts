@@ -18,9 +18,9 @@ import { languages } from '@codemirror/language-data'
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching,
          indentUnit } from '@codemirror/language'
 import { searchKeymap } from '@codemirror/search'
-import { vistaPresentacion } from './livepreview'
-import { bloqueEn, campoEco, marcarEco } from './resalte'
-import { temaBase, resaltadoMarkdown } from './tema'
+import { vistaPresentacion } from './livepreview.ts'
+import { bloqueEn, campoEco, marcarEco } from './resalte.ts'
+import { temaBase, resaltadoMarkdown } from './tema.ts'
 
 /** Marca una transaccion que ya viene reflejada de la otra vista: no se reenvia. */
 const espejo = Annotation.define<boolean>()

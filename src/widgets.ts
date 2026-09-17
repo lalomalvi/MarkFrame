@@ -13,8 +13,8 @@
 
 import { WidgetType, type EditorView } from '@codemirror/view'
 import { invoke } from '@tauri-apps/api/core'
-import { carpetaActual } from './contexto'
-import { pedirRefresco } from './refresco'
+import { carpetaActual } from './contexto.ts'
+import { pedirRefresco } from './refresco.ts'
 
 /** Deja el cursor dentro del texto que el widget estaba tapando. */
 function alPicar(el: HTMLElement, vista: EditorView, pos: number) {
@@ -74,7 +74,7 @@ function alineaciones(linea: string): Alineacion[] {
  *
  * `%28`/`%29` no salvan a nadie: aqui no se acepta el esquema, punto.
  */
-function destinoSeguro(url: string): string | null {
+export function destinoSeguro(url: string): string | null {
   // Controles y espacios en cualquier posicion: el navegador los ignora al
   // resolver el esquema, asi que aqui tampoco pueden servir de disfraz.
   const limpio = url.replace(/[\u0000-\u0020\u007F]/g, '')
@@ -244,7 +244,7 @@ const esRemota = (fuente: string) => /^https?:/i.test(fuente)
  * Tampoco vale devolver la cadena cruda cuando no hay carpeta base: Chromium
  * normaliza `\\host\x.png` a `//host/x.png` y lo pide por red igual.
  */
-function rutaAbsoluta(fuente: string): string | null {
+export function rutaAbsoluta(fuente: string): string | null {
   if (/^(https?|data|blob):/i.test(fuente)) return null
 
   // UNC en cualquiera de sus formas, incluida la larga de Windows. Nunca se

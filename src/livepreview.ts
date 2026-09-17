@@ -19,11 +19,11 @@
 import { syntaxTree } from '@codemirror/language'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view'
-import { WidgetCasilla, WidgetImagen, WidgetMate, WidgetMermaid, WidgetTabla } from './widgets'
-import { esOscuro } from './contexto'
-import { refrescarPresentacion } from './refresco'
+import { WidgetCasilla, WidgetImagen, WidgetMate, WidgetMermaid, WidgetTabla } from './widgets.ts'
+import { esOscuro } from './contexto.ts'
+import { refrescarPresentacion } from './refresco.ts'
 
-export { refrescarPresentacion } from './refresco'
+export { refrescarPresentacion } from './refresco.ts'
 
 /** Marcadores que se esconden cuando el cursor no esta en su renglon. */
 const MARCADORES = new Set([
@@ -126,7 +126,11 @@ function sinAcentos(s: string) {
           .replace(/[óòö]/gi, 'o').replace(/[úùü]/gi, 'u').toLowerCase()
 }
 
-function construir(estado: EditorState): DecorationSet {
+/**
+ * Se exporta para que las pruebas puedan mirar QUE decora un documento sin
+ * abrir una ventana. `toDOM` no se llama aqui, asi que no hace falta DOM.
+ */
+export function construir(estado: EditorState): DecorationSet {
   const marcas: Range<Decoration>[] = []
   const doc = estado.doc
 

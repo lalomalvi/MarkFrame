@@ -11,7 +11,7 @@
  */
 
 import type { EditorState } from '@codemirror/state'
-import type { FinDeLinea } from './archivo'
+import type { FinDeLinea } from './archivo.ts'
 
 export interface Pestana {
   id: number
