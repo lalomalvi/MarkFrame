@@ -26,3 +26,6 @@ dist-ssr
 # Material del relevo de Zettlr: vive en el disco de Lalo, no en el repo.
 # Lleva volcados del registro y su configuracion personal.
 migracion-zettlr/
+
+# Herramienta local para las capturas del README. No es producto.
+capturar.ps1
