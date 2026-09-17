@@ -18,11 +18,11 @@ propósito, y explica por qué. Los precedentes de seguridad, en
 | **Publicar** | **Sí** | El paquete es barato y el trabajo ya está hecho |
 | **El nombre** | **MarkFrame**, antes MarkFlow | `MarkFlow` estaba tomado por `drl990114/MarkFlowy` (2 393★, editor de markdown **en Tauri**, activo) y por `vorojar/MarkFlow`; 219 repos coinciden. `MarkFrame` está prácticamente libre —— 7 repos, **ninguno es un editor** —— y el monograma **MF del logo sirve igual** |
 | **Licencia** | **MIT** | Es un editor de escritorio, no una plataforma: no hay patentes que defender ni contribuciones que gobernar |
-| **El historial de git** | **`filter-repo`** quitando `migracion-zettlr/` | Lleva 5 rutas del disco de Lalo y 3 volcados de `HKCU`. Nadie tiene clones, así que el `push --force` no rompe a nadie, y conserva los 34 commits |
+| **El historial de git** | **`filter-branch`** quitando `migracion-zettlr/` —— `filter-repo` no está instalado y no valía la pena instalarlo para 34 commits | Lleva 5 rutas del disco de Lalo y 3 volcados de `HKCU`. Nadie tiene clones, así que el `push --force` no rompe a nadie, y conserva los 34 commits |
 | **El informe de auditoría** | **Se publica, con nota de cierre** | Su «lo que queda abierto» tiene 4 puntos y 3 están cerrados. Sin la nota, un desconocido leería agujeros que no existen |
 | **El instalador** | **En el release, con su SHA-256** | Sin él hacen falta Node y Rust para probarlo |
 | **Los issues** | **Apagados** | «Uso personal, sin soporte» en el README |
-| **La versión** | **1.0.0** | Lleva días en uso diario y con la auditoría cerrada. El 0.1.0 decía «experimento» |
+| **La versión** | **1.0.0**, y **1.0.1** el mismo día | El 0.1.0 decía «experimento». La 1.0.1 corrige la etiqueta del lenguaje colándose en el bloque de código |
 | **Corrector ortográfico** | **Descartado** | No está en la intención del programa |
 
 ### Fuera del alcance de la 1.0, pero escrito
@@ -42,21 +42,22 @@ empieza ninguno antes de publicar.
 ## Publicado el 2026-09-17
 
 **https://github.com/lalomalvi/MarkFrame** —— público, MIT, con el
-[release v1.0.0](https://github.com/lalomalvi/MarkFrame/releases/tag/v1.0.0).
+[release v1.0.1](https://github.com/lalomalvi/MarkFrame/releases/tag/v1.0.1) —— v1.0.0
+sigue publicado, sin borrar.
 
 | | Qué | Estado |
 |---|---|---|
 | 1 | **Renombrado a MarkFrame** —— configuración, código, identificador, documentación | ✅ |
 | 2 | **`LICENSE` MIT** y los campos de licencia en los dos manifiestos | ✅ |
-| 3 | **Versión 1.0.0** en los tres sitios | ✅ |
+| 3 | **Versión 1.0.1** en los tres sitios | ✅ |
 | 4 | **[TERCEROS.md](../TERCEROS.md) y `licencias/`** —— lo único con filo legal | ✅ con un hueco marcado: el paquete de Source Serif 4 no trae su línea de copyright |
 | 5 | **README para alguien que no es Lalo** | ✅ |
 | 6 | **Nota de cierre en el informe de auditoría** | ✅ |
 | 7 | **`AGENTS.md`** canónico, con `CLAUDE.md` reducido a un *import* | ✅ |
 | 8 | **Ruta absoluta fuera** de `auditoria/architecture.md` | ✅ |
-| 9 | **Recompilado** —— `MarkFrame_1.0.0_x64-setup.exe`, SHA-256 `d6a49e17…` | ✅ |
+| 9 | **Recompilado** —— `MarkFrame_1.0.1_x64-setup.exe`, SHA-256 `c155bfca…` | ✅ |
 | 10 | **Historial reescrito** con `filter-branch`, repo renombrado, issues apagados, `push --force`, público y release | ✅ |
-| 11 | **Capturas** | ⏳ falta todo menos la del aviso de imagen remota |
+| 11 | **Capturas** —— once en el README | ✅ |
 
 ### El pendiente abierto: el logo con el texto nuevo
 
@@ -70,14 +71,15 @@ el símbolo y **por eso no envejeció con el nombre**. El monograma provisional
 `assets/markframe-1024.png` se borró: era el «MF» de antes del logo, y estuvo
 unos minutos en la cabecera del README público.
 
-### Las capturas: hechas, y las hizo Lalo
+### Las capturas: once, y siete las hizo Lalo
 
-**Siete capturas en `assets/capturas/`**, tomadas por él con `capturar.ps1` el
-2026-09-17: los dos paneles en claro con KaTeX, el modo Fuente, el índice sobre
-el modo Vista, Mermaid, el buscador en claro y en oscuro, y el aviso de imagen
-remota.
+En `assets/capturas/`. **Siete las tomó él** con `capturar.ps1`: los dos paneles
+en claro con KaTeX, el modo Fuente, el índice, Mermaid, el buscador en claro y
+en oscuro, y el aviso de imagen remota. **Las otras cuatro salieron después**,
+cuando el permiso por fin se concedió: el panel de formato con la negrita
+encendida, una celda de tabla en edición, el modo Vista y Configuración.
 
-**Por qué no las tomé yo:** hacen falta clics en la ventana, y el permiso del
+**Por qué las primeras no las tomé yo:** hacen falta clics en la ventana, y el permiso del
 sistema sólo alcanza a aplicaciones que su índice conoce —— ese índice se
 construye al arrancar la sesión, así que no veía MarkFrame recién instalado. Hay
 dos formas de rodearlo y las dos se descartaron: automatizar el ratón desde
@@ -94,8 +96,10 @@ renglón del código**. `MARCADORES` ocultaba `CodeMark` —los backticks— per
 `CodeInfo`, la etiqueta del lenguaje. Salía en cualquier bloque con lenguaje
 declarado, o sea en casi todos. Arreglado en 1.0.1.
 
-Faltan, y no son urgentes: el panel de formato con un botón encendido, una celda
-de tabla en edición, y el panel de Configuración.
+**Y una cosa aprendida al tomarlas:** con el panel de formato abierto, el
+primer clic en una celda de tabla **se lo come el panel** —— lo cierra y no edita.
+Es razonable, pero costó creer que el clic no llegaba. Con el panel cerrado, un
+clic edita a la primera.
 
 ### El respaldo del historial
 

@@ -29,6 +29,10 @@ Eso importa por una razón de fondo: **el panel formateado no es HTML**, es el
 mismo texto con los marcadores decorados. Así que editarlo es editar markdown, y
 **nunca hay una conversión de vuelta** que pueda comerse un renglón de una tabla.
 
+![El panel de formato, con la negrita ya encendida](assets/capturas/formato.png)
+
+<sub>Seleccionas «reforzado», que ya está en negrita, y **la N sale encendida**. Los otros botones dicen lo que falta. Detrás, el panel de la izquierda ha saltado al mismo párrafo.</sub>
+
 | | |
 |---|---|
 | **Tablas editables celda por celda** | Desde el panel formateado, con el markdown como fuente de verdad |
@@ -87,11 +91,17 @@ costó a quién cada cosa que aquí se cierra— en
 
 **112 pruebas** automatizadas: 81 de interfaz y 31 del núcleo en Rust.
 
+![Una celda de la tabla en edición](assets/capturas/tabla.png)
+
+<sub>Un clic en la celda y se escribe encima. Al confirmar se reemplaza **sólo el tramo de esa celda** en el markdown de la izquierda —— nunca se reconstruye el documento leyendo el HTML.</sub>
+
 ## Cómo se ve
 
 **Los tres modos.** Sólo la fuente, los dos paneles, o sólo el texto formateado:
 
 ![Modo fuente](assets/capturas/fuente.png)
+
+![Modo vista](assets/capturas/vista.png)
 
 **El índice del documento**, con la sección actual marcada —— y el modo Vista detrás:
 
@@ -108,6 +118,10 @@ costó a quién cada cosa que aquí se cierra— en
 **Y en tema oscuro**, que es donde vive la mitad del tiempo:
 
 ![Tema oscuro](assets/capturas/buscador-oscuro.png)
+
+**La configuración entera**, sin botón de aceptar: cada cambio se aplica y se guarda al instante.
+
+![Configuración](assets/capturas/configuracion.png)
 
 ## Instalación
 
