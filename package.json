@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "probar": "node --experimental-transform-types pruebas/pestanas.prueba.ts && node --experimental-transform-types pruebas/ids.prueba.ts && node --experimental-transform-types pruebas/presentacion.prueba.ts"
+    "probar": "node --experimental-transform-types pruebas/pestanas.prueba.ts && node --experimental-transform-types pruebas/ids.prueba.ts && node --experimental-transform-types pruebas/presentacion.prueba.ts && node --experimental-transform-types pruebas/preferencias.prueba.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

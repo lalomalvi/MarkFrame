@@ -14,11 +14,25 @@
          ventana; lo que tiene evento propio, no. -->
     <header id="titulo" class="titulo" data-tauri-drag-region>
       <span class="titulo-marca" data-tauri-drag-region>
-        <svg viewBox="0 0 16 16" aria-hidden="true" class="marca-mf">
-          <rect x="0" y="0" width="16" height="16" rx="3.6" fill="var(--acento)" />
-          <text x="8" y="11.4" text-anchor="middle" font-size="8.2"
-                font-weight="800" fill="var(--acento-tinta)"
-                font-family="Segoe UI, system-ui, sans-serif">MF</text>
+        <!-- El simbolo del logo, sacado de `marca/logo-markflow.svg`. La M va
+             con `currentColor` para que tome el color del texto de la barra:
+             en negro fijo desapareceria con el tema oscuro. El gradiente lleva
+             nombre propio porque los de Illustrator traen identificadores de
+             cincuenta caracteres, y dos iguales en la misma pagina se pisan. -->
+        <svg viewBox="158 70 338 268" aria-hidden="true" class="marca-mf">
+          <defs>
+            <linearGradient id="mf-degradado" gradientUnits="userSpaceOnUse"
+                            x1="263.5759" y1="209.4005" x2="464.9545" y2="73.5689">
+              <stop offset="0" style="stop-color:#3065AF;stop-opacity:0.8"/>
+              <stop offset="0.1238" style="stop-color:#2D81C4;stop-opacity:0.846"/>
+              <stop offset="0.334" style="stop-color:#339FDA;stop-opacity:0.9241"/>
+              <stop offset="0.5385" style="stop-color:#36A9E1"/>
+              <stop offset="1" style="stop-color:#3065AF"/>
+            </linearGradient>
+          </defs>
+          <path fill="currentColor" d="M331.7,236.1L331.7,236.1c-17.6,31.5-63,31.2-80.1-0.6l-20.8-38.7v82.8c0,31.3-25.4,56.7-56.7,56.7h-15.2V129.2c0-31.6,25.6-57.2,57.2-57.2h0c21.9,0,41.9,12.5,51.5,32.2L331.7,236.1z" />
+          <path fill="url(#mf-degradado)" d="M495.2,72v14.7c0,31.6-25.6,57.3-57.3,57.3h-36.2c-11.5,0-22.1,6.2-27.7,16.3l-42.7,76.6c-17.4,31.2-62.5,30.9-79.4-0.6l0,0l64.1-131.9c9.6-19.7,29.6-32.2,51.5-32.2H495.2z" />
+          <path fill="currentColor" d="M495.2,181.2v21.9c0,23.1-18.7,41.8-41.8,41.8h-9.4c-6.6,0-11.9,5.3-11.9,11.9v37.9c0,23.1-18.7,41.8-41.8,41.8H369V262c0-10.6,2.7-21,7.8-30.3l21.4-38.9c3.9-7.1,11.4-11.6,19.6-11.6H495.2z" />
         </svg>
       </span>
 
@@ -104,7 +118,37 @@
       <div class="relleno"></div>
       <span id="estado" class="estado" hidden></span>
 
-      <button id="tema" class="boton" title="Tema" aria-label="Cambiar tema">
+      <!-- Buscar dentro de esta nota. Vive en la barra y no en un panel aparte
+           para que esté siempre a la vista: es el gesto que más se repite. -->
+      <div id="buscador" class="buscador">
+        <svg class="ic buscar-lupa" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="7.1" cy="7.1" r="4.5" />
+          <path d="M10.4 10.4 13.8 13.8" />
+        </svg>
+        <input id="buscar" class="buscar-campo" type="text" spellcheck="false"
+               placeholder="Buscar (Ctrl+F)" aria-label="Buscar en esta nota" />
+        <span id="buscar-cuenta" class="buscar-cuenta" aria-live="polite"></span>
+        <button id="buscar-antes" class="boton icono buscar-paso" title="Anterior (Shift+Enter)"
+                aria-label="Coincidencia anterior">
+          <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4.2 9.8 8 6l3.8 3.8" />
+          </svg>
+        </button>
+        <button id="buscar-despues" class="boton icono buscar-paso" title="Siguiente (Enter)"
+                aria-label="Coincidencia siguiente">
+          <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4.2 6.2 8 10l3.8-3.8" />
+          </svg>
+        </button>
+        <button id="buscar-cerrar" class="boton icono buscar-paso" title="Cerrar (Escape)"
+                aria-label="Cerrar la búsqueda">
+          <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6" />
+          </svg>
+        </button>
+      </div>
+
+      <button id="tema" class="boton icono" title="Tema" aria-label="Cambiar tema">
         <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
           <circle id="tema-disco" cx="8" cy="8" r="3.4" />
           <g id="tema-rayos">
@@ -112,17 +156,16 @@
           </g>
           <path id="tema-luna" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8Z" />
         </svg>
-        <span id="tema-texto">Tema</span>
       </button>
       <button id="opciones" class="boton icono" title="Configuración (Ctrl+,)" aria-label="Configuración">
-        <!-- Dos deslizadores en un marco, del SVG que trajo Lalo. Se paso a
-             trazo con `currentColor` para que siga al color del boton; los
-             tiradores se rellenan del fondo de la barra para cortar el riel. -->
-        <svg class="ic ic-24" viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="2.9" y="2.9" width="18.2" height="18.2" rx="4.4" />
-          <path d="M8 7.1v9.8M16 7.1v9.8" />
-          <circle cx="8" cy="11" r="1.95" fill="var(--papel-barra)" />
-          <circle cx="16" cy="13" r="1.95" fill="var(--papel-barra)" />
+        <!-- Tres puntos en vertical. Sustituyo a los deslizadores el
+             2026-09-17: no hay que explicarlo, todo el mundo sabe ya que ahi
+             hay ajustes. Van rellenos y no de trazo -- un punto dibujado con
+             linea se ve gris y sucio a este tamano. -->
+        <svg class="ic ic-puntos" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="5.2" r="1.9" />
+          <circle cx="12" cy="12" r="1.9" />
+          <circle cx="12" cy="18.8" r="1.9" />
         </svg>
       </button>
     </header>

@@ -21,6 +21,7 @@ import { searchKeymap } from '@codemirror/search'
 import { vistaPresentacion } from './livepreview.ts'
 import { bloqueEn, campoEco, marcarEco } from './resalte.ts'
 import { temaBase, resaltadoMarkdown } from './tema.ts'
+import { busqueda } from './buscar.ts'
 
 /** Marca una transaccion que ya viene reflejada de la otra vista: no se reenvia. */
 const espejo = Annotation.define<boolean>()
@@ -88,6 +89,10 @@ export function crearPar(
       EditorView.lineWrapping,
       sangria.of(indentUnit.of('    ')),
       campoEco(),
+      // El buscador de la barra necesita esto montado en las DOS vistas: se
+      // busca sobre el mismo documento, y el resaltado tiene que verse en la
+      // que se esté mirando.
+      busqueda(),
       temaBase,
       atajos,
       keymap.of([...defaultKeymap, ...searchKeymap, indentWithTab]),

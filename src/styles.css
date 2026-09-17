@@ -32,6 +32,7 @@
   --codigo-fondo: #f1f4f9;
   --seleccion: #cfe2ff;
   --linea-activa: #f6f8fb;
+  --resaltado: #f5d90a;
   --peligro-tinta: #9f2a2a;
   --peligro-fondo: #fdf0f0;
   --peligro-borde: #ef4444;
@@ -56,6 +57,7 @@
     --codigo-fondo: #252932;
     --seleccion: #14406e;
     --linea-activa: #252a33;
+    --resaltado: #f5d90a;
     --peligro-tinta: #ffb4b4;
     --peligro-fondo: #2c1e20;
     --peligro-borde: #ef4444;
@@ -80,6 +82,7 @@
   --codigo-fondo: #252932;
   --seleccion: #14406e;
   --linea-activa: #252a33;
+  --resaltado: #f5d90a;
   --peligro-tinta: #ffb4b4;
   --peligro-fondo: #2c1e20;
   --peligro-borde: #ef4444;
@@ -160,8 +163,131 @@ body { display: flex; flex-direction: column; }
 }
 
 .grupo { display: flex; gap: 2px; }
-.separador { width: 1px; height: 20px; background: var(--borde); margin: 0 6px; }
+/* Más alto y con más aire que antes: a 20 px y pegado apenas se veía, y lo que
+   tiene que decir es "aquí termina un grupo de botones y empieza otro". */
+.separador {
+  width: 1px;
+  height: 24px;
+  background: var(--borde);
+  margin: 0 9px;
+  flex: none;
+}
 .relleno { flex: 1; }
+
+/* Los tres puntos de Configuración van rellenos, no de trazo: un círculo de
+   1.9 de radio dibujado con línea se ve como un anillo gris y sucio. */
+.ic-puntos { width: 19px; height: 19px; fill: currentColor; stroke: none; }
+
+/* --- buscar dentro de la nota --------------------------------------------- */
+
+.buscador {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 0 7px;
+  margin-right: 4px;
+  border: 1px solid var(--borde);
+  border-radius: 7px;
+  background: var(--papel);
+  /* Arranca angosto: hasta que alguien busca, es sólo una lupa que no estorba
+     al nombre del archivo ni a los modos. */
+  transition: border-color .12s ease;
+}
+.buscador:focus-within { border-color: var(--acento); }
+.buscar-lupa { width: 13px; height: 13px; color: var(--apagado); flex: none; }
+
+.buscar-campo {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--tinta);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 2px;
+  width: 104px;
+  transition: width .14s ease;
+}
+.buscador:focus-within .buscar-campo { width: 190px; }
+.buscar-campo::placeholder { color: var(--apagado); }
+
+.buscar-cuenta {
+  font-size: 11.5px;
+  color: var(--apagado);
+  font-variant-numeric: tabular-nums;
+  padding: 0 3px;
+  white-space: nowrap;
+}
+/* Los pasos y el cerrar sólo aparecen cuando hay algo que buscar: con la caja
+   vacía son tres botones que no hacen nada. */
+.buscar-paso { width: 22px; height: 22px; }
+.buscar-paso .ic { width: 13px; height: 13px; }
+.buscador:not(.con-texto) .buscar-paso,
+.buscador:not(.con-texto) .buscar-cuenta { display: none; }
+
+/* Lo encontrado. La coincidencia donde está el cursor va con el acento; las
+   demás, apenas marcadas, para que se vea dónde estás sin perder las otras. */
+.cm-searchMatch {
+  background: color-mix(in srgb, var(--acento) 26%, transparent);
+  border-radius: 2px;
+}
+.cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--acento) 62%, transparent);
+  outline: 1px solid var(--acento);
+}
+/* Cuando no hay ninguna coincidencia, el borde lo dice sin ocupar sitio. */
+.buscador.sin-nada { border-color: var(--peligro-borde); }
+.buscador.sin-nada .buscar-cuenta { color: var(--peligro-tinta); }
+
+/* --- panel de formato al seleccionar --------------------------------------- */
+
+.panel-formato {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--papel-barra);
+  border: 1px solid var(--borde);
+  box-shadow: 0 6px 20px rgb(0 0 0 / .22);
+  /* El panel no se selecciona: arrastrar sobre él no puede deshacer la
+     selección que le da sentido. */
+  user-select: none;
+}
+
+.fmt-boton {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  width: 28px;
+  height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tinta);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.fmt-boton:hover { background: color-mix(in srgb, var(--tinta) 10%, transparent); }
+.fmt-boton:active { background: color-mix(in srgb, var(--tinta) 18%, transparent); }
+
+/* Cada botón se ve como lo que hace: la N en negrita, la K en cursiva, la S
+   tachada. No hace falta leerlos para saber cuál es cuál. */
+.fmt-negrita { font-weight: 800; }
+.fmt-cursiva { font-style: italic; font-family: Georgia, serif; }
+.fmt-tachado { text-decoration: line-through; }
+
+/* El resaltado no lleva letra: lleva su propio color, que es lo que promete. */
+.fmt-resaltar::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  background: var(--resaltado);
+  border: 1px solid color-mix(in srgb, var(--resaltado) 70%, #000);
+}
 
 /* Un nombre largo partia la barra en dos renglones y empujaba los paneles
    hacia abajo. Se recorta con puntos suspensivos; la ruta completa vive en el
@@ -187,7 +313,9 @@ body { display: flex; flex-direction: column; }
 /* --- paneles -------------------------------------------------------------- */
 
 .paneles { flex: 1; display: flex; min-height: 0; }
-.panel { flex: 1; min-width: 0; height: 100%; overflow: hidden; }
+/* `position: relative` para que el panel de formato, que se coloca en absoluto,
+   se mida contra su panel y no contra la ventana entera. */
+.panel { flex: 1; min-width: 0; height: 100%; overflow: hidden; position: relative; }
 /* --- divisor arrastrable --- */
 .division {
   width: 1px;
@@ -734,8 +862,10 @@ body { display: flex; flex-direction: column; }
   padding-left: 9px;
 }
 
-.titulo-marca { display: flex; align-items: center; padding-right: 9px; flex: none; }
-.marca-mf { width: 17px; height: 17px; display: block; }
+.titulo-marca { display: flex; align-items: center; padding-right: 10px; flex: none; }
+/* El símbolo no es cuadrado —— es más ancho que alto—, así que manda la altura y
+   el ancho se acomoda. Con `width` fijo se aplastaría. */
+.marca-mf { height: 16px; width: auto; display: block; }
 
 /* Zona muerta a la derecha de las pestanas: sirve para arrastrar la ventana. */
 .titulo-resto { flex: 1; min-width: 24px; }
@@ -787,7 +917,7 @@ body { display: flex; flex-direction: column; }
 }
 
 .mf-resaltado {
-  background: color-mix(in srgb, #f5d90a 34%, transparent);
+  background: color-mix(in srgb, var(--resaltado) 34%, transparent);
   color: var(--tinta);
   border-radius: 3px;
   padding: .06em .1em;
@@ -806,15 +936,36 @@ body { display: flex; flex-direction: column; }
 
 /* --- imagen remota sin cargar --------------------------------------------- */
 
+/* El aviso de imagen de internet.
+
+   Va en tono de peligro, y no en gris, porque lo que avisa es real: pedir esa
+   imagen le confirma al servidor de quien escribió el .md que abriste su
+   archivo, y le entrega tu IP. En gris discreto se lee como un detalle técnico
+   y se pica sin pensar. Subido de tono el 2026-09-17 a petición de Lalo. */
 .mf-w-bloqueada {
-  border: 1px dashed var(--borde);
+  border: 1px solid var(--peligro-borde);
+  border-left: 4px solid var(--peligro-borde);
   border-radius: 8px;
   padding: .85em 1em;
-  background: var(--codigo-fondo);
+  background: var(--peligro-fondo);
   text-align: left;
   max-width: 34rem;
 }
-.mf-bloq-texto { font-weight: 600; font-size: .92em; margin-bottom: .3em; }
+.mf-bloq-texto {
+  font-weight: 700;
+  font-size: .92em;
+  margin-bottom: .3em;
+  color: var(--peligro-tinta);
+  display: flex;
+  align-items: center;
+  gap: .45em;
+}
+/* El triángulo de aviso, dibujado con el propio texto: sin imagen que cargar. */
+.mf-bloq-texto::before {
+  content: "⚠";
+  font-size: 1.15em;
+  line-height: 1;
+}
 .mf-bloq-url {
   font-family: var(--fuente-mono);
   font-size: .78em;
@@ -835,8 +986,9 @@ body { display: flex; flex-direction: column; }
 }
 .mf-bloq-boton:hover { filter: brightness(1.1); }
 .mf-bloq-nota {
-  font-size: .76em;
-  color: var(--tenue);
+  font-size: .78em;
+  /* Antes iba en --tenue, y era justo la linea que hay que leer. */
+  color: var(--peligro-tinta);
   margin-top: .6em;
   line-height: 1.45;
 }

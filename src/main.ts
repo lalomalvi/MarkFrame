@@ -10,6 +10,8 @@ import type { Pestana } from './pestanas.ts'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
+import { conectarBuscador } from './buscar.ts'
+import { panelDeFormato } from './formato.ts'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -114,6 +116,7 @@ function activar(i: number) {
   par.fijarSangria(P.sangria)
   pintar()
   par.enfocar()
+  buscador.olvidar()
   // Al volver a una pestaña hay que mirar si su archivo cambio, porque
   // `revisarCambiosDeFuera` solo mira LA ACTIVA y hasta ahora solo corria al
   // recuperar el foco de la ventana. Una pestaña de fondo podia quedarse
@@ -198,10 +201,10 @@ function aplicarTodo() {
   par.activarEco(P.eco)
   permitirRemotas(P.imagenesRemotas)
   btTema.classList.toggle('tema-oscuro', prefs.oscuroActivo(P))
-  const rot = P.tema === 'sistema' ? 'Tema: sigue a Windows'
+  // El botón de tema ya no lleva texto —— sólo el icono, desde el 2026-09-17—,
+  // así que lo que dice en qué modo está es el `title`.
+  btTema.title = P.tema === 'sistema' ? 'Tema: sigue a Windows'
     : P.tema === 'claro' ? 'Tema: claro' : 'Tema: oscuro'
-  btTema.title = rot
-  $('tema-texto').textContent = P.tema === 'sistema' ? 'Tema' : rot.replace('Tema: ', 'Tema ')
   // Los diagramas llevan el tema dentro: hay que pedirles que se redibujen.
   par.presentacion.dispatch({ effects: refrescarPresentacion.of(null) })
 }
@@ -710,6 +713,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === ',') { e.preventDefault(); abrirOpciones(!!panelOp.hidden) }
   else if (k === 't') { e.preventDefault(); nuevaVacia() }
   else if (k === 'w') { e.preventDefault(); cerrarPestana(activa) }
+  else if (k === 'f') { e.preventDefault(); buscador.enfocar() }
   else if (e.key === 'Tab') {
     e.preventDefault()
     const paso = e.shiftKey ? -1 : 1
@@ -746,6 +750,32 @@ getCurrentWebview().onDragDropEvent((ev) => {
     void (async () => { for (const r of caidos) await abrirRuta(r) })()
   }
 })
+
+// --- buscar y dar formato ----------------------------------------------------
+
+/**
+ * El buscador trabaja siempre sobre **el panel que se está mirando**.
+ *
+ * En modo Ambos manda el de presentación: es el que se ve más ancho y donde se
+ * lee. En modo Fuente, el de fuente. Las dos vistas llevan la búsqueda montada,
+ * así que lo encontrado se resalta en cualquiera de las dos.
+ */
+const vistaALaVista = () =>
+  cajaPresentacion.offsetParent !== null ? par.presentacion : par.fuente
+
+const buscador = conectarBuscador({
+  campo: $<HTMLInputElement>('buscar'),
+  cuenta: $('buscar-cuenta'),
+  caja: $('buscador'),
+  antes: $('buscar-antes'),
+  despues: $('buscar-despues'),
+  cerrar: $('buscar-cerrar'),
+}, vistaALaVista)
+
+// El panel de formato va en los dos paneles: seleccionar y dar negrita tiene
+// que funcionar igual en el markdown que en la vista.
+panelDeFormato(par.presentacion, cajaPresentacion)
+panelDeFormato(par.fuente, cajaFuente)
 
 // --- una sola ventana --------------------------------------------------------
 
