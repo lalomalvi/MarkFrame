@@ -9,6 +9,7 @@ import * as pest from './pestanas'
 import type { Pestana } from './pestanas'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -113,6 +114,14 @@ function activar(i: number) {
   par.fijarSangria(P.sangria)
   pintar()
   par.enfocar()
+  // Al volver a una pestaña hay que mirar si su archivo cambio, porque
+  // `revisarCambiosDeFuera` solo mira LA ACTIVA y hasta ahora solo corria al
+  // recuperar el foco de la ventana. Una pestaña de fondo podia quedarse
+  // semanas con una copia vieja: se vuelve a ella, se escribe encima y se
+  // pierde lo que otro programa --o otra ventana de MarkFlow-- ya habia
+  // guardado. Es el patron de trabajo normal aqui: un editor y un agente sobre
+  // la misma carpeta.
+  void revisarCambiosDeFuera()
 }
 
 function nuevaVacia() {
@@ -736,6 +745,19 @@ getCurrentWebview().onDragDropEvent((ev) => {
     const caidos = ev.payload.paths ?? []
     void (async () => { for (const r of caidos) await abrirRuta(r) })()
   }
+})
+
+// --- una sola ventana --------------------------------------------------------
+
+/**
+ * Cuando Windows lanza MarkFlow y ya hay uno en marcha, el proceso nuevo se
+ * apaga y le manda aqui sus archivos: se abren como pestañas de esta ventana.
+ *
+ * Es el mismo recorrido que el de soltar archivos encima, en serie y no en
+ * paralelo: `abrirRuta` toca el editor y las pestañas, que son uno solo.
+ */
+void listen<string[]>('abrir-archivos', (ev) => {
+  void (async () => { for (const r of ev.payload) await abrirRuta(r) })()
 })
 
 // --- arranque ----------------------------------------------------------------

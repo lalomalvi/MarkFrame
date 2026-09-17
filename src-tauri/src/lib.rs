@@ -201,6 +201,138 @@ fn marca_unica() -> String {
 /// 60 MB de RAM por una foto, se avisa y ya.
 const TOPE_IMAGEN: u64 = 25 * 1024 * 1024;
 
+/// Tope de pixeles que una imagen puede DECLARAR en su cabecera.
+///
+/// El tope de bytes no alcanza, porque la razon de compresion no tiene limite
+/// util: un PNG de 100 KB puede declarar 20000x20000 --400 millones de
+/// pixeles-- y el webview reserva unos 4 bytes por pixel al pintarlo. Son
+/// 1.6 GB salidos de un archivo que cabe en un correo. Lo anoto un validador
+/// fuera de encargo en la auditoria del 2026-09-16, y quedo sin revisar.
+///
+/// El numero sale de no estorbarle a Lalo: un plano A0 escaneado a 300 ppp son
+/// 9930 x 14040, o sea 139 millones de pixeles, y eso tiene que abrir. 180
+/// millones deja pasar eso con margen y corta la bomba, que necesita ordenes de
+/// magnitud mas para doler.
+const TOPE_PIXELES: u64 = 180_000_000;
+
+/// Lo que la cabecera de una imagen dice que mide, sin descomprimirla.
+///
+/// **No valida el formato**: si no reconoce la cabecera devuelve `None`, y quien
+/// llama decide. Aqui `None` significa «no se pudo saber», nunca «esta bien».
+///
+/// Cubre PNG, GIF, BMP, JPEG y WEBP. Quedan fuera a proposito:
+///
+/// - **ICO**, donde cada imagen mide 256x256 como maximo por definicion del
+///   formato: no hay bomba posible.
+/// - **SVG**, que es vectorial y no declara un mapa de bits que reservar.
+/// - **AVIF**, cuya cabecera vive dentro de cajas ISOBMFF anidadas. Parsearlo a
+///   medias seria peor que no parsearlo: daria una sensacion de cobertura que no
+///   existe. Queda cubierto solo por el tope de bytes, y esta anotado.
+fn dimensiones_declaradas(b: &[u8]) -> Option<(u64, u64)> {
+    // --- PNG: firma de 8 bytes, y el IHDR arranca en el 16 ----------------- //
+    if b.len() >= 24 && b.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        let ancho = u32::from_be_bytes([b[16], b[17], b[18], b[19]]) as u64;
+        let alto = u32::from_be_bytes([b[20], b[21], b[22], b[23]]) as u64;
+        return Some((ancho, alto));
+    }
+
+    // --- GIF: "GIF87a" o "GIF89a", y las medidas en el 6, poco endian ------ //
+    if b.len() >= 10 && (b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a")) {
+        let ancho = u16::from_le_bytes([b[6], b[7]]) as u64;
+        let alto = u16::from_le_bytes([b[8], b[9]]) as u64;
+        return Some((ancho, alto));
+    }
+
+    // --- BMP: el alto puede venir negativo (filas de arriba abajo) --------- //
+    if b.len() >= 26 && b.starts_with(b"BM") {
+        let ancho = i32::from_le_bytes([b[18], b[19], b[20], b[21]]).unsigned_abs() as u64;
+        let alto = i32::from_le_bytes([b[22], b[23], b[24], b[25]]).unsigned_abs() as u64;
+        return Some((ancho, alto));
+    }
+
+    // --- WEBP: RIFF....WEBP, y despues depende del trozo ------------------- //
+    if b.len() >= 30 && b.starts_with(b"RIFF") && &b[8..12] == b"WEBP" {
+        match &b[12..16] {
+            // Extendido: ancho-1 y alto-1 en 24 bits, poco endian.
+            b"VP8X" => {
+                let ancho = (u32::from_le_bytes([b[24], b[25], b[26], 0]) + 1) as u64;
+                let alto = (u32::from_le_bytes([b[27], b[28], b[29], 0]) + 1) as u64;
+                return Some((ancho, alto));
+            }
+            // Sin perdida: 14 bits cada uno, empaquetados tras la firma 0x2F.
+            b"VP8L" if b[20] == 0x2F => {
+                let bits = u32::from_le_bytes([b[21], b[22], b[23], b[24]]);
+                let ancho = ((bits & 0x3FFF) + 1) as u64;
+                let alto = (((bits >> 14) & 0x3FFF) + 1) as u64;
+                return Some((ancho, alto));
+            }
+            // Con perdida: tras el codigo de arranque 9D 01 2A.
+            b"VP8 " if b[23] == 0x9D && b[24] == 0x01 && b[25] == 0x2A => {
+                let ancho = (u16::from_le_bytes([b[26], b[27]]) & 0x3FFF) as u64;
+                let alto = (u16::from_le_bytes([b[28], b[29]]) & 0x3FFF) as u64;
+                return Some((ancho, alto));
+            }
+            _ => return None,
+        }
+    }
+
+    // --- JPEG: hay que caminar los segmentos hasta dar con un SOF ---------- //
+    if b.len() >= 4 && b[0] == 0xFF && b[1] == 0xD8 {
+        let mut i = 2usize;
+        // El tope de vueltas evita quedarse dando giros con un archivo torcido:
+        // esto corre dentro de un comando que la interfaz espera.
+        for _ in 0..512 {
+            // Puede haber relleno de 0xFF entre segmentos; el formato lo permite.
+            while i < b.len() && b[i] == 0xFF {
+                i += 1;
+            }
+            if i + 2 >= b.len() {
+                return None;
+            }
+            let marca = b[i];
+            i += 1;
+
+            // Estos no llevan cuerpo: no se les puede leer una longitud.
+            if marca == 0xD8 || marca == 0x01 || (0xD0..=0xD7).contains(&marca) {
+                continue;
+            }
+            // Fin de imagen o arranque del barrido: ya no vendra ningun SOF.
+            if marca == 0xD9 || marca == 0xDA {
+                return None;
+            }
+
+            if i + 1 >= b.len() {
+                return None;
+            }
+            let largo = u16::from_be_bytes([b[i], b[i + 1]]) as usize;
+            if largo < 2 {
+                return None;
+            }
+
+            // Los SOF son C0..CF menos C4 (tablas Huffman), C8 (reservado) y CC
+            // (aritmetica): comparten rango pero no son cabeceras de marco.
+            let es_sof = (0xC0..=0xCF).contains(&marca)
+                && marca != 0xC4
+                && marca != 0xC8
+                && marca != 0xCC;
+
+            if es_sof {
+                if i + 7 >= b.len() {
+                    return None;
+                }
+                let alto = u16::from_be_bytes([b[i + 3], b[i + 4]]) as u64;
+                let ancho = u16::from_be_bytes([b[i + 5], b[i + 6]]) as u64;
+                return Some((ancho, alto));
+            }
+
+            i += largo;
+        }
+        return None;
+    }
+
+    None
+}
+
 fn tipo_por_extension(p: &Path) -> Option<&'static str> {
     let ext = p.extension()?.to_string_lossy().to_lowercase();
     Some(match ext.as_str() {
@@ -244,6 +376,25 @@ fn leer_imagen(ruta: String) -> Result<String, String> {
         .ok_or_else(|| format!("«{}» no parece una imagen", nombre_de(&p)))?;
 
     let bytes = fs::read(&p).map_err(|e| format!("No se pudo leer la imagen: {e}"))?;
+
+    // Lo que la imagen DICE que mide, antes de dejar que el webview lo crea.
+    // Un archivo chico puede declarar un mapa de bits enorme; ver TOPE_PIXELES.
+    if let Some((ancho, alto)) = dimensiones_declaradas(&bytes) {
+        let pixeles = ancho.saturating_mul(alto);
+        if pixeles > TOPE_PIXELES {
+            return Err(format!(
+                "«{}» dice medir {}x{} y eso son {} millones de pixeles, mas del tope de {} millones. \
+                 Pesa poco porque va comprimida, pero al pintarla ocuparia unos {} MB.",
+                nombre_de(&p),
+                ancho,
+                alto,
+                pixeles / 1_000_000,
+                TOPE_PIXELES / 1_000_000,
+                pixeles.saturating_mul(4) / 1024 / 1024
+            ));
+        }
+    }
+
     Ok(format!("data:{};base64,{}", tipo, STANDARD.encode(bytes)))
 }
 
@@ -318,6 +469,33 @@ fn guardia_de_navegacion<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Va PRIMERO, y no es cosmetico: el complemento decide si este proceso
+        // sigue vivo o le pasa el relevo al que ya estaba. Registrarlo despues
+        // de otros deja a esos otros arrancando en un proceso que se va a morir.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _carpeta| {
+            use tauri::{Emitter, Manager};
+
+            // Alguien pidio abrir algo, asi que la ventana buena se pone
+            // delante -- aunque estuviera minimizada.
+            if let Some(v) = app.get_webview_window("main") {
+                let _ = v.unminimize();
+                let _ = v.set_focus();
+            }
+
+            // Mismo criterio que `archivo_inicial`: se toman los argumentos que
+            // de verdad son archivos, no las banderas.
+            let rutas: Vec<String> = argv
+                .iter()
+                .skip(1)
+                .filter(|a| !a.starts_with('-'))
+                .filter(|a| Path::new(a).is_file())
+                .cloned()
+                .collect();
+
+            if !rutas.is_empty() {
+                let _ = app.emit("abrir-archivos", rutas);
+            }
+        }))
         .plugin(guardia_de_navegacion())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -534,5 +712,117 @@ o\existe\esto.md".to_string());
         escribir(ruta, "# Suelto\n".into(), FinDeLinea::Lf).unwrap();
         assert_eq!(fs::read_to_string(&p).unwrap(), "# Suelto\n");
         fs::remove_file(p).ok();
+    }
+
+    // ---- dimensiones declaradas en la cabecera --------------------------- //
+
+    /// Cabecera PNG con las medidas que se le pidan. Lo de despues no importa:
+    /// la funcion no descomprime nada, que es justo el punto.
+    fn png_de(ancho: u32, alto: u32) -> Vec<u8> {
+        let mut b = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        b.extend_from_slice(&13u32.to_be_bytes());
+        b.extend_from_slice(b"IHDR");
+        b.extend_from_slice(&ancho.to_be_bytes());
+        b.extend_from_slice(&alto.to_be_bytes());
+        b.extend_from_slice(&[8, 2, 0, 0, 0]);
+        b
+    }
+
+    #[test]
+    fn lee_las_medidas_de_un_png() {
+        assert_eq!(dimensiones_declaradas(&png_de(1920, 1080)), Some((1920, 1080)));
+    }
+
+    #[test]
+    fn la_bomba_de_descompresion_queda_fuera_del_tope() {
+        // El caso que anoto el validador: pesa nada y declara una barbaridad.
+        let (a, h) = dimensiones_declaradas(&png_de(20000, 20000)).unwrap();
+        assert!(
+            a * h > TOPE_PIXELES,
+            "20000x20000 tiene que pasarse del tope, o el tope no sirve"
+        );
+    }
+
+    #[test]
+    fn un_plano_a0_a_300_ppp_si_cabe() {
+        // 841x1189 mm a 300 ppp. Es el caso real que el tope NO debe estorbar.
+        let (a, h) = dimensiones_declaradas(&png_de(9930, 14040)).unwrap();
+        assert!(
+            a * h <= TOPE_PIXELES,
+            "un plano A0 escaneado tiene que abrir: son {} millones de pixeles",
+            a * h / 1_000_000
+        );
+    }
+
+    #[test]
+    fn lee_las_medidas_de_un_gif() {
+        let mut b = b"GIF89a".to_vec();
+        b.extend_from_slice(&800u16.to_le_bytes());
+        b.extend_from_slice(&600u16.to_le_bytes());
+        assert_eq!(dimensiones_declaradas(&b), Some((800, 600)));
+    }
+
+    #[test]
+    fn el_bmp_con_alto_negativo_da_su_valor_absoluto() {
+        // Un alto negativo significa filas de arriba abajo, no una medida rara.
+        let mut b = b"BM".to_vec();
+        b.extend_from_slice(&[0; 16]);
+        b.extend_from_slice(&1024i32.to_le_bytes());
+        b.extend_from_slice(&(-768i32).to_le_bytes());
+        assert_eq!(dimensiones_declaradas(&b), Some((1024, 768)));
+    }
+
+    #[test]
+    fn lee_las_medidas_de_un_jpeg_caminando_segmentos() {
+        let mut b = vec![0xFF, 0xD8];
+        // Un APP0 de por medio, para que tenga que caminar de verdad.
+        b.extend_from_slice(&[0xFF, 0xE0, 0x00, 0x10]);
+        b.extend_from_slice(&[0; 14]);
+        // SOF0: largo, precision, alto, ancho.
+        b.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x11, 0x08]);
+        b.extend_from_slice(&1080u16.to_be_bytes());
+        b.extend_from_slice(&1920u16.to_be_bytes());
+        b.extend_from_slice(&[3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(dimensiones_declaradas(&b), Some((1920, 1080)));
+    }
+
+    #[test]
+    fn lee_las_medidas_de_un_webp_extendido() {
+        let mut b = b"RIFF".to_vec();
+        b.extend_from_slice(&0u32.to_le_bytes());
+        b.extend_from_slice(b"WEBP");
+        b.extend_from_slice(b"VP8X");
+        b.extend_from_slice(&[0; 4]); // largo del trozo
+        b.extend_from_slice(&[0; 4]); // banderas
+        b.extend_from_slice(&[0x7F, 0x07, 0x00]); // ancho-1 = 1919
+        b.extend_from_slice(&[0x37, 0x04, 0x00]); // alto-1  = 1079
+        assert_eq!(dimensiones_declaradas(&b), Some((1920, 1080)));
+    }
+
+    #[test]
+    fn lo_que_no_reconoce_devuelve_none_sin_reventar() {
+        // `None` significa «no se pudo saber», y quien llama lo deja pasar. Lo
+        // que NO puede hacer es entrar en panico: corre dentro de un comando.
+        for caso in [
+            &b""[..],
+            &b"\x89PNG"[..],                 // firma cortada a la mitad
+            &b"GIF89a\x01"[..],              // sin medidas completas
+            &b"BM\x00\x00"[..],              // cabecera BMP truncada
+            &b"\xFF\xD8\xFF"[..],            // JPEG que se acaba de golpe
+            &b"RIFF\x00\x00\x00\x00WEBPXXXX"[..], // trozo WEBP desconocido
+            &b"no soy una imagen en absoluto"[..],
+        ] {
+            let _ = dimensiones_declaradas(caso);
+        }
+    }
+
+    #[test]
+    fn un_jpeg_sin_sof_no_se_queda_dando_vueltas() {
+        // Cientos de segmentos validos y ningun SOF: tiene que rendirse.
+        let mut b = vec![0xFF, 0xD8];
+        for _ in 0..600 {
+            b.extend_from_slice(&[0xFF, 0xE0, 0x00, 0x02]);
+        }
+        assert_eq!(dimensiones_declaradas(&b), None);
     }
 }

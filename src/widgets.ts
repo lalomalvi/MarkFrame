@@ -288,11 +288,36 @@ function cargarImagen(fuente: string): Promise<string> {
 }
 
 export class WidgetImagen extends WidgetType {
+  /**
+   * Si la imagen estaba bloqueada **cuando nacio este widget**.
+   *
+   * Se congela en el constructor a proposito, y entra en `eq()`. CodeMirror
+   * reutiliza el DOM de un widget cuando `eq()` dice que el nuevo es igual al
+   * viejo, y `fuente` y `alt` no cambian al conceder el permiso: el boton
+   * «Mostrarla» anotaba el permiso y pedia el refresco, el campo de estado
+   * reconstruia las decoraciones, y CodeMirror **tiraba el widget nuevo y
+   * dejaba en pantalla la caja bloqueada**. El boton no hacia nada visible.
+   *
+   * Calcularlo al vuelo dentro de `eq()` no sirve: los dos lados leerian el
+   * mismo estado global en el mismo instante y siempre coincidirian. Lo que
+   * distingue al widget viejo del nuevo es el permiso que habia **al nacer**.
+   *
+   * Encontrado en la pasada de funciones del 2026-09-16. No lo causo la
+   * politica de contenido; estaba ahi desde que existe el boton.
+   */
+  readonly bloqueada: boolean
+
   constructor(readonly fuente: string, readonly alt: string, readonly pos: number) {
     super()
+    this.bloqueada =
+      esRemota(fuente) && !remotasPermitidas && !permitidasSueltas.has(fuente)
   }
   eq(otro: WidgetImagen) {
-    return otro.fuente === this.fuente && otro.alt === this.alt
+    return (
+      otro.fuente === this.fuente &&
+      otro.alt === this.alt &&
+      otro.bloqueada === this.bloqueada
+    )
   }
 
   toDOM(vista: EditorView) {
@@ -300,7 +325,7 @@ export class WidgetImagen extends WidgetType {
     caja.className = 'mf-w mf-w-imagen'
 
     // Una imagen de internet no se pide hasta que alguien lo autorice.
-    if (esRemota(this.fuente) && !remotasPermitidas && !permitidasSueltas.has(this.fuente)) {
+    if (this.bloqueada) {
       caja.classList.add('mf-w-bloqueada')
       const texto = document.createElement('div')
       texto.className = 'mf-bloq-texto'

@@ -14,9 +14,8 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 | | |
 |---|---|
 | Repo | `lalomalvi/MarkFlow`, privado. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
-| Revisión | `9073dc7` — árbol limpio, subido |
-| Ejecutable | `markflow.exe`, **7.76 MB** |
-| Instalador | `MarkFlow_0.1.0_x64-setup.exe`, **4.92 MB**, NSIS, **sin UAC** |
+| Ejecutable | `markflow.exe`, **7.79 MB** |
+| Instalador | `MarkFlow_0.1.0_x64-setup.exe`, **4.93 MB**, NSIS, **sin UAC** |
 | Cadena | Rust 1.98.1 (MSVC), Node 22, Tauri 2, Vite 8, TypeScript 6 |
 | WebView2 | ya venía en la máquina, v153 |
 
@@ -35,8 +34,14 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
   **casillas de tarea** que se pican. El frontmatter YAML sale como metadatos.
 - **Sintaxis**: notas al pie `[^1]`, `==resaltado==`, avisos con los 13 tipos de
   Obsidian y título propio, en inglés y español, mayúscula o minúscula.
-- **Convivencia con agentes**: al recuperar el foco, si otro programa tocó el
-  archivo se recarga solo; si había cambios locales, pregunta.
+- **Convivencia con agentes**: al recuperar el foco **y al volver a una pestaña**,
+  si otro programa tocó el archivo se recarga solo; si había cambios locales,
+  pregunta. Lo segundo se añadió el 2026-09-16: la revisión sólo miraba la
+  pestaña activa y sólo al recuperar el foco de la ventana, así que una pestaña
+  de fondo podía quedarse indefinidamente con una copia vieja —— y escribir encima
+  de lo que el agente ya había guardado.
+- **Una sola ventana.** Abrir un `.md` con MarkFlow en marcha lo manda como
+  pestaña a la ventana existente, en vez de levantar otra.
 - **Imágenes de internet bloqueadas de fábrica** y caracteres invisibles marcados.
 - **Guardado explícito**: botón *Guardar*, Ctrl+S, punto en el título cuando hay
   cambios, y diálogo al cerrar o al abrir otro archivo con cambios pendientes.
@@ -198,18 +203,48 @@ título propia convierte un cuelgue en una ventana que no se puede cerrar, y la
 escritura atómica con temporal abre la vía del enlace simbólico. No hay decisión
 sin contrapartida; hay contrapartidas que no se ven al decidir.
 
+### La pasada de funciones · 2026-09-16
+
+Se ejercitaron las 13 secciones de un `.md` de prueba **en el binario instalado,
+con la política puesta**. Tablas, KaTeX en línea y en bloque, los dos tipos de
+Mermaid, imagen local, avisos, casillas, notas al pie, resaltado y código: todo
+dibuja. **La política no rompió nada.**
+
+Los enlaces, que eran el punto: `https:` y `mailto:` viven; `javascript:` y
+`data:` salen como texto plano. Al pinchar el `https:` se abrió **Chrome** y
+MarkFlow siguió en pie.
+
+**Pero la pasada encontró un fallo propio**, que no venía de la auditoría: el
+botón *Mostrarla* de las imágenes de internet no hacía nada. Ver la trampa del
+`eq()` más abajo.
+
 ### Lo que la auditoría dejó abierto
 
-- **La política de contenido y el guardián de navegación no se han probado con
-  todas las funciones.** Compilan, y el ataque conocido está cerrado y verificado,
-  pero KaTeX, Mermaid, las imágenes y los diálogos merecen una pasada completa.
+- ~~La política y el guardián sin probar con todas las funciones.~~ **Hecho**,
+  arriba.
+- ~~`leer_imagen` no mira las dimensiones declaradas.~~ **Cerrado** con
+  `TOPE_PIXELES`. Verificado con un PNG de **74 bytes** que declara 20000×20000:
+  sale rechazado con un mensaje que explica el porqué, y el resto del documento
+  se dibuja igual.
+- ~~Sin control de instancia única.~~ **Cerrado**, por decisión de Lalo del
+  2026-09-16: **una sola ventana**. Abrir un `.md` con MarkFlow en marcha lo
+  manda como pestaña a la ventana que ya existe y la trae al frente. Verificado:
+  dos lanzamientos, **un proceso**, dos pestañas.
 - **El instalador no va firmado.** Al publicar, Windows mostrará el aviso de
-  editor desconocido en cada instalación.
-- **`leer_imagen` no mira las dimensiones declaradas.** Un PNG de 100 KB que
-  declare 20000×20000 descomprime a ~1.6 GB. Anotado fuera de encargo por un
-  validador; no revisado.
-- **Sin control de instancia única.** Dos ventanas sobre la misma nota ya no
-  comparten el temporal, pero pueden seguir pisándose el guardado.
+  editor desconocido en cada instalación. **Es lo único que queda abierto**, y
+  depende de un certificado.
+
+### Las dimensiones declaradas
+
+`TOPE_PIXELES` son **180 millones**. No es un número redondo por gusto: un plano
+A0 escaneado a 300 ppp son 9930 × 14040, o sea 139 millones, **y eso tiene que
+abrir** —— hay una prueba que lo fija. La bomba necesita órdenes de magnitud más.
+
+Se leen las cabeceras de **PNG, GIF, BMP, JPEG y WEBP** sin descomprimir nada.
+Quedan fuera a propósito: **ICO** (256×256 como máximo por formato, no hay bomba
+posible), **SVG** (vectorial, no reserva un mapa de bits) y **AVIF**, cuya
+cabecera vive en cajas ISOBMFF anidadas —— parsearlo a medias daría una sensación
+de cobertura que no existe, así que queda sólo bajo el tope de bytes.
 
 ---
 
@@ -221,7 +256,7 @@ sin contrapartida; hay contrapartidas que no se ven al decidir.
 | Arranque, con diagrama y fórmulas | **92 ms** |
 | Línea base del esqueleto vacío | 111 ms |
 | Bundle de entrada | 279 KB — Mermaid y KaTeX cargan aparte, bajo demanda |
-| Pruebas del núcleo | **16 de 16** (`cargo test --lib`) |
+| Pruebas del núcleo | **25 de 25** (`cargo test --lib`) |
 | Pruebas del frontend | **13 de 13** (`npm run probar`) |
 
 El criterio de la medición llega hasta que la ventana existe con su título; los
@@ -272,27 +307,15 @@ La configuración de Zettlr quedó respaldada en `migracion-zettlr/config-zettlr
 ## Lo que sigue
 
 Las tres etapas de puesta en marcha —instalar, asociar, sacar Zettlr— están
-cerradas. Lo que queda es trabajo sobre el programa.
+cerradas, y con ellas todo lo que la auditoría dejó abierto **menos una cosa**:
 
-**Antes que nada, porque es barato y ya afecta al uso diario:**
+1. **Firmar el instalador.** Sin firma, Windows muestra el aviso de editor
+   desconocido en cada instalación. Es lo único que separa a MarkFlow de poder
+   publicarse, y depende de conseguir un certificado —— decisión de Lalo, no
+   trabajo de código.
 
-1. **Pasada completa con la política de contenido puesta.** El ataque conocido
-   está cerrado y verificado, pero KaTeX, Mermaid, las imágenes y los diálogos no
-   se han ejercitado todos **con la política activa**. Si algo se rompió, mejor
-   encontrarlo aquí que a media nota.
-
-**Antes de publicarlo, no antes:**
-
-2. **Firmar el instalador**, o Windows avisará de editor desconocido a cada quien
-   lo instale.
-3. **Tope de dimensiones en `leer_imagen`** —— hoy un PNG de 100 KB que declare
-   20000×20000 descomprime a ~1.6 GB.
-4. **Control de instancia única**, para que dos ventanas sobre la misma nota no
-   se pisen el guardado.
-
-**Higiene pendiente:** en `migracion-zettlr/` sobra `fase-c-salida-zettlr.ps1`,
-el primer intento —— sin BOM y con acentos en los identificadores, que es justo lo
-que reventó en PowerShell 5.1. El bueno, ya usado, es `salida-zettlr.ps1`.
+Todo lo demás de esta lista se cerró el 2026-09-16: la pasada de funciones con la
+política puesta, el tope de dimensiones y la instancia única.
 
 ## Sin decidir
 
@@ -337,6 +360,16 @@ las historias.
 **Un nodo sólo cuenta como tapado si cabe entero en el bloque.** Comparar sólo su
 inicio daba por tapado al nodo raíz del documento y cortaba el recorrido del
 árbol desde la raíz.
+
+**Si el aspecto de un widget depende de algo que no sea el texto, ese algo tiene
+que entrar en `eq()`.** CodeMirror reutiliza el DOM de un widget cuando `eq()`
+dice que el nuevo es igual al viejo. El botón *Mostrarla* anotaba el permiso,
+pedía el refresco, el campo de estado reconstruía las decoraciones —— y CodeMirror
+**tiraba el widget nuevo y dejaba la caja bloqueada en pantalla**. El botón no
+hacía nada, sin un solo error. Y no vale calcularlo al vuelo dentro de `eq()`:
+los dos lados leerían el mismo estado global en el mismo instante y siempre
+coincidirían. Lo que distingue al viejo del nuevo es **el estado que había al
+nacer**, así que se congela en el constructor.
 
 **Para reconstruir las decoraciones, usa `refrescarPresentacion`, no un dispatch
 de selección.** Despachar la selección para forzar el redibujado hace que los
