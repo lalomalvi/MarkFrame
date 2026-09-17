@@ -215,6 +215,104 @@ const TOPE_IMAGEN: u64 = 25 * 1024 * 1024;
 /// magnitud mas para doler.
 const TOPE_PIXELES: u64 = 180_000_000;
 
+/// La mayor imagen declarada dentro de un archivo de cajas ISOBMFF (AVIF, HEIC).
+///
+/// Ahi las medidas viven en cajas `ispe`, metidas dentro de `meta > iprp > ipco`,
+/// y **puede haber varias**: la imagen principal, las miniaturas, las capas. Se
+/// recorren todas y se devuelve la mayor.
+///
+/// Quedarse con la mayor y no con «la principal» es deliberado. La pregunta que
+/// esto responde no es «cuanto mide la imagen» sino «¿declara este archivo algo
+/// desmesurado?», y para eso la unica respuesta segura es la peor de todas. De
+/// paso evita tener que decidir cual es la principal, que exige leer aun mas
+/// cajas y es justo donde un parseo a medias se equivocaria.
+///
+/// Es un recorrido acotado: no sigue mas de `PROFUNDIDAD` niveles ni mira mas de
+/// `TOPE_CAJAS` cajas. Un archivo torcido tiene que rendirse, no dar vueltas:
+/// esto corre dentro de un comando que la interfaz esta esperando.
+fn mayor_ispe(b: &[u8]) -> Option<(u64, u64)> {
+    const PROFUNDIDAD: u32 = 6;
+    const TOPE_CAJAS: u32 = 4096;
+
+    fn recorrer(b: &[u8], nivel: u32, vistas: &mut u32, mejor: &mut Option<(u64, u64)>) {
+        if nivel > PROFUNDIDAD {
+            return;
+        }
+
+        let mut i = 0usize;
+        while i + 8 <= b.len() {
+            *vistas += 1;
+            if *vistas > TOPE_CAJAS {
+                return;
+            }
+
+            let tamano = u32::from_be_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]) as usize;
+            let tipo = &b[i + 4..i + 8];
+
+            // `1` significa que el tamano real viene en 64 bits justo despues;
+            // `0`, que la caja llega hasta el final del archivo.
+            let (cabecera, largo) = match tamano {
+                1 => {
+                    if i + 16 > b.len() {
+                        return;
+                    }
+                    let mut ocho = [0u8; 8];
+                    ocho.copy_from_slice(&b[i + 8..i + 16]);
+                    (16usize, u64::from_be_bytes(ocho) as usize)
+                }
+                0 => (8usize, b.len() - i),
+                n => (8usize, n),
+            };
+
+            // Una caja mas corta que su propia cabecera no avanza nunca: es la
+            // forma mas facil de colgar a un lector de ISOBMFF.
+            if largo < cabecera || i + largo > b.len() {
+                return;
+            }
+
+            let dentro = &b[i + cabecera..i + largo];
+
+            match tipo {
+                b"ispe" => {
+                    // FullBox: cuatro bytes de version y banderas antes del dato.
+                    if dentro.len() >= 12 {
+                        let ancho =
+                            u32::from_be_bytes([dentro[4], dentro[5], dentro[6], dentro[7]]) as u64;
+                        let alto =
+                            u32::from_be_bytes([dentro[8], dentro[9], dentro[10], dentro[11]])
+                                as u64;
+                        let area = ancho.saturating_mul(alto);
+                        let mejor_area = mejor.map_or(0, |(a, h): (u64, u64)| a.saturating_mul(h));
+                        if area > mejor_area {
+                            *mejor = Some((ancho, alto));
+                        }
+                    }
+                }
+                // `meta` es FullBox: sus hijas empiezan cuatro bytes mas alla.
+                b"meta" => {
+                    if dentro.len() > 4 {
+                        recorrer(&dentro[4..], nivel + 1, vistas, mejor);
+                    }
+                }
+                // Contenedores normales. Se listan en vez de bajar a todo, para
+                // no recorrer megabytes de datos comprimidos buscando cajas que
+                // ahi no existen.
+                b"iprp" | b"ipco" | b"moov" | b"trak" | b"mdia" | b"minf" | b"stbl" => {
+                    recorrer(dentro, nivel + 1, vistas, mejor);
+                }
+                _ => {}
+            }
+
+            i += largo;
+        }
+    }
+
+    let mut vistas = 0u32;
+    let mut mejor = None;
+    recorrer(b, 0, &mut vistas, &mut mejor);
+    mejor
+}
+
 /// Lo que la cabecera de una imagen dice que mide, sin descomprimirla.
 ///
 /// **No valida el formato**: si no reconoce la cabecera devuelve `None`, y quien
@@ -225,10 +323,15 @@ const TOPE_PIXELES: u64 = 180_000_000;
 /// - **ICO**, donde cada imagen mide 256x256 como maximo por definicion del
 ///   formato: no hay bomba posible.
 /// - **SVG**, que es vectorial y no declara un mapa de bits que reservar.
-/// - **AVIF**, cuya cabecera vive dentro de cajas ISOBMFF anidadas. Parsearlo a
-///   medias seria peor que no parsearlo: daria una sensacion de cobertura que no
-///   existe. Queda cubierto solo por el tope de bytes, y esta anotado.
+/// - **SVG**, que es vectorial y no declara un mapa de bits que reservar.
+///
+/// **AVIF si entra**, por `mayor_ispe`.
 fn dimensiones_declaradas(b: &[u8]) -> Option<(u64, u64)> {
+    // --- AVIF y compania: cajas ISOBMFF, con "ftyp" en el byte 4 ----------- //
+    if b.len() >= 12 && &b[4..8] == b"ftyp" {
+        return mayor_ispe(b);
+    }
+
     // --- PNG: firma de 8 bytes, y el IHDR arranca en el 16 ----------------- //
     if b.len() >= 24 && b.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
         let ancho = u32::from_be_bytes([b[16], b[17], b[18], b[19]]) as u64;
@@ -814,6 +917,95 @@ o\existe\esto.md".to_string());
         ] {
             let _ = dimensiones_declaradas(caso);
         }
+    }
+
+    /// Una caja ISOBMFF: cuatro bytes de tamano, cuatro de tipo, y el cuerpo.
+    fn caja(tipo: &[u8; 4], cuerpo: &[u8]) -> Vec<u8> {
+        let mut b = ((8 + cuerpo.len()) as u32).to_be_bytes().to_vec();
+        b.extend_from_slice(tipo);
+        b.extend_from_slice(cuerpo);
+        b
+    }
+
+    fn ispe(ancho: u32, alto: u32) -> Vec<u8> {
+        let mut cuerpo = vec![0u8; 4]; // version y banderas
+        cuerpo.extend_from_slice(&ancho.to_be_bytes());
+        cuerpo.extend_from_slice(&alto.to_be_bytes());
+        caja(b"ispe", &cuerpo)
+    }
+
+    /// Un AVIF con las cajas anidadas como manda el formato.
+    fn avif_con(ispes: &[(u32, u32)]) -> Vec<u8> {
+        let mut ipco = Vec::new();
+        for (a, h) in ispes {
+            ipco.extend_from_slice(&ispe(*a, *h));
+        }
+        let iprp = caja(b"iprp", &caja(b"ipco", &ipco));
+        let mut cuerpo_meta = vec![0u8; 4]; // `meta` es FullBox
+        cuerpo_meta.extend_from_slice(&iprp);
+
+        let mut b = caja(b"ftyp", b"avif\0\0\0\0avifmif1");
+        b.extend_from_slice(&caja(b"meta", &cuerpo_meta));
+        b
+    }
+
+    #[test]
+    fn lee_las_medidas_de_un_avif() {
+        assert_eq!(dimensiones_declaradas(&avif_con(&[(1920, 1080)])), Some((1920, 1080)));
+    }
+
+    #[test]
+    fn de_varias_imagenes_declaradas_se_queda_con_la_mayor() {
+        // Un AVIF trae la principal y sus miniaturas. Si una sola declara una
+        // barbaridad, es la que manda: la pregunta es si el archivo esconde algo
+        // desmesurado, no cual es la imagen principal.
+        let b = avif_con(&[(320, 240), (30000, 30000), (1920, 1080)]);
+        assert_eq!(dimensiones_declaradas(&b), Some((30000, 30000)));
+    }
+
+    #[test]
+    fn un_avif_bomba_se_pasa_del_tope() {
+        let (a, h) = dimensiones_declaradas(&avif_con(&[(25000, 25000)])).unwrap();
+        assert!(a * h > TOPE_PIXELES);
+    }
+
+    #[test]
+    fn una_caja_que_no_avanza_no_cuelga_el_lector() {
+        // Tamano menor que la propia cabecera: si el lector confia en el, se
+        // queda en el mismo sitio para siempre. Es la forma mas facil de colgar
+        // a un lector de ISOBMFF, y esto corre en un comando que la interfaz
+        // esta esperando.
+        let mut b = caja(b"ftyp", b"avif\0\0\0\0");
+        b.extend_from_slice(&[0, 0, 0, 3]); // tamano 3, imposible
+        b.extend_from_slice(b"meta");
+        assert_eq!(dimensiones_declaradas(&b), None);
+
+        // Y tamano cero, que significa «hasta el final».
+        let mut c = caja(b"ftyp", b"avif\0\0\0\0");
+        c.extend_from_slice(&[0, 0, 0, 0]);
+        c.extend_from_slice(b"meta");
+        c.extend_from_slice(&[0; 32]);
+        assert_eq!(dimensiones_declaradas(&c), None);
+    }
+
+    #[test]
+    fn un_avif_sin_ispe_no_inventa_medidas() {
+        let b = caja(b"ftyp", b"avif\0\0\0\0avifmif1");
+        assert_eq!(dimensiones_declaradas(&b), None);
+    }
+
+    #[test]
+    fn el_anidamiento_profundo_se_rinde_en_vez_de_desbordar_la_pila() {
+        // 200 niveles de `iprp` dentro de `iprp`. El tope de profundidad tiene
+        // que cortar antes de que la recursion se lleve la pila por delante.
+        let mut dentro = ispe(100, 100);
+        for _ in 0..200 {
+            dentro = caja(b"iprp", &dentro);
+        }
+        let mut b = caja(b"ftyp", b"avif\0\0\0\0");
+        b.extend_from_slice(&dentro);
+        // No importa que encuentre o no: importa que vuelva.
+        let _ = dimensiones_declaradas(&b);
     }
 
     #[test]

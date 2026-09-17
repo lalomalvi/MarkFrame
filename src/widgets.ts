@@ -410,11 +410,23 @@ export class WidgetMermaid extends WidgetType {
 
     cargarMermaid()
       .then((mermaid) => {
+        // El tema `dark` de Mermaid pinta el fondo de las etiquetas de flecha
+        // --el `si`/`no` de una condicion-- con un gris claro suyo, que en un
+        // panel oscuro queda como un recorte pegado encima del diagrama. Se le
+        // da el fondo real de la caja para que la etiqueta tape la linea sin
+        // verse. Se lee del CSS y no se escribe a mano para que siga al tema,
+        // incluso si alguien cambia la paleta.
+        const fondo =
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--codigo-fondo').trim() ||
+          (this.oscuro ? '#252932' : '#f1f4f9')
+
         mermaid.initialize({
           startOnLoad: false,
           theme: this.oscuro ? 'dark' : 'default',
           securityLevel: 'strict',
           fontFamily: 'Segoe UI Variable Text, Segoe UI, system-ui, sans-serif',
+          themeVariables: { edgeLabelBackground: fondo },
         })
         return mermaid.render('mf-diagrama-' + contador++, this.codigo)
       })

@@ -240,11 +240,20 @@ botón *Mostrarla* de las imágenes de internet no hacía nada. Ver la trampa de
 A0 escaneado a 300 ppp son 9930 × 14040, o sea 139 millones, **y eso tiene que
 abrir** —— hay una prueba que lo fija. La bomba necesita órdenes de magnitud más.
 
-Se leen las cabeceras de **PNG, GIF, BMP, JPEG y WEBP** sin descomprimir nada.
-Quedan fuera a propósito: **ICO** (256×256 como máximo por formato, no hay bomba
-posible), **SVG** (vectorial, no reserva un mapa de bits) y **AVIF**, cuya
-cabecera vive en cajas ISOBMFF anidadas —— parsearlo a medias daría una sensación
-de cobertura que no existe, así que queda sólo bajo el tope de bytes.
+Se leen las cabeceras de **PNG, GIF, BMP, JPEG, WEBP y AVIF** sin descomprimir
+nada. Quedan fuera **ICO** (256×256 como máximo por formato, no hay bomba
+posible) y **SVG** (vectorial, no reserva un mapa de bits).
+
+En AVIF las medidas viven en cajas `ispe` dentro de `meta > iprp > ipco`, y
+**puede haber varias** —— la principal, las miniaturas, las capas. Se recorren
+todas y **se toma la mayor**: la pregunta no es cuánto mide la imagen sino si el
+archivo declara algo desmesurado, y para eso la única respuesta segura es la peor
+de todas. De paso evita tener que decidir cuál es la principal, que es justo
+donde un parseo a medias se equivocaría.
+
+El recorrido está acotado en profundidad y en número de cajas. **Una caja que
+declara un tamaño menor que su propia cabecera no avanza nunca** —— es la forma
+más fácil de colgar a un lector de ISOBMFF, y hay una prueba que la usa.
 
 ---
 
@@ -256,8 +265,8 @@ de cobertura que no existe, así que queda sólo bajo el tope de bytes.
 | Arranque, con diagrama y fórmulas | **92 ms** |
 | Línea base del esqueleto vacío | 111 ms |
 | Bundle de entrada | 279 KB — Mermaid y KaTeX cargan aparte, bajo demanda |
-| Pruebas del núcleo | **25 de 25** (`cargo test --lib`) |
-| Pruebas del frontend | **13 de 13** (`npm run probar`) |
+| Pruebas del núcleo | **31 de 31** (`cargo test --lib`) |
+| Pruebas del frontend | **31 de 31** (`npm run probar`) — 9 de pestañas, 4 de `id`, **18 de la presentación** |
 
 El criterio de la medición llega hasta que la ventana existe con su título; los
 diagramas se dibujan un instante después.
