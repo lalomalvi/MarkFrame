@@ -20,10 +20,9 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 | Cadena | Rust 1.98.1 (MSVC), Node 22, Tauri 2, Vite 8, TypeScript 6 |
 | WebView2 | ya venía en la máquina, v153 |
 
-> ⚠️ **Lo instalado en `%LOCALAPPDATA%\MarkFlow` es del build de las 16:43, de
-> antes de la auditoría.** El instalador vigente es de las 22:57 y es el que
-> lleva los arreglos de seguridad. Mientras no se reinstale, lo que corre en la
-> máquina es la versión con el agujero del enlace `javascript:` abierto.
+> **Instalado y en uso** en `%LOCALAPPDATA%\MarkFlow`, con los arreglos de la
+> auditoría dentro —— comprobado contra el binario, no contra el reporte del
+> instalador. Ver *La migración, cerrada*.
 
 ### Lo que el programa hace
 
@@ -248,25 +247,52 @@ proceso.
 
 ---
 
+## La migración, cerrada
+
+**El 2026-09-16 quedó terminada.** MarkFlow es el editor de `.md` de la máquina y
+Zettlr ya no está.
+
+| Comprobado por lectura, no por el reporte del script | |
+|---|---|
+| `AppData\Local\Programs\Zettlr` · `Roaming\Zettlr` · acceso directo | los tres, ausentes |
+| Entradas de desinstalación y ProgIds de Zettlr en el registro | ninguna |
+| `UserChoice` de `.md` | `MarkFlow.nota` |
+| Ejecutable instalado | idéntico al compilado **salvo 3 bytes** de 8 140 800 |
+
+Esos 3 bytes son `__TAURI_BUNDLE_TYPE_VAR_NSS` contra `…_UNK`: la marca que NSIS
+estampa para que Tauri sepa cómo se instaló. **Es la forma de verificar que un
+build llegó de verdad a la máquina** —— comparar por huella da distinto siempre, y
+no significa nada malo.
+
+La política de contenido, extraída del `.exe` instalado, lleva `script-src
+'self'`: el arreglo del hallazgo crítico está en lo que corre.
+
+La configuración de Zettlr quedó respaldada en `migracion-zettlr/config-zettlr/`.
+
 ## Lo que sigue
 
-1. **Reinstalar** con el `MarkFlow_0.1.0_x64-setup.exe` de las 22:57, que es el
-   que lleva los arreglos de la auditoría.
-2. ~~Tomar la asociación a mano.~~ **Hecho.** El `UserChoice` de `.md` ya dice
-   `MarkFlow.nota` —— comprobado por lectura del registro el 2026-09-16. Ningún
-   instalador puede ponerlo: Windows 11 lo firma con un hash, así que esto sólo
-   se hace desde *Abrir con* → *Elegir otra aplicación* → *Usar siempre*, y ya
-   está hecho.
-3. **Fase C de la migración**: correr `migracion-zettlr/salida-zettlr.ps1`
-   —primero sin argumentos para ver qué haría, luego con `-Ejecutar`— para
-   desinstalar Zettlr y recuperar **648 MB medidos**. El script comprueba el
-   punto 2 y **se niega si no se cumple**, a propósito: desinstalar antes
-   dejaría el `UserChoice` apuntando a un programa que ya no existe.
+Las tres etapas de puesta en marcha —instalar, asociar, sacar Zettlr— están
+cerradas. Lo que queda es trabajo sobre el programa.
 
-   En esa carpeta hay **dos** scripts. El bueno es `salida-zettlr.ps1`. El otro,
-   `fase-c-salida-zettlr.ps1`, es el primer intento —— sin BOM y con acentos en
-   los identificadores, que es justo lo que reventó en PowerShell 5.1. Bórralo
-   para no correrlo por equivocación.
+**Antes que nada, porque es barato y ya afecta al uso diario:**
+
+1. **Pasada completa con la política de contenido puesta.** El ataque conocido
+   está cerrado y verificado, pero KaTeX, Mermaid, las imágenes y los diálogos no
+   se han ejercitado todos **con la política activa**. Si algo se rompió, mejor
+   encontrarlo aquí que a media nota.
+
+**Antes de publicarlo, no antes:**
+
+2. **Firmar el instalador**, o Windows avisará de editor desconocido a cada quien
+   lo instale.
+3. **Tope de dimensiones en `leer_imagen`** —— hoy un PNG de 100 KB que declare
+   20000×20000 descomprime a ~1.6 GB.
+4. **Control de instancia única**, para que dos ventanas sobre la misma nota no
+   se pisen el guardado.
+
+**Higiene pendiente:** en `migracion-zettlr/` sobra `fase-c-salida-zettlr.ps1`,
+el primer intento —— sin BOM y con acentos en los identificadores, que es justo lo
+que reventó en PowerShell 5.1. El bueno, ya usado, es `salida-zettlr.ps1`.
 
 ## Sin decidir
 
