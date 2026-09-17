@@ -1,20 +1,42 @@
 # Matriz de pendientes
 
-**2026-09-17.** Todo lo que la auditoría abrió está cerrado **menos la firma**,
-que es una decisión tomada: no se firma por ahora.
+**2026-09-17.** **La cola está vacía.** Todo lo que la auditoría abrió está
+cerrado, el sprint de interfaz está entregado, y lo único que queda —el README
+para terceros— espera a que Lalo decida publicar.
 
 El estado del programa está en [estado.md](estado.md). Esto es sólo la cola.
 
-## Lo decidido el 2026-09-17
+## Cómo quedó todo
 
-| | Decisión de Lalo |
+| | Estado |
 |---|---|
-| **A1 · Publicar** | **Todavía no.** Queda en privado |
+| **A1 · Publicar** | **En espera**, por decisión de Lalo. De aquí cuelga B4 |
 | **A2 · Firmar** | **No se firma** |
-| **A3 · Icono** | **Hecho.** Llegó el logo y los iconos se regeneraron. Baldosa blanca |
-| **A4 · Tablas editables** | **Sí, se hacen** —— en contra de mi recomendación, que era dejarlo. Hecho |
+| **A3 · Icono** | ✅ Hecho |
+| **A4 · Tablas editables** | ✅ Hecho —— en contra de mi recomendación, y tenía razón él |
 | **A5 · Paleta del sistema** | **No se hace** |
-| **B · todo** | Adelante. B1, B2 y B3 hechos |
+| **B1 · Pruebas de presentación** | ✅ 30 pruebas |
+| **B2 · Mermaid en oscuro** | ✅ |
+| **B3 · AVIF** | ✅ |
+| **B4 · README para terceros** | Espera a A1 |
+| **B5 · Monograma de la barra** | ✅ |
+| **Sprint de interfaz** | ✅ Buscador, panel de formato, iconos, separador, aviso rojo |
+
+## Lo que no está en ninguna lista, y conviene tener presente
+
+**Los cuatro fallos del 2026-09-17 los encontró Lalo usando el programa, no las
+82 pruebas.** La selección que no se veía, el icono que no entraba en el `.exe`,
+el buscador que no marcaba y el `==` que rompía los títulos: ninguno era
+detectable sin abrir la ventana y mirar.
+
+No es un defecto de las pruebas —— cubren lo que pueden cubrir sin ventana, y ahí
+son buenas. Es el límite de esa red, y vale la pena recordarlo antes de dar por
+bueno un cambio de interfaz sólo porque las pruebas pasan.
+
+**La consecuencia práctica: después de tocar la interfaz, abrir el programa y
+mirar.** Y para el CSS, `npm run dev` en un navegador permite leer las reglas
+aplicadas, que es como se encontraron tres de los cuatro. Ver las trampas en
+[estado.md](estado.md).
 
 ---
 
