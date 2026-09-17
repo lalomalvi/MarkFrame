@@ -1,19 +1,30 @@
 # Matriz de pendientes
 
-**2026-09-16.** Todo lo que la auditoría abrió está cerrado **menos la firma**.
-Lo que queda se parte en dos: lo que espera una decisión de Lalo, y lo que es
-trabajo y ya tiene orden.
+**2026-09-17.** Todo lo que la auditoría abrió está cerrado **menos la firma**,
+que es una decisión tomada: no se firma por ahora.
 
 El estado del programa está en [estado.md](estado.md). Esto es sólo la cola.
+
+## Lo decidido el 2026-09-17
+
+| | Decisión de Lalo |
+|---|---|
+| **A1 · Publicar** | **Todavía no.** Queda en privado |
+| **A2 · Firmar** | **No se firma** |
+| **A3 · Icono** | **Hecho.** Llegó el logo y los iconos se regeneraron. Baldosa blanca |
+| **A4 · Tablas editables** | **Sí, se hacen** —— en contra de mi recomendación, que era dejarlo. Hecho |
+| **A5 · Paleta del sistema** | **No se hace** |
+| **B · todo** | Adelante. B1, B2 y B3 hechos |
 
 ---
 
 ## A · Bloqueado por una decisión de Lalo
 
-### A1 · Publicar el repositorio · **la decisión madre**
+### A1 · Publicar el repositorio · **la decisión madre** · EN ESPERA
 
-Hoy es **privado y sin licencia**. Lalo dijo desde el principio que quería
-hacerlo público, y de esto cuelgan A2 y A4.
+**El 2026-09-17 Lalo decidió que todavía no.** Sigue privado y sin licencia.
+Las opciones se dejan escritas para cuando se retome; nada de lo de abajo hay
+que hacerlo hoy.
 
 | Opción | Qué implica |
 |---|---|
@@ -38,7 +49,7 @@ hacerlo público, y de esto cuelgan A2 y A4.
 - El correo `lalomalvi16@gmail.com` está en todo el historial de commits. Es
   público de todos modos, pero conviene que lo sepa antes, no después.
 
-### A2 · Firmar el instalador · *depende de A1*
+### A2 · Firmar el instalador · DECIDIDO: no se firma
 
 Sin firma, Windows muestra **«Editor desconocido»** en cada instalación. A Lalo
 ya no le afecta —— lo tiene instalado— así que esto **sólo importa si se publica**.
@@ -58,27 +69,27 @@ ya no le afecta —— lo tiene instalado— así que esto **sólo importa si se
 > **Números sin verificar hoy:** precios y requisitos de firma cambian seguido.
 > Si Lalo decide firmar, lo primero es confirmarlos.
 
-### A3 · El icono definitivo
+### A3 · El icono definitivo · HECHO
 
-El que hay es un monograma provisional. Lalo estaba afinando el suyo.
+El logo llegó el 2026-09-17 y los iconos se regeneraron con él. Se eligió la
+baldosa blanca tras comparar cuatro variantes a tamaños reales sobre fondo claro
+y oscuro. Los originales viven en `marca/`, con su [LEEME](../marca/LEEME.md).
 
-> **Recomendación: que decida cuándo quiera, no bloquea nada.** Si se publica,
-> conviene que sea el bueno desde el primer día: cambiar el icono después obliga
-> a reinstalar para que Windows refresque su caché.
+### A4 · Tablas editables desde la presentación · HECHO
 
-### A4 · Tablas editables desde la presentación
+**Lalo lo pidió, y mi recomendación era dejarlo.** Gana lo que quiere hoy.
 
-Hoy se dibujan, y para tocarlas el cursor las devuelve a texto.
+Lo que me hacía recomendar que no era que «editar celda por celda exige escribir
+de vuelta al markdown», prohibido por la regla 2. **Resultó no ser cierto**: hace
+falta escribir de vuelta sólo si se lee el DOM para reconstruir el documento.
+Como cada celda sabe en qué tramo exacto vive, confirmar es reemplazar ese tramo
+—— dos números y un texto, sin mirar el HTML.
 
-| Opción | Qué implica |
-|---|---|
-| **Dejarlo así** | Cero riesgo. Editar una tabla es editar su markdown, que siempre funciona |
-| **Editar celda por celda** | Exige **escribir de vuelta al markdown**, que es lo que este proyecto tiene prohibido por la regla 2 —— la lección que costó bloquear 6 bloques en Folio |
+Sí acerté en lo otro: va como pieza aparte, acotada a la tabla y muy probada,
+nunca como serializador general. Ver *Las tablas editables* en
+[estado.md](estado.md).
 
-> **Recomendación: dejarlo así.** Y si algún día se quiere, que vaya como pieza
-> aparte, acotada a la tabla y muy probada —— nunca como un serializador general.
-
-### A5 · Paleta que siga al color de acento de Windows
+### A5 · Paleta que siga al color de acento de Windows · DECIDIDO: no se hace
 
 > **Recomendación: no hacerlo.** Ese color se elige pensando en la barra de
 > tareas. En rojo o verde lima, el resaltado de código se vuelve ilegible, y el
@@ -88,32 +99,38 @@ Hoy se dibujan, y para tocarlas el cursor las devuelve a texto.
 
 ## B · No bloqueado · lo que sigue, en este orden
 
-### B1 · Pruebas de la presentación
+### B5 · El monograma de la barra de título · **lo único vivo aquí**
 
-**Es la lección del botón *Mostrarla*.** Ese fallo vivió desde que existe el
-botón y sólo salió en una pasada manual. Hoy las 13 pruebas del frontend cubren
-las pestañas y los `id` del HTML; **de los widgets y las decoraciones no hay ni
-una**, que es justo donde está la lógica difícil.
+El cuadrito de arriba a la izquierda sigue siendo un «MF» de texto sobre un
+cuadrado de acento, dibujado a mano antes de que existiera el logo. Ahora el
+icono de la aplicación lleva el símbolo real y ese cuadrito no.
 
-Objetivo: que `construir()` y los widgets se puedan probar sin abrir la ventana
-—— qué decora, qué no, qué pasa al conceder un permiso, qué pasa con una entrada
-torcida. Ahí habría caído el fallo de `eq()` solo.
+Para usarlo hay que sacar el símbolo del SVG, que trae once `path` con gradientes
+de Illustrator y nombres generados, y dejarlo en algo que pese poco y funcione
+**en los dos temas** —— la M es negra y en la barra oscura desaparecería, así que
+tendría que tomar el color del texto y dejar la F en azul.
 
-### B2 · Etiquetas de Mermaid en tema oscuro
+A 17 píxeles la ganancia es de coherencia, no de legibilidad. Por eso va aquí y
+no en deuda urgente.
 
-Las etiquetas de las flechas (`si`, `no`) salen con un fondo gris claro que las
-recorta. Se lee, pero se ve mal. Es el `edgeLabelBackground` del tema de Mermaid.
-Cosmético y de un rato.
+### ~~B1 · Pruebas de la presentación~~ · HECHO
 
-### B3 · Dimensiones declaradas en AVIF
+24 pruebas que corren en Node sin abrir ventana. Fijan lo que la auditoría cerró
+—— el esquema `javascript:` en diez disfraces, la UNC, el tope de vista, las
+expresiones acotadas—, la lógica de rangos de las celdas, y el fallo del botón
+que las motivó.
 
-Quedó fuera del tope a propósito: su cabecera vive en cajas ISOBMFF anidadas.
-Hoy sólo lo cubre el tope de bytes. Vale la pena **sólo si se publica**: para un
-`.md` propio, nadie se va a mandar una bomba a sí mismo.
+### ~~B2 · Etiquetas de Mermaid~~ · HECHO
+
+Toman el fondo real de la caja, leído del CSS para que sigan al tema.
+
+### ~~B3 · Dimensiones de AVIF~~ · HECHO
+
+Se recorren todas las cajas `ispe` y se toma la mayor.
 
 ### B4 · README para alguien que no es Lalo
 
-Trabajo de A1. Se hace cuando esa decisión esté tomada.
+Trabajo de A1, que está en «todavía no». Espera a esa decisión.
 
 ---
 

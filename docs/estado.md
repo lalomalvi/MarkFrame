@@ -62,6 +62,22 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 - **Panel de Configuración** (Ctrl+`,`), sin botón de aceptar: cada cambio se
   aplica y se guarda al instante.
 
+### La marca y el icono
+
+**El logo llegó el 2026-09-17** y los originales viven en
+[marca/](../marca/LEEME.md) —— el `.ai`, el `.svg` y el `.png`. Ahí no se edita
+nada: si el logo cambia, llega uno nuevo y se regenera todo con
+`npx tauri icon marca/icono-fuente-1024.png`.
+
+**El icono lleva sólo el símbolo, sobre baldosa blanca.** La palabra «MarkFlow»
+no entra: a 16 píxeles es una mancha gris. La baldosa se eligió comparando cuatro
+variantes a tamaños reales sobre fondo claro y oscuro —— sin fondo, la M negra
+**desaparece en la barra de tareas oscura**, y sobre baldosa azul la F del logo
+se funde con ella.
+
+> El cuadrito «MF» de la barra de título sigue siendo el provisional de texto,
+> anotado como B5 en [pendientes.md](pendientes.md).
+
 ### Paleta
 
 Sale del icono del programa: tinta `#20232a` / `#191c23` y azul de `#0061f5` a
