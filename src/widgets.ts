@@ -14,6 +14,7 @@
 import { WidgetType, type EditorView } from '@codemirror/view'
 import { invoke } from '@tauri-apps/api/core'
 import { carpetaActual } from './contexto'
+import { pedirRefresco } from './refresco'
 
 /** Deja el cursor dentro del texto que el widget estaba tapando. */
 function alPicar(el: HTMLElement, vista: EditorView, pos: number) {
@@ -144,6 +145,28 @@ export class WidgetCasilla extends WidgetType {
 const cacheImagenes = new Map<string, Promise<string>>()
 
 /**
+ * Permiso para cargar imagenes de internet.
+ *
+ * Apagado por omision. Una imagen remota en un `.md` ajeno hace que tu equipo
+ * contacte al servidor de quien lo escribio en cuanto la pintas: confirma que
+ * abriste el archivo, revela tu IP, y si la url lleva datos los filtra. Mientras
+ * no se permita, se muestra un aviso con la direccion y un boton.
+ */
+let remotasPermitidas = false
+const permitidasSueltas = new Set<string>()
+
+export function permitirRemotas(v: boolean) {
+  remotasPermitidas = v
+}
+
+/** Llamada al abrir otro archivo: los permisos de una nota no valen para otra. */
+export function olvidarPermisosSueltos() {
+  permitidasSueltas.clear()
+}
+
+const esRemota = (fuente: string) => /^https?:/i.test(fuente)
+
+/**
  * Una imagen de un `.md` puede venir de la red o del disco. Las del disco se
  * resuelven contra la carpeta del archivo abierto y las lee el nucleo, que las
  * entrega listas para pintar.
@@ -181,6 +204,36 @@ export class WidgetImagen extends WidgetType {
   toDOM(vista: EditorView) {
     const caja = document.createElement('div')
     caja.className = 'mf-w mf-w-imagen'
+
+    // Una imagen de internet no se pide hasta que alguien lo autorice.
+    if (esRemota(this.fuente) && !remotasPermitidas && !permitidasSueltas.has(this.fuente)) {
+      caja.classList.add('mf-w-bloqueada')
+      const texto = document.createElement('div')
+      texto.className = 'mf-bloq-texto'
+      texto.textContent = 'Imagen de internet, sin cargar'
+      const url = document.createElement('div')
+      url.className = 'mf-bloq-url'
+      url.textContent = this.fuente
+      const boton = document.createElement('button')
+      boton.className = 'mf-bloq-boton'
+      boton.textContent = 'Mostrarla'
+      boton.title = 'Cargarla sólo esta vez, sin cambiar la configuración'
+      boton.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        permitidasSueltas.add(this.fuente)
+        // Redibuja el panel para que el widget se reconstruya ya permitido.
+        vista.dispatch({ effects: pedirRefresco() })
+      })
+      const nota = document.createElement('div')
+      nota.className = 'mf-bloq-nota'
+      nota.textContent =
+        'Pedirla avisa a ese servidor de que abriste este archivo y le revela tu IP.'
+      caja.append(texto, url, boton, nota)
+      alPicar(caja, vista, this.pos)
+      return caja
+    }
+
     const img = document.createElement('img')
     img.alt = this.alt
     img.addEventListener('error', () => {

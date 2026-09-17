@@ -17,11 +17,13 @@
  */
 
 import { syntaxTree } from '@codemirror/language'
-import { StateEffect, StateField, type EditorState, type Extension,
-         type Range } from '@codemirror/state'
+import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view'
 import { WidgetCasilla, WidgetImagen, WidgetMate, WidgetMermaid, WidgetTabla } from './widgets'
 import { esOscuro } from './contexto'
+import { refrescarPresentacion } from './refresco'
+
+export { refrescarPresentacion } from './refresco'
 
 /** Marcadores que se esconden cuando el cursor no esta en su renglon. */
 const MARCADORES = new Set([
@@ -51,15 +53,52 @@ const TRAMO: Record<string, string> = {
   ListMark: 'mf-vineta',
 }
 
-/** Avisos al estilo de Obsidian: `> [!NOTA]`, `> [!AVISO]`, `> [!PELIGRO]`. */
+/**
+ * Avisos, con los 13 tipos de Obsidian y sus alias, en ingles y en espanol.
+ *
+ * GitHub solo reconoce cinco (NOTE, TIP, IMPORTANT, WARNING, CAUTION) y los
+ * escribe en mayuscula; GitLab los escribe en minuscula. Aqui se aceptan las
+ * dos formas y tambien el espanol, porque lo que se teclea en esta maquina
+ * esta en espanol. **Ojo al exportar: `[!NOTA]` no lo renderiza nadie fuera
+ * de MarkFlow y se degrada a cita.**
+ */
 const AVISOS: Record<string, string> = {
-  nota: 'nota', note: 'nota', info: 'nota',
-  tip: 'tip', consejo: 'tip', sugerencia: 'tip',
-  aviso: 'aviso', warning: 'aviso', cuidado: 'aviso', precaucion: 'aviso',
+  nota: 'nota', note: 'nota', info: 'nota', informacion: 'nota',
+  tip: 'tip', hint: 'tip', consejo: 'tip', sugerencia: 'tip', pista: 'tip',
+  importante: 'importante', important: 'importante',
+  aviso: 'aviso', warning: 'aviso', caution: 'aviso', cuidado: 'aviso',
+  precaucion: 'aviso', atencion: 'aviso', attention: 'aviso',
   peligro: 'peligro', danger: 'peligro', error: 'peligro', alto: 'peligro',
+  exito: 'exito', success: 'exito', check: 'exito', done: 'exito', hecho: 'exito',
+  fallo: 'fallo', failure: 'fallo', fail: 'fallo', missing: 'fallo', falta: 'fallo',
+  pregunta: 'pregunta', question: 'pregunta', help: 'pregunta', faq: 'pregunta',
+  duda: 'pregunta', ayuda: 'pregunta',
+  resumen: 'resumen', abstract: 'resumen', summary: 'resumen', tldr: 'resumen',
+  pendiente: 'pendiente', todo: 'pendiente',
+  bicho: 'bicho', bug: 'bicho',
   ejemplo: 'ejemplo', example: 'ejemplo',
   cita: 'cita', quote: 'cita',
 }
+
+/**
+ * Caracteres invisibles que se usan para esconder instrucciones.
+ *
+ * Espacios y marcas de ancho cero, controles de direccion, y la zona de
+ * etiquetas de Unicode (U+E0000 a U+E007F), que es la que se emplea para
+ * colar texto que un humano no ve. En un editor que abre archivos de
+ * terceros, no verlos es el problema.
+ */
+const RE_INVISIBLES = new RegExp(
+  [
+    '[\\u200B-\\u200F]',       // anchos cero y marcas de direccion
+    '[\\u2028\\u2029]',        // separadores de linea y parrafo
+    '[\\u202A-\\u202E]',       // anulaciones de direccion
+    '[\\u2060-\\u2064]',       // uniones y separadores invisibles
+    '\\uFEFF',                 // marca de orden de bytes suelta
+    '[\\u{E0000}-\\u{E007F}]',   // zona de etiquetas
+  ].join('|'),
+  'gu',
+)
 
 const ocultar = Decoration.replace({})
 
@@ -186,19 +225,23 @@ function construir(estado: EditorState): DecorationSet {
 
       if (nombre === 'Blockquote') {
         const primera = doc.lineAt(nodo.from)
-        const m = primera.text.match(/^\s*>\s*\[!(\w+)\]/)
+        // `[!tipo]`, con `+`/`-` opcional al estilo de Obsidian y un titulo
+        // propio despues del corchete.
+        const m = primera.text.match(/^\s*>\s*\[!(\w+)\]([+-]?)/)
         if (m) {
           const tipo = AVISOS[sinAcentos(m[1])] ?? 'nota'
           const ult = doc.lineAt(nodo.to).number
           for (let n = primera.number; n <= ult; n++) {
-            marcas.push(Decoration.line({ class: `mf-aviso mf-aviso-${tipo}` })
-              .range(doc.line(n).from))
+            const clases = n === primera.number
+              ? `mf-aviso mf-aviso-${tipo} mf-aviso-cabeza`
+              : `mf-aviso mf-aviso-${tipo}`
+            marcas.push(Decoration.line({ class: clases }).range(doc.line(n).from))
           }
           if (!activas.has(primera.number)) {
-            // Se tapa solo la etiqueta `[!TIPO]`: dos corchetes, el signo y el
-            // nombre. El titulo que venga despues se queda a la vista.
+            // Se tapa la etiqueta entera, incluido el `+`/`-` del plegado. El
+            // titulo que venga despues se queda a la vista, en negrita.
             const ini = primera.from + primera.text.indexOf('[!')
-            marcas.push(ocultar.range(ini, ini + m[1].length + 3))
+            marcas.push(ocultar.range(ini, ini + m[1].length + 3 + m[2].length))
           }
         }
       }
@@ -257,6 +300,66 @@ function construir(estado: EditorState): DecorationSet {
     tapados.push([desde, hasta])
   }
 
+  // --- notas al pie, resaltado y caracteres invisibles ----------------------
+  // Ninguna de las tres las conoce el markdown de CodeMirror, asi que se
+  // buscan sobre el texto igual que las formulas.
+
+  /**
+   * Notas al pie `[^1]`.
+   *
+   * Es la unica extension posterior a GFM que implementan TODOS -- GitHub,
+   * GitLab, Pandoc, Obsidian, Typora, Quarto -- y por eso entra antes que
+   * cualquier otra cosa. La definicion `[^1]: texto` se marca al margen; la
+   * referencia se dibuja en volado.
+   */
+  for (const m of texto.matchAll(/^[ \t]*\[\^([^\]\s]+)\]:/gm)) {
+    const desde = m.index!
+    if (enCodigo(desde) || estaTapado(desde, desde + m[0].length)) continue
+    marcas.push(Decoration.line({ class: 'mf-nota-def' }).range(doc.lineAt(desde).from))
+    if (!activas.has(doc.lineAt(desde).number)) {
+      const abre = desde + m[0].indexOf('[^')
+      marcas.push(ocultar.range(abre, abre + 2))
+      marcas.push(ocultar.range(desde + m[0].length - 2, desde + m[0].length))
+    }
+  }
+
+  for (const m of texto.matchAll(/\[\^([^\]\s]+)\](?!:)/g)) {
+    const desde = m.index!
+    const hasta = desde + m[0].length
+    if (enCodigo(desde) || estaTapado(desde, hasta) || tocado(desde, hasta)) continue
+    marcas.push(Decoration.mark({ class: 'mf-nota-ref' }).range(desde, hasta))
+    marcas.push(ocultar.range(desde, desde + 2))
+    marcas.push(ocultar.range(hasta - 1, hasta))
+  }
+
+  /** `==resaltado==`: Obsidian, Typora, Pandoc y Joplin coinciden en esta. */
+  for (const m of texto.matchAll(/==(?!\s)((?:[^=\n]|=(?!=))+?)(?<!\s)==/g)) {
+    const desde = m.index!
+    const hasta = desde + m[0].length
+    if (enCodigo(desde) || estaTapado(desde, hasta)) continue
+    marcas.push(Decoration.mark({ class: 'mf-resaltado' }).range(desde, hasta))
+    if (!tocado(desde, hasta)) {
+      marcas.push(ocultar.range(desde, desde + 2))
+      marcas.push(ocultar.range(hasta - 2, hasta))
+    }
+  }
+
+  /**
+   * Caracteres invisibles.
+   *
+   * Espacios de ancho cero y la zona de etiquetas de Unicode se usan para
+   * esconder instrucciones dentro de un texto que parece inocente. En un
+   * editor que abre archivos de terceros, no verlos es el problema: aqui se
+   * marcan con un recuadro para que salten a la vista.
+   */
+  for (const m of texto.matchAll(RE_INVISIBLES)) {
+    const desde = m.index!
+    marcas.push(
+      Decoration.mark({ class: 'mf-invisible', attributes: { title: 'Carácter invisible' } })
+        .range(desde, desde + m[0].length),
+    )
+  }
+
   // Inline: se exige que no haya espacio pegado a los delimitadores, para no
   // confundir «$100 y $200» con una formula.
   for (const m of texto.matchAll(/\$(?![\s$])((?:[^$\n\\]|\\.)+?)(?<![\s\\])\$/g)) {
@@ -272,16 +375,6 @@ function construir(estado: EditorState): DecorationSet {
   // RangeSet los exige en orden.
   return Decoration.set(marcas, true)
 }
-
-/**
- * Pide reconstruir las decoraciones sin tocar el documento ni la seleccion.
- *
- * Hace falta al cambiar de tema, porque los diagramas llevan el tema dentro.
- * Antes se forzaba despachando la seleccion actual, y eso tenia un efecto
- * secundario feo: la tabla se creia con el cursor encima y volvia a texto
- * crudo. Un efecto propio no toca nada del estado.
- */
-export const refrescarPresentacion = StateEffect.define<null>()
 
 export function vistaPresentacion(): Extension {
   return StateField.define<DecorationSet>({

@@ -161,6 +161,30 @@ fn leer_imagen(ruta: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", tipo, STANDARD.encode(bytes)))
 }
 
+/// Huella de un archivo en disco: cuando se toco por ultima vez y cuanto pesa.
+///
+/// Sirve para darse cuenta de que OTRO programa lo edito. El patron de trabajo
+/// real en 2026 es un editor y un agente sobre la misma carpeta, y un editor
+/// que no note el cambio guarda encima del trabajo ajeno.
+#[derive(Serialize)]
+pub struct Huella {
+    /// Milisegundos desde la epoca. 0 si el sistema no lo sabe.
+    modificado: u64,
+    tamano: u64,
+}
+
+#[tauri::command]
+fn huella(ruta: String) -> Result<Huella, String> {
+    let meta = fs::metadata(&ruta).map_err(|e| format!("No se pudo mirar el archivo: {e}"))?;
+    let modificado = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    Ok(Huella { modificado, tamano: meta.len() })
+}
+
 /// El `.md` con el que Windows lanzo el programa, si lo hubo.
 #[tauri::command]
 fn archivo_inicial() -> Option<String> {
@@ -175,7 +199,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![leer, escribir, leer_imagen, archivo_inicial])
+        .invoke_handler(tauri::generate_handler![leer, escribir, leer_imagen, huella, archivo_inicial])
         .run(tauri::generate_context!())
         .expect("error al arrancar MarkFlow");
 }
@@ -274,6 +298,27 @@ mod pruebas {
     /// La ruta que sale de `leer` se usa para armar la de las imagenes vecinas.
     /// Si conserva el prefijo largo de Windows, esas rutas no resuelven y las
     /// imagenes no aparecen. Paso de verdad el 2026-09-16.
+    #[test]
+    fn la_huella_cambia_cuando_el_archivo_cambia() {
+        let p = temporal(b"uno
+");
+        let ruta = p.to_string_lossy().into_owned();
+        let antes = huella(ruta.clone()).unwrap();
+        assert_eq!(antes.tamano, 4);
+        escribir(ruta.clone(), "uno y algo mas
+".into(), FinDeLinea::Lf).unwrap();
+        let despues = huella(ruta).unwrap();
+        assert_ne!(antes.tamano, despues.tamano, "el tamano deberia haber cambiado");
+        limpiar(p);
+    }
+
+    #[test]
+    fn la_huella_de_algo_que_no_existe_da_error() {
+        let r = huella(r"C:
+o\existe\esto.md".to_string());
+        assert!(r.is_err());
+    }
+
     #[test]
     fn la_ruta_devuelta_no_lleva_el_prefijo_largo_de_windows() {
         let p = temporal(b"# nota\n");

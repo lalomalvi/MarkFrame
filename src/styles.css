@@ -742,3 +742,85 @@ body { display: flex; flex-direction: column; }
 /* El icono de configuracion viene en un lienzo de 24: el trazo se engorda para
    que se vea del mismo peso que los de 16. */
 .ic-24 { stroke-width: 1.9; }
+
+/* --- notas al pie, resaltado e invisibles ---------------------------------- */
+
+.mf-nota-ref {
+  font-size: .72em;
+  vertical-align: super;
+  color: var(--acento);
+  font-weight: 600;
+}
+.mf-nota-def {
+  font-size: .9em;
+  color: var(--apagado);
+  border-left: 2px solid var(--borde);
+  padding-left: .7em;
+}
+
+.mf-resaltado {
+  background: color-mix(in srgb, #f5d90a 34%, transparent);
+  color: var(--tinta);
+  border-radius: 3px;
+  padding: .06em .1em;
+}
+
+/* Un caracter invisible se dibuja como un hueco marcado: en un archivo ajeno,
+   verlos es toda la defensa. */
+.mf-invisible {
+  outline: 1px dashed var(--peligro-borde);
+  outline-offset: 1px;
+  background: color-mix(in srgb, var(--peligro-borde) 22%, transparent);
+  border-radius: 2px;
+  min-width: .4em;
+  display: inline-block;
+}
+
+/* --- imagen remota sin cargar --------------------------------------------- */
+
+.mf-w-bloqueada {
+  border: 1px dashed var(--borde);
+  border-radius: 8px;
+  padding: .85em 1em;
+  background: var(--codigo-fondo);
+  text-align: left;
+  max-width: 34rem;
+}
+.mf-bloq-texto { font-weight: 600; font-size: .92em; margin-bottom: .3em; }
+.mf-bloq-url {
+  font-family: var(--fuente-mono);
+  font-size: .78em;
+  color: var(--apagado);
+  word-break: break-all;
+  margin-bottom: .7em;
+}
+.mf-bloq-boton {
+  font: inherit;
+  font-size: .85em;
+  font-weight: 600;
+  color: var(--acento-tinta);
+  background: var(--acento);
+  border: none;
+  border-radius: 6px;
+  padding: .35em .9em;
+  cursor: pointer;
+}
+.mf-bloq-boton:hover { filter: brightness(1.1); }
+.mf-bloq-nota {
+  font-size: .76em;
+  color: var(--tenue);
+  margin-top: .6em;
+  line-height: 1.45;
+}
+
+/* --- avisos: los trece tipos ---------------------------------------------- */
+
+.mf-aviso-cabeza { font-weight: 700; font-style: normal; }
+
+.mf-aviso-importante { --aviso-borde: #8b5cf6; --aviso-fondo: color-mix(in srgb, #8b5cf6 11%, transparent); }
+.mf-aviso-exito      { --aviso-borde: #10b981; --aviso-fondo: color-mix(in srgb, #10b981 11%, transparent); }
+.mf-aviso-fallo      { --aviso-borde: #ef4444; --aviso-fondo: color-mix(in srgb, #ef4444 10%, transparent); }
+.mf-aviso-pregunta   { --aviso-borde: #eab308; --aviso-fondo: color-mix(in srgb, #eab308 12%, transparent); }
+.mf-aviso-resumen    { --aviso-borde: #06b6d4; --aviso-fondo: color-mix(in srgb, #06b6d4 11%, transparent); }
+.mf-aviso-pendiente  { --aviso-borde: #3b82f6; --aviso-fondo: color-mix(in srgb, #3b82f6 10%, transparent); }
+.mf-aviso-bicho      { --aviso-borde: #f43f5e; --aviso-fondo: color-mix(in srgb, #f43f5e 11%, transparent); }

@@ -22,6 +22,11 @@ export const escribir = (ruta: string, texto: string, finDeLinea: FinDeLinea) =>
 
 export const archivoInicial = () => invoke<string | null>('archivo_inicial')
 
+export interface Huella { modificado: number; tamano: number }
+
+/** Cuando se toco el archivo y cuanto pesa, para notar ediciones de fuera. */
+export const huella = (ruta: string) => invoke<Huella>('huella', { ruta })
+
 export async function pedirArchivo(): Promise<string | null> {
   const r = await dialogoAbrir({ multiple: false, directory: false, filters: FILTRO })
   return typeof r === 'string' ? r : null

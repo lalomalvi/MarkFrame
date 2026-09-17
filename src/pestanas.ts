@@ -23,6 +23,11 @@ export interface Pestana {
   /** Sólo de la pestaña que no está activa; la activa los tiene en el editor. */
   estadoF: EditorState | null
   estadoP: EditorState | null
+  /**
+   * Huella del archivo tal como estaba la ultima vez que MarkFlow lo leyo o lo
+   * escribio. Si la de disco no coincide, alguien mas lo edito.
+   */
+  visto: { modificado: number; tamano: number } | null
 }
 
 /**
@@ -47,6 +52,7 @@ export function crear(datos: Partial<Pestana> = {}): Pestana {
     sucio: false,
     estadoF: null,
     estadoP: null,
+    visto: null,
     ...datos,
   }
 }

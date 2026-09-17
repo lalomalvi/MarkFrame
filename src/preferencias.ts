@@ -34,6 +34,17 @@ export interface Preferencias {
   /** Picar un bloque lleva el otro panel a ese mismo bloque y lo enmarca. */
   eco: boolean
   sangria: Sangria
+  /**
+   * Cargar imagenes de internet sin preguntar.
+   *
+   * **De fabrica esta APAGADO, y es una decision de seguridad.** Un `.md` que
+   * te manda un tercero puede llevar `![](https://del-atacante/pixel.png)`: al
+   * pintarla, tu equipo contacta ese servidor, confirma que abriste el archivo,
+   * revela tu IP y, si la url lleva datos en la ruta, los filtra. Es el vector
+   * de exfiltracion por imagen que los proveedores grandes parchearon en la
+   * capa de renderizado. Las imagenes del disco no tienen este problema.
+   */
+  imagenesRemotas: boolean
   /** Reabrir el ultimo archivo al arrancar. */
   reabrir: boolean
   ultimoArchivo: string | null
@@ -54,6 +65,7 @@ export const DE_FABRICA: Preferencias = {
   numerosLinea: true,
   eco: true,
   sangria: '4',
+  imagenesRemotas: false,
   reabrir: false,
   ultimoArchivo: null,
   division: 0.5,

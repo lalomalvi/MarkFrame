@@ -1,7 +1,9 @@
 import { crearPar, type Par } from './editor'
 import { refrescarPresentacion } from './livepreview'
-import { archivoInicial, escribir, leer, pedirArchivo, pedirDestino } from './archivo'
+import { archivoInicial, escribir, huella, leer, pedirArchivo,
+         pedirDestino } from './archivo'
 import { fijarCarpeta } from './contexto'
+import { olvidarPermisosSueltos, permitirRemotas } from './widgets'
 import * as prefs from './preferencias'
 import * as pest from './pestanas'
 import type { Pestana } from './pestanas'
@@ -181,6 +183,7 @@ function aplicarTodo() {
   par.verNumeros(P.numerosLinea)
   par.fijarSangria(P.sangria)
   par.activarEco(P.eco)
+  permitirRemotas(P.imagenesRemotas)
   btTema.classList.toggle('tema-oscuro', prefs.oscuroActivo(P))
   const rot = P.tema === 'sistema' ? 'Tema: sigue a Windows'
     : P.tema === 'claro' ? 'Tema: claro' : 'Tema: oscuro'
@@ -249,6 +252,37 @@ function preguntarQueHacer(nombre: string): Promise<Salida> {
   })
 }
 
+function preguntarRecarga(nombre: string): Promise<'recargar' | 'conservar'> {
+  mostrarDialogo(
+    'El archivo cambio por fuera',
+    'Otro programa modifico «' + nombre + '» mientras tenias cambios sin ' +
+    'guardar aqui. Hay dos versiones y solo una puede quedar.',
+    'Recargar descarta lo que escribiste en esta ventana. Conservar mantiene lo ' +
+    'tuyo, y al guardar se escribira encima de lo que hizo el otro programa.',
+  )
+  const bRecargar = $<HTMLButtonElement>('dlg-guardar')
+  const bConservar = $<HTMLButtonElement>('dlg-descartar')
+  bRecargar.hidden = false
+  bRecargar.textContent = 'Recargar del disco'
+  bConservar.hidden = false
+  bConservar.textContent = 'Conservar lo mio'
+  $('dlg-cancelar').hidden = true
+  $('dlg-aceptar').hidden = true
+  bRecargar.focus()
+
+  return new Promise((resolver) => {
+    const responder = (r: 'recargar' | 'conservar') => {
+      velo.hidden = true
+      // El dialogo es compartido: los rotulos vuelven a los de siempre.
+      bRecargar.textContent = 'Guardar y salir'
+      bConservar.textContent = 'Salir sin guardar'
+      resolver(r)
+    }
+    bRecargar.onclick = () => responder('recargar')
+    bConservar.onclick = () => responder('conservar')
+  })
+}
+
 /** true = se puede continuar con la pestaña activa (cerrarla o dejarla). */
 async function permisoParaDescartar(): Promise<boolean> {
   const p = laActiva()
@@ -278,6 +312,9 @@ async function guardar(): Promise<boolean> {
     await escribir(p.ruta, par.texto(), p.finDeLinea)
     p.sucio = false
     guardando = false
+    // La huella se refresca tras escribir: si no, el propio guardado se
+    // detectaria como «lo cambio otro programa».
+    p.visto = await huella(p.ruta).catch(() => null)
     P.ultimoArchivo = p.ruta
     recordar()
     pintar()
@@ -323,9 +360,12 @@ async function abrirRuta(destino: string) {
     else { abiertas.push(nueva); activa = abiertas.length - 1 }
 
     fijarCarpeta(doc.ruta)
+    // Los permisos de imagen remota son por documento: no se heredan.
+    olvidarPermisosSueltos()
     par.cargar(doc.texto)
     par.verNumeros(P.numerosLinea)
     par.fijarSangria(P.sangria)
+    nueva.visto = await huella(doc.ruta).catch(() => null)
     P.ultimoArchivo = doc.ruta
     recordar()
     pintar()
@@ -460,6 +500,7 @@ function pintarOpciones() {
   $<HTMLInputElement>('op-numeros').checked = P.numerosLinea
   $<HTMLSelectElement>('op-sangria').value = P.sangria
   $<HTMLInputElement>('op-eco').checked = P.eco
+  $<HTMLInputElement>('op-remotas').checked = P.imagenesRemotas
   $<HTMLInputElement>('op-reabrir').checked = P.reabrir
 }
 
@@ -487,6 +528,7 @@ function conectarOpciones() {
   cambia('op-numeros', 'numerosLinea', (el) => el.checked)
   cambia('op-sangria', 'sangria', (el) => el.value)
   cambia('op-eco', 'eco', (el) => el.checked)
+  cambia('op-remotas', 'imagenesRemotas', (el) => el.checked)
   cambia('op-reabrir', 'reabrir', (el) => el.checked)
 
   $('op-fabrica').addEventListener('click', () => {
@@ -511,6 +553,73 @@ $('opciones').addEventListener('click', (e) => {
 })
 $('op-cerrar').addEventListener('click', () => abrirOpciones(false))
 veloOp.addEventListener('click', () => abrirOpciones(false))
+
+// --- el archivo cambio por fuera ---------------------------------------------
+
+/**
+ * Comprueba si otro programa toco el archivo de la pestana activa.
+ *
+ * Esto es lo que permite que MarkFlow convive con un agente sobre la misma
+ * carpeta, que es el patron de trabajo real hoy. Se mira al recuperar el foco
+ * de la ventana -- exactamente cuando el usuario vuelve del otro programa --
+ * en vez de vigilar el disco todo el rato: mas simple y cubre el caso de uso.
+ *
+ * Sin cambios locales se recarga sin preguntar. Con cambios locales se
+ * pregunta, porque decidir por el usuario significaria perder el trabajo de
+ * uno de los dos lados.
+ */
+let comprobando = false
+
+async function revisarCambiosDeFuera() {
+  const p = laActiva()
+  if (!p || !p.ruta || !p.visto || comprobando) return
+  comprobando = true
+  try {
+    const ahora = await huella(p.ruta)
+    const igual = ahora.modificado === p.visto.modificado && ahora.tamano === p.visto.tamano
+    if (igual) return
+
+    if (!p.sucio) {
+      const doc = await leer(p.ruta)
+      const estabaEn = par.fuente.state.selection.main.head
+      olvidarPermisosSueltos()
+      par.cargar(doc.texto)
+      par.verNumeros(P.numerosLinea)
+      par.fijarSangria(P.sangria)
+      // Se intenta dejar el cursor donde estaba, acotado al documento nuevo.
+      const donde = Math.min(estabaEn, par.fuente.state.doc.length)
+      par.fuente.dispatch({ selection: { anchor: donde } })
+      p.finDeLinea = doc.fin_de_linea
+      p.soloLectura = doc.solo_lectura
+      p.visto = ahora
+      pintar('Recargado: lo cambio otro programa')
+      window.setTimeout(() => pintar(), 4000)
+      return
+    }
+
+    const r = await preguntarRecarga(p.nombre)
+    if (r === 'recargar') {
+      const doc = await leer(p.ruta)
+      olvidarPermisosSueltos()
+      par.cargar(doc.texto)
+      par.verNumeros(P.numerosLinea)
+      par.fijarSangria(P.sangria)
+      p.finDeLinea = doc.fin_de_linea
+      p.sucio = false
+    }
+    // En los dos casos se acepta la huella nueva: si no, se volveria a
+    // preguntar por el mismo cambio cada vez que la ventana toma el foco.
+    p.visto = ahora
+    pintar()
+  } catch {
+    // El archivo pudo moverse o borrarse. No se molesta al usuario aqui; se
+    // vera al guardar, con su aviso.
+  } finally {
+    comprobando = false
+  }
+}
+
+window.addEventListener('focus', () => { void revisarCambiosDeFuera() })
 
 // --- botones de la ventana ---------------------------------------------------
 

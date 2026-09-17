@@ -26,6 +26,11 @@ mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md)
   **KaTeX** en línea y en bloque, **imágenes** locales y remotas, **avisos**
   (`[!NOTA]`, `[!AVISO]`, `[!PELIGRO]`, `[!TIP]`, `[!EJEMPLO]`, `[!CITA]`) y
   **casillas de tarea** que se pican. El frontmatter YAML sale como metadatos.
+- **Sintaxis**: notas al pie `[^1]`, `==resaltado==`, avisos con los 13 tipos de
+  Obsidian y título propio, en inglés y español, mayúscula o minúscula.
+- **Convivencia con agentes**: al recuperar el foco, si otro programa tocó el
+  archivo se recarga solo; si había cambios locales, pregunta.
+- **Imágenes de internet bloqueadas de fábrica** y caracteres invisibles marcados.
 - **Guardado explícito**: botón *Guardar*, Ctrl+S, punto en el título cuando hay
   cambios, y diálogo al cerrar o al abrir otro archivo con cambios pendientes.
   **Si un guardado falla, sale un diálogo**, no un texto chico en la barra.
