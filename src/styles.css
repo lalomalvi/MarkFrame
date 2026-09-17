@@ -297,6 +297,12 @@ body { display: flex; flex-direction: column; }
   width: 0;
   min-width: 100%;
   overflow-x: auto;
+  /* Margen para picar. Dentro de una celda manda la celda -- el clic la edita --
+     así que este borde es lo que queda para llevar el cursor al markdown de la
+     tabla y poder añadir filas o cambiar la alineación. Sin él, la tabla no
+     tendría por dónde agarrarse. */
+  padding: .5em .15em;
+  cursor: default;
 }
 .mf-w-tabla table {
   border-collapse: collapse;
@@ -313,6 +319,9 @@ body { display: flex; flex-direction: column; }
   padding: .38em .7em;
   text-align: left;
   vertical-align: top;
+  /* El cursor de texto avisa de que la celda se escribe, sin tener que
+     explicarlo en ninguna parte. */
+  cursor: text;
 }
 .mf-w-tabla thead th {
   background: var(--codigo-fondo);
@@ -320,6 +329,25 @@ body { display: flex; flex-direction: column; }
   white-space: nowrap;
 }
 .mf-w-tabla tbody tr:nth-child(even) { background: var(--linea-activa); }
+
+/* Una celda en edicion.
+
+   Se ve en monoespaciada a proposito: mientras se edita, lo que hay ahi es
+   markdown crudo, no texto dibujado. Que la letra cambie lo dice sin
+   explicarlo. El aro de acento es el mismo que usan los botones al recibir el
+   foco, para que el programa se sienta de una pieza. */
+.mf-w-tabla .mf-celda-edit {
+  font-family: var(--fuente-mono);
+  font-size: .92em;
+  background: var(--papel);
+  outline: 2px solid var(--acento);
+  outline-offset: -2px;
+  white-space: pre-wrap;
+  cursor: text;
+}
+/* Pierde el centrado y la derecha mientras se edita: el markdown se lee desde
+   la izquierda, y ver el cursor saltando de sitio al escribir despista. */
+.mf-w-tabla .mf-celda-edit { text-align: left !important; }
 .mf-w-tabla code {
   font-family: var(--fuente-mono);
   font-size: .92em;

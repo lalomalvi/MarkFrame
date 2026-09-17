@@ -19,7 +19,9 @@ import { pedirRefresco } from './refresco.ts'
 /** Deja el cursor dentro del texto que el widget estaba tapando. */
 function alPicar(el: HTMLElement, vista: EditorView, pos: number) {
   el.addEventListener('mousedown', (e) => {
-    if ((e.target as HTMLElement).closest('input,a')) return
+    // Una celda de tabla en edicion se queda con su raton: si no, el primer
+    // clic dentro mandaria el cursor al markdown y cerraria la edicion.
+    if ((e.target as HTMLElement).closest('input,a,.mf-celda-edit')) return
     e.preventDefault()
     vista.dispatch({ selection: { anchor: pos } })
     vista.focus()
@@ -30,26 +32,72 @@ function alPicar(el: HTMLElement, vista: EditorView, pos: number) {
 
 type Alineacion = 'left' | 'center' | 'right' | null
 
-/** Parte una fila por barras, respetando las barras escapadas. */
-function celdas(linea: string): string[] {
-  const salida: string[] = []
+/** Una celda de una fila: su markdown y donde vive dentro de la linea. */
+export type Celda = { texto: string; desde: number; hasta: number }
+
+/**
+ * Parte una fila por barras, respetando las barras escapadas, y **dice donde
+ * empieza y acaba cada celda**.
+ *
+ * Las posiciones son lo que hace posible editar una tabla sin volver a escribir
+ * el markdown entero: con ellas, cambiar una celda es un reemplazo de un tramo
+ * conocido, no una reconstruccion. Ver `WidgetTabla`.
+ *
+ * `texto` viene **desescapado** (un `\|` del documento llega como `|`) y sin
+ * espacios a los lados; `desde` y `hasta` apuntan al texto tal cual esta en el
+ * documento, ya sin esos espacios.
+ */
+export function celdasCon(linea: string): Celda[] {
+  const salida: Celda[] = []
   let actual = ''
+  let inicio = 0
   for (let i = 0; i < linea.length; i++) {
     const c = linea[i]
     if (c === '\\' && linea[i + 1] === '|') {
       actual += '|'
       i++
     } else if (c === '|') {
-      salida.push(actual)
+      salida.push({ texto: actual, desde: inicio, hasta: i })
       actual = ''
+      inicio = i + 1
     } else {
       actual += c
     }
   }
-  salida.push(actual)
-  if (salida.length && salida[0].trim() === '') salida.shift()
-  if (salida.length && salida[salida.length - 1].trim() === '') salida.pop()
-  return salida.map((s) => s.trim())
+  salida.push({ texto: actual, desde: inicio, hasta: linea.length })
+
+  if (salida.length && salida[0].texto.trim() === '') salida.shift()
+  if (salida.length && salida[salida.length - 1].texto.trim() === '') salida.pop()
+
+  // Se recortan los espacios, y el rango se encoge con ellos. El desescapado no
+  // descuadra esta cuenta: `\|` no es un espacio, asi que la cantidad de huecos
+  // al principio y al final es la misma en el texto y en el documento.
+  return salida.map((c) => {
+    const izq = c.texto.length - c.texto.trimStart().length
+    const der = c.texto.length - c.texto.trimEnd().length
+    return { texto: c.texto.trim(), desde: c.desde + izq, hasta: c.hasta - der }
+  })
+}
+
+/** Parte una fila por barras, respetando las barras escapadas. */
+function celdas(linea: string): string[] {
+  return celdasCon(linea).map((c) => c.texto)
+}
+
+/**
+ * Deja un texto en condiciones de vivir dentro de una celda.
+ *
+ * Una celda es **una linea y un tramo entre barras**: un salto de linea la
+ * partiria en dos filas y una barra sin escapar le abriria una columna a toda
+ * la tabla. Esto no es cosmetica -- es lo que impide que editar una celda
+ * estropee el documento.
+ */
+export function saneadaParaCelda(texto: string): string {
+  return texto
+    .replace(/[\r\n\u2028\u2029]+/g, ' ')
+    .replace(/\|/g, '\\|')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
 }
 
 function alineaciones(linea: string): Alineacion[] {
@@ -112,31 +160,90 @@ function enriquecer(texto: string): string {
     })
 }
 
+/**
+ * Una tabla dibujada, **y editable celda por celda**.
+ *
+ * ### Por que esto no rompe la regla de la casa
+ *
+ * `CLAUDE.md` prohibe convertir HTML editado de vuelta a markdown, y con razon:
+ * es lo que obligo a bloquear seis bloques en Folio. Aqui no se hace nada de
+ * eso. **El HTML nunca se lee para reconstruir el documento.**
+ *
+ * Lo que ocurre es otra cosa: cada celda sabe **en que tramo exacto del
+ * documento vive** —— se lo dice `celdasCon`—, asi que confirmar una edicion es
+ * un reemplazo de ese tramo y nada mas. El resto del documento no se toca, no se
+ * regenera y ni siquiera se lee. Si manana se borra este widget, el markdown
+ * sigue intacto.
+ *
+ * La diferencia con un serializador inverso es toda: uno mira el DOM y escribe
+ * un documento; esto mira **dos numeros** y escribe un tramo.
+ *
+ * ### Como se usa
+ *
+ * **Un clic en la celda la edita.** Enter o Tab confirman, Escape cancela, y
+ * salirse confirma. Lo escrito se limpia con `saneadaParaCelda` antes de entrar
+ * al documento.
+ *
+ * Al entrar en edicion, la celda muestra **su markdown crudo**, no el texto
+ * dibujado: si dentro habia `**negrita**`, eso es lo que se edita. Leer el texto
+ * ya dibujado perderia el formato en cuanto alguien tocara la celda.
+ *
+ * **Picar el marco de la tabla --por fuera de las celdas-- sigue llevando el
+ * cursor al markdown**, que es como se anaden filas, se quitan columnas o se
+ * cambia la alineacion. Por eso la caja lleva un margen para picar.
+ *
+ * ### Por que un clic y no dos
+ *
+ * El doble clic se intento primero, para no cambiar nada de lo que ya habia.
+ * **No puede funcionar**: `mousedown` llega antes que `dblclick`, asi que el
+ * primer clic ya habia mandado el cursor al markdown y deshecho la tabla; el
+ * segundo caia sobre texto crudo y el `dblclick` no llegaba nunca. Verificado en
+ * la aplicacion el 2026-09-17.
+ *
+ * Retrasar el primer clic para ver si viene otro habria metido medio segundo de
+ * espera en cada clic, y eso choca con la razon de ser del programa. Asi que el
+ * gesto cambia: **dentro de una celda manda la celda**, y el markdown de la
+ * tabla se alcanza por el marco o por el panel de fuente, que en modo Ambos esta
+ * justo al lado.
+ *
+ * **El markdown no se realinea.** Las barras quedan donde queden: la tabla sigue
+ * siendo valida, y realinear obligaria a reescribir filas que el usuario no
+ * pidio tocar. Justo lo que aqui no se hace.
+ */
 export class WidgetTabla extends WidgetType {
   constructor(readonly texto: string, readonly pos: number) {
     super()
   }
   eq(otro: WidgetTabla) {
-    return otro.texto === this.texto
+    return otro.texto === this.texto && otro.pos === this.pos
   }
 
   toDOM(vista: EditorView) {
     const caja = document.createElement('div')
     caja.className = 'mf-w mf-w-tabla'
 
-    const lineas = this.texto.split('\n').filter((l) => l.trim() !== '')
+    // Las lineas se recorren con su desplazamiento dentro del tramo, para poder
+    // sumarle `this.pos` y saber donde vive cada celda en el documento.
+    const lineas: { texto: string; desde: number }[] = []
+    let off = 0
+    for (const l of this.texto.split('\n')) {
+      if (l.trim() !== '') lineas.push({ texto: l, desde: off })
+      off += l.length + 1
+    }
+
     const tabla = document.createElement('table')
 
     // La segunda linea es el delimitador y no se dibuja: solo da la alineacion.
-    const alin = lineas.length > 1 ? alineaciones(lineas[1]) : []
+    const alin = lineas.length > 1 ? alineaciones(lineas[1].texto) : []
 
     lineas.forEach((linea, i) => {
       if (i === 1) return
       const fila = document.createElement('tr')
-      celdas(linea).forEach((c, j) => {
+      celdasCon(linea.texto).forEach((c, j) => {
         const celda = document.createElement(i === 0 ? 'th' : 'td')
-        celda.innerHTML = enriquecer(c)
+        celda.innerHTML = enriquecer(c.texto)
         if (alin[j]) celda.style.textAlign = alin[j]!
+        this.hacerEditable(celda, vista, c, this.pos + linea.desde)
         fila.append(celda)
       })
       const destino = i === 0 ? tabla.createTHead() : tabla.tBodies[0] ?? tabla.createTBody()
@@ -146,6 +253,96 @@ export class WidgetTabla extends WidgetType {
     caja.append(tabla)
     alPicar(caja, vista, this.pos)
     return caja
+  }
+
+  /** Doble clic en una celda: edicion en crudo, y al confirmar un solo cambio. */
+  private hacerEditable(
+    celda: HTMLElement,
+    vista: EditorView,
+    c: Celda,
+    baseLinea: number,
+  ) {
+    const desde = baseLinea + c.desde
+    const hasta = baseLinea + c.hasta
+    const original = c.texto
+
+    celda.title = 'Clic para editar esta celda'
+
+    const abrir = () => {
+      // Se edita el markdown, no lo dibujado. Si no, `**negrita**` se perderia
+      // en cuanto alguien tocara la celda.
+      celda.textContent = original
+      celda.contentEditable = 'true'
+      celda.classList.add('mf-celda-edit')
+      celda.focus()
+      const rango = document.createRange()
+      rango.selectNodeContents(celda)
+      getSelection()?.removeAllRanges()
+      getSelection()?.addRange(rango)
+    }
+
+    celda.addEventListener('mousedown', (e) => {
+      // **La celda se queda con su raton.** Sin este `stopPropagation`, el
+      // manejador de la caja mandaria el cursor al markdown, el bloque dejaria
+      // de estar decorado y la tabla se desharia en el primer clic -- que es
+      // justo lo que pasaba cuando esto se intento con doble clic: el
+      // `mousedown` llega antes que el `dblclick`, asi que el segundo clic ya
+      // caia sobre texto crudo y el doble clic no llegaba nunca.
+      e.stopPropagation()
+      if (celda.isContentEditable) return
+      // Sin esto, el navegador arrastra una seleccion de texto por encima.
+      e.preventDefault()
+      abrir()
+    })
+
+    let cerrando = false
+    const cerrar = (guardar: boolean) => {
+      if (cerrando || !celda.isContentEditable) return
+      cerrando = true
+      const escrito = saneadaParaCelda(celda.textContent ?? '')
+      celda.contentEditable = 'false'
+      celda.classList.remove('mf-celda-edit')
+
+      // Si no cambio nada, no se ensucia el documento ni la historia de
+      // deshacer: se repinta la celda y ya.
+      if (!guardar || escrito === saneadaParaCelda(original)) {
+        celda.innerHTML = enriquecer(original)
+        cerrando = false
+        return
+      }
+
+      // El unico cambio que esta tabla hace al documento: un tramo conocido.
+      vista.dispatch({ changes: { from: desde, to: hasta, insert: escrito } })
+      // No se repinta a mano: el cambio reconstruye el widget entero.
+    }
+
+    celda.addEventListener('keydown', (e) => {
+      if (!celda.isContentEditable) return
+      e.stopPropagation()
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        cerrar(true)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        cerrar(false)
+      }
+    })
+
+    celda.addEventListener('blur', () => cerrar(true))
+  }
+
+  /**
+   * Nada de lo que pasa dentro de esta tabla es del editor.
+   *
+   * Es el comportamiento por omision de CodeMirror, y se deja escrito porque
+   * **aqui importa mas que en los demas widgets**: con una celda en edicion, el
+   * tecleo tiene que quedarse en el `contenteditable`. Si CodeMirror lo tomara
+   * por suyo, metria el texto en el documento por su cuenta, ademas del cambio
+   * que despacha `cerrar` —— y lo escribiria donde estuviera el cursor, que no
+   * es donde esta la celda.
+   */
+  ignoreEvent() {
+    return true
   }
 }
 

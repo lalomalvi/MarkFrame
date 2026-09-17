@@ -28,6 +28,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { ensureSyntaxTree } from '@codemirror/language'
 import { construir } from '../src/livepreview.ts'
 import { destinoSeguro, rutaAbsoluta, permitirRemotas, olvidarPermisosSueltos,
+         celdasCon, saneadaParaCelda,
          WidgetImagen, WidgetTabla } from '../src/widgets.ts'
 
 let hechas = 0
@@ -218,10 +219,18 @@ prueba('un documento enorme apaga la vista en vez de colgarse', () => {
   // titulo es HTML, deja una ventana que no se puede cerrar.
   const enorme = '| a | b |\n|---|---|\n| 1 | 2 |\n'.repeat(90_000)
   assert.ok(enorme.length > 2 * 1024 * 1024, 'la prueba tiene que pasarse del tope')
+
+  // Aqui se mide `construir` a solas, sin el analisis sintactico. No es por
+  // hacerlo facil: el tope corta ANTES de mirar el arbol, asi que el estado ni
+  // siquiera necesita lenguaje. Cronometrar el analisis de 2.4 MB mediria la
+  // velocidad de la maquina, y esta prueba iria fallando sola segun el dia.
+  const estado = EditorState.create({ doc: enorme })
   const arranque = Date.now()
-  const d = widgetsDe(enorme)
-  assert.deepEqual(d, [], 'por encima del tope no se decora nada')
-  assert.ok(Date.now() - arranque < 2000, 'y se rinde rapido, no despues de pensarlo')
+  const set = construir(estado)
+  const tardo = Date.now() - arranque
+
+  assert.equal(set.size, 0, 'por encima del tope no se decora nada')
+  assert.ok(tardo < 100, `se rindio en ${tardo} ms: el tope tiene que cortar de inmediato`)
 })
 
 prueba('las expresiones acotadas no se disparan con entradas hostiles', () => {
@@ -250,6 +259,106 @@ prueba('una tabla torcida no revienta ni decora de mas', () => {
   ]) {
     assert.doesNotThrow(() => widgetsDe(caso), `revento con: ${JSON.stringify(caso)}`)
   }
+})
+
+// --- tablas editables ------------------------------------------------------- //
+//
+// Lo que se prueba aquí es la mitad que puede romper el documento: **dónde cree
+// cada celda que vive**. Si esos dos números están mal, confirmar una edición
+// escribe encima de otra cosa. El dibujado y el doble clic necesitan ventana;
+// esto no.
+
+/** Comprueba que cada celda apunta exactamente a su propio texto en la línea. */
+function celdasApuntanBien(linea: string) {
+  for (const c of celdasCon(linea)) {
+    const enLaLinea = linea.slice(c.desde, c.hasta)
+    // El texto de la celda viene desescapado, así que se compara contra el
+    // tramo con sus escapes deshechos.
+    assert.equal(
+      enLaLinea.replace(/\\\|/g, '|'),
+      c.texto,
+      `la celda ${JSON.stringify(c.texto)} no apunta a su sitio en ${JSON.stringify(linea)}`,
+    )
+  }
+}
+
+prueba('cada celda sabe exactamente en que tramo vive', () => {
+  for (const linea of [
+    '| a | b |',
+    '|a|b|',
+    '|   con espacios   |   y mas   |',
+    '| a |',
+    'a | b',                       // sin barras a los lados: tambien es tabla
+    '| **negrita** | `codigo` |',
+    '| [x](https://ejemplo.com) | y |',
+    '| con \\| barra escapada | otra |',
+    '| \\| | \\|\\| |',
+    '|  |  |',                     // celdas vacias
+    '| á é í | ñ ü |',
+  ]) {
+    celdasApuntanBien(linea)
+  }
+})
+
+prueba('reemplazar una celda por su tramo deja la fila entera bien', () => {
+  // Esto es exactamente lo que hace el widget al confirmar: un reemplazo del
+  // tramo, sin tocar nada mas de la linea.
+  const linea = '| uno | dos | tres |'
+  const cs = celdasCon(linea)
+  const nueva = linea.slice(0, cs[1].desde) + 'DOS' + linea.slice(cs[1].hasta)
+  assert.equal(nueva, '| uno | DOS | tres |')
+  // Y la tabla sigue teniendo las mismas columnas.
+  assert.equal(celdasCon(nueva).length, 3)
+})
+
+prueba('reemplazar una celda con barra escapada no descuadra la fila', () => {
+  const linea = '| a \\| b | c |'
+  const cs = celdasCon(linea)
+  assert.equal(cs.length, 2)
+  assert.equal(cs[0].texto, 'a | b')
+  const nueva = linea.slice(0, cs[0].desde) + saneadaParaCelda('x | y') + linea.slice(cs[0].hasta)
+  assert.equal(celdasCon(nueva).length, 2, 'sigue habiendo dos columnas')
+  assert.equal(celdasCon(nueva)[0].texto, 'x | y')
+})
+
+prueba('lo escrito en una celda no puede partir la tabla', () => {
+  // Una barra abre una columna; un salto de linea parte la fila en dos. Las dos
+  // cosas estropean el documento de quien escribe, no solo la vista.
+  assert.equal(saneadaParaCelda('a | b'), 'a \\| b')
+  assert.equal(saneadaParaCelda('a\nb'), 'a b')
+  assert.equal(saneadaParaCelda('a\r\nb'), 'a b')
+  assert.equal(saneadaParaCelda('a b'), 'a b')
+  assert.equal(saneadaParaCelda('  hola   mundo  '), 'hola mundo')
+  assert.equal(saneadaParaCelda('|||'), '\\|\\|\\|')
+  assert.equal(saneadaParaCelda(''), '')
+})
+
+prueba('lo saneado vuelve a leerse como una sola celda', () => {
+  // La ida y vuelta: lo que se escribe tiene que releerse igual.
+  for (const escrito of [
+    'a | b',
+    'texto con | barra | y otra',
+    'con\nsalto',
+    '**negrita**',
+    'a \\| ya escapada',
+  ]) {
+    const celda = saneadaParaCelda(escrito)
+    const fila = `| ${celda} | z |`
+    const leidas = celdasCon(fila)
+    assert.equal(leidas.length, 2, `${JSON.stringify(escrito)} abrio columnas de mas`)
+    assert.equal(leidas[1].texto, 'z', 'la celda de al lado tiene que quedar intacta')
+  }
+})
+
+prueba('eq() de la tabla mira tambien donde esta', () => {
+  // Dos tablas con el mismo texto en sitios distintos NO son el mismo widget:
+  // sus celdas apuntan a tramos distintos del documento. Si eq() las diera por
+  // iguales, CodeMirror reutilizaria el DOM de una para la otra y las celdas
+  // escribirian en el sitio equivocado.
+  const a = new WidgetTabla('| a | b |\n|---|---|\n| 1 | 2 |', 0)
+  const b = new WidgetTabla('| a | b |\n|---|---|\n| 1 | 2 |', 500)
+  assert.equal(a.eq(b), false)
+  assert.equal(a.eq(new WidgetTabla(a.texto, 0)), true)
 })
 
 prueba('el texto de un widget de tabla es el de su tramo', () => {

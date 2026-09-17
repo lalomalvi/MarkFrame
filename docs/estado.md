@@ -32,6 +32,7 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
   **KaTeX** en línea y en bloque, **imágenes** locales y remotas, **avisos**
   (`[!NOTA]`, `[!AVISO]`, `[!PELIGRO]`, `[!TIP]`, `[!EJEMPLO]`, `[!CITA]`) y
   **casillas de tarea** que se pican. El frontmatter YAML sale como metadatos.
+- **Tablas editables**: un clic en una celda la edita. Ver más abajo.
 - **Sintaxis**: notas al pie `[^1]`, `==resaltado==`, avisos con los 13 tipos de
   Obsidian y título propio, en inglés y español, mayúscula o minúscula.
 - **Convivencia con agentes**: al recuperar el foco **y al volver a una pestaña**,
@@ -140,6 +141,43 @@ archivos, 859 KB.
 Las **ligaduras van apagadas** en todo el editor: JetBrains Mono convierte `->`
 en flecha y `!=` en un símbolo, y en un `.md` con Mermaid eso confunde la vista
 aunque no cambie el texto guardado.
+
+### Las tablas editables
+
+**Un clic en una celda la edita.** Enter o Tab confirman, Escape cancela, salirse
+confirma. La celda muestra **su markdown crudo** mientras se edita —— si había
+`**negrita**`, eso es lo que se edita—, y se ve en monoespaciada para que se note
+sin tener que explicarlo.
+
+**Picar el marco de la tabla, por fuera de las celdas, sigue llevando el cursor
+al markdown**: es como se añaden filas, se quitan columnas o se cambia la
+alineación. Por eso la caja lleva un margen para picar.
+
+> **Esto no rompe la regla 2 del proyecto**, la que prohíbe convertir HTML
+> editado de vuelta a markdown. El HTML nunca se lee para reconstruir el
+> documento. Cada celda sabe **en qué tramo exacto del documento vive** —— se lo
+> dice `celdasCon`—, así que confirmar es reemplazar ese tramo y nada más. La
+> diferencia con un serializador inverso es toda: uno mira el DOM y escribe un
+> documento; esto mira **dos números** y escribe un tramo.
+
+**El markdown no se realinea.** Las barras quedan donde queden: la tabla sigue
+siendo válida, y realinear obligaría a reescribir filas que nadie pidió tocar ——
+justo lo que aquí no se hace.
+
+Lo que se escribe pasa por `saneadaParaCelda`: las barras se escapan y los saltos
+de línea se vuelven espacios. No es cosmética —— cualquiera de las dos cosas
+partiría la tabla **en el archivo del usuario**, no sólo en la vista.
+
+#### Por qué un clic y no dos
+
+El doble clic se intentó primero, para no cambiar nada de lo que ya había. **No
+puede funcionar, y se comprobó en la aplicación**: `mousedown` llega antes que
+`dblclick`, así que el primer clic ya había mandado el cursor al markdown y
+deshecho la tabla; el segundo caía sobre texto crudo y el `dblclick` no llegaba
+nunca.
+
+Retrasar el primer clic para ver si venía otro habría metido medio segundo de
+espera en cada clic del programa, y eso choca con su razón de ser.
 
 ### El eco entre paneles
 
@@ -266,7 +304,7 @@ más fácil de colgar a un lector de ISOBMFF, y hay una prueba que la usa.
 | Línea base del esqueleto vacío | 111 ms |
 | Bundle de entrada | 279 KB — Mermaid y KaTeX cargan aparte, bajo demanda |
 | Pruebas del núcleo | **31 de 31** (`cargo test --lib`) |
-| Pruebas del frontend | **31 de 31** (`npm run probar`) — 9 de pestañas, 4 de `id`, **18 de la presentación** |
+| Pruebas del frontend | **37 de 37** (`npm run probar`) — 9 de pestañas, 4 de `id`, **24 de la presentación** |
 
 El criterio de la medición llega hasta que la ventana existe con su título; los
 diagramas se dibujan un instante después.
@@ -328,10 +366,8 @@ política puesta, el tope de dimensiones y la instancia única.
 
 ## Sin decidir
 
-- **Tablas editables desde la presentación.** Hoy se dibujan, y para tocarlas el
-  cursor las devuelve a texto. Editar celda por celda sobre la tabla dibujada
-  exigiría escribir de vuelta al markdown, que es lo que este proyecto tiene
-  prohibido. Si se quiere, va como pieza aparte y muy probada.
+- ~~Tablas editables desde la presentación.~~ **Decidido el 2026-09-17: se
+  hacen.** Ver más abajo.
 - **El icono definitivo.** El que hay es el monograma provisional; Lalo está
   afinando el suyo.
 - **Una paleta que siga al color de acento de Windows.** Se puede, pero ese color
