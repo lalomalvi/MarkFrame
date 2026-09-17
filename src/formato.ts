@@ -1,8 +1,10 @@
 /**
- * El panel que sale al seleccionar texto en el panel de presentacion.
+ * El panel que sale al seleccionar texto.
  *
  * Selecciona una frase y aparece encima una barrita con resaltar, negrita,
- * cursiva y tachado. Se va sola al soltar la seleccion o al picar en otro sitio.
+ * cursiva y tachado. **Los botones se encienden si el texto ya lleva ese
+ * formato**, y pulsarlos entonces lo quita. Se va sola al soltar la seleccion o
+ * al picar en otro sitio.
  *
  * ### Esto escribe en el documento, y por eso importa como
  *
@@ -23,7 +25,8 @@
  */
 
 import { EditorView } from '@codemirror/view'
-import type { EditorSelection } from '@codemirror/state'
+import { EditorState, type EditorSelection } from '@codemirror/state'
+import { syntaxTree } from '@codemirror/language'
 
 /** Las marcas que envuelven a cada formato. Abren y cierran igual. */
 export const MARCAS = {
@@ -33,7 +36,22 @@ export const MARCAS = {
   tachado: '~~',
 } as const
 
-type Formato = keyof typeof MARCAS
+export type Formato = keyof typeof MARCAS
+
+/**
+ * El nodo del arbol que corresponde a cada formato.
+ *
+ * `resaltar` no tiene: `==texto==` **no es markdown estandar** y el analizador
+ * de CodeMirror no lo conoce, asi que ese se detecta mirando el texto. Los otros
+ * tres si, y por eso se encuentran aunque las marcas esten a parrafos de
+ * distancia de lo seleccionado.
+ */
+const NODO: Record<Formato, string | null> = {
+  negrita: 'StrongEmphasis',
+  cursiva: 'Emphasis',
+  tachado: 'Strikethrough',
+  resaltar: null,
+}
 
 const BOTONES: { formato: Formato; letra: string; titulo: string; clase: string }[] = [
   { formato: 'resaltar', letra: '', titulo: 'Resaltar (==texto==)', clase: 'fmt-resaltar' },
@@ -41,23 +59,6 @@ const BOTONES: { formato: Formato; letra: string; titulo: string; clase: string 
   { formato: 'cursiva', letra: 'K', titulo: 'Cursiva (*texto*)', clase: 'fmt-cursiva' },
   { formato: 'tachado', letra: 'S', titulo: 'Tachado (~~texto~~)', clase: 'fmt-tachado' },
 ]
-
-/**
- * Si el tramo ya esta envuelto en esa marca.
- *
- * Se mira **por fuera** de la seleccion, no dentro: quien selecciona una palabra
- * ya puesta en negrita selecciona la palabra, no los asteriscos. Sin esto, el
- * boton volveria a envolver lo ya envuelto y saldria `****texto****`.
- */
-function yaEnvuelto(vista: EditorView, desde: number, hasta: number, marca: string) {
-  const doc = vista.state.doc
-  const largo = marca.length
-  if (desde - largo < 0 || hasta + largo > doc.length) return false
-  return (
-    doc.sliceString(desde - largo, desde) === marca &&
-    doc.sliceString(hasta, hasta + largo) === marca
-  )
-}
 
 /**
  * Recorta los huecos de los extremos de la seleccion antes de envolverla.
@@ -77,36 +78,132 @@ function yaEnvuelto(vista: EditorView, desde: number, hasta: number, marca: stri
  * Los saltos de linea se recortan por lo mismo: una marca justo antes de un
  * salto no envuelve nada.
  */
-export function acotada(vista: EditorView, desde: number, hasta: number) {
-  const doc = vista.state.doc
+export function acotada(estado: EditorState, desde: number, hasta: number) {
+  const doc = estado.doc
+  // Se ordena y se mete en el documento antes de mirar nada.
+  //
+  // CodeMirror nunca da un rango al reves --`from` es siempre el menor-- asi que
+  // esto no arregla un fallo de hoy: **cierra la clase de fallo**. Un rango
+  // invertido saliendo de aqui acabaria en un `changes` con `from > to`, que
+  // lanza dentro de un `dispatch` y se lleva la vista por delante. Lo encontro
+  // una prueba de frontera el 2026-09-17, probando `(7, 2)` a proposito.
+  if (desde > hasta) [desde, hasta] = [hasta, desde]
+  desde = Math.max(0, Math.min(desde, doc.length))
+  hasta = Math.max(0, Math.min(hasta, doc.length))
+
   const hueco = (p: number) => /[ \t\r\n]/.test(doc.sliceString(p, p + 1))
   while (desde < hasta && hueco(desde)) desde++
   while (hasta > desde && hueco(hasta - 1)) hasta--
   return { desde, hasta }
 }
 
-/** Pone o quita la marca alrededor de lo seleccionado. */
+/** El tramo que hay que quitar para deshacer un formato: texto y sus marcas. */
+export type Tramo = { desde: number; hasta: number; abre: number; cierra: number }
+
+/**
+ * Busca `==...==` alrededor de la seleccion, dentro del mismo bloque.
+ *
+ * El resaltado no esta en el arbol, asi que se busca a mano. Se acota al bloque
+ * —— nunca al documento entero—— porque esto corre cada vez que alguien suelta el
+ * raton y no puede recorrer un archivo grande.
+ */
+function resaltadoAlrededor(estado: EditorState, desde: number, hasta: number): Tramo | null {
+  const marca = MARCAS.resaltar
+  // El bloque de alrededor: el hijo directo de la raiz que contiene la posicion.
+  let nodo = syntaxTree(estado).resolveInner(desde, 1)
+  while (nodo.parent && nodo.parent.parent) nodo = nodo.parent
+  const desdeBloque = nodo.from
+  const texto = estado.doc.sliceString(desdeBloque, nodo.to)
+
+  for (const m of texto.matchAll(/==([^=]|=(?!=))+==/g)) {
+    const a = desdeBloque + m.index!
+    const b = a + m[0].length
+    if (a <= desde && b >= hasta) {
+      return { desde: a + marca.length, hasta: b - marca.length, abre: a, cierra: b }
+    }
+  }
+  return null
+}
+
+/**
+ * Si lo seleccionado ya lleva ese formato, devuelve el tramo entero que lo
+ * lleva —— **no solo la seleccion**.
+ *
+ * Esto es lo que hace que el panel pueda encender el boton correcto. Y es mas
+ * que comprobar si las marcas estan pegadas a la seleccion: en un parrafo
+ * entero en cursiva, seleccionar tres palabras de en medio **tambien** es
+ * cursiva, y el usuario espera que el panel lo diga. Lo pidio Lalo el
+ * 2026-09-17 tras ver que el panel callaba sobre un texto que ya estaba en
+ * cursiva.
+ */
+export function tramoConFormato(
+  estado: EditorState,
+  desde: number,
+  hasta: number,
+  formato: Formato,
+): Tramo | null {
+  const nombre = NODO[formato]
+  if (nombre === null) return resaltadoAlrededor(estado, desde, hasta)
+
+  const largo = MARCAS[formato].length
+  // Se sube por el arbol desde dentro de la seleccion. `desde + 1` evita el
+  // borde: en la posicion exacta de una marca, `resolveInner` puede devolver el
+  // nodo de al lado en vez del que envuelve.
+  const arranque = Math.min(desde + 1, Math.max(desde, hasta - 1), estado.doc.length)
+  let nodo: ReturnType<typeof syntaxTree>['topNode'] | null =
+    syntaxTree(estado).resolveInner(arranque, 1)
+
+  while (nodo) {
+    if (nodo.name === nombre && nodo.from <= desde && nodo.to >= hasta) {
+      return {
+        desde: nodo.from + largo,
+        hasta: nodo.to - largo,
+        abre: nodo.from,
+        cierra: nodo.to,
+      }
+    }
+    nodo = nodo.parent
+  }
+  return null
+}
+
+/** Qué formatos lleva ya lo seleccionado. Para encender los botones. */
+export function formatosActivos(
+  estado: EditorState,
+  desde: number,
+  hasta: number,
+): Set<Formato> {
+  const puestos = new Set<Formato>()
+  for (const f of Object.keys(MARCAS) as Formato[]) {
+    if (tramoConFormato(estado, desde, hasta, f)) puestos.add(f)
+  }
+  return puestos
+}
+
+/** Pone o quita la marca. */
 function alternar(vista: EditorView, formato: Formato) {
   const bruta = vista.state.selection.main
   if (bruta.empty) return
 
-  const { desde, hasta } = acotada(vista, bruta.from, bruta.to)
+  const { desde, hasta } = acotada(vista.state, bruta.from, bruta.to)
   // Una seleccion de puros espacios no se envuelve: no hay nada que marcar.
   if (desde >= hasta) return
 
-  const sel = { from: desde, to: hasta }
   const marca = MARCAS[formato]
   const largo = marca.length
+  const ya = tramoConFormato(vista.state, desde, hasta, formato)
 
-  if (yaEnvuelto(vista, sel.from, sel.to, marca)) {
-    // Quitar. Se borran los dos tramos de marca y la seleccion se queda sobre
-    // el texto, que es donde el usuario espera encontrarla.
+  if (ya) {
+    // **Se quita del tramo entero**, no solo de lo seleccionado. Si un parrafo
+    // esta en cursiva y se marcan tres palabras, partir la cursiva en tres
+    // trozos dejaria un markdown peor del que habia: lo que el usuario pide al
+    // pulsar un boton encendido es quitar ese formato.
     vista.dispatch({
       changes: [
-        { from: sel.from - largo, to: sel.from },
-        { from: sel.to, to: sel.to + largo },
+        { from: ya.abre, to: ya.abre + largo },
+        { from: ya.cierra - largo, to: ya.cierra },
       ],
-      selection: { anchor: sel.from - largo, head: sel.to - largo },
+      selection: { anchor: ya.desde - largo, head: ya.hasta - largo },
     })
     return
   }
@@ -114,10 +211,10 @@ function alternar(vista: EditorView, formato: Formato) {
   // Poner. Se insertan las marcas sin tocar el texto de en medio.
   vista.dispatch({
     changes: [
-      { from: sel.from, insert: marca },
-      { from: sel.to, insert: marca },
+      { from: desde, insert: marca },
+      { from: hasta, insert: marca },
     ],
-    selection: { anchor: sel.from + largo, head: sel.to + largo },
+    selection: { anchor: desde + largo, head: hasta + largo },
   })
 }
 
@@ -134,11 +231,14 @@ export function panelDeFormato(vista: EditorView, raiz: HTMLElement): () => void
   panel.setAttribute('role', 'toolbar')
   panel.setAttribute('aria-label', 'Formato del texto seleccionado')
 
+  const botones = new Map<Formato, HTMLButtonElement>()
+
   for (const b of BOTONES) {
     const bt = document.createElement('button')
     bt.className = 'fmt-boton ' + b.clase
     bt.title = b.titulo
     bt.setAttribute('aria-label', b.titulo)
+    bt.setAttribute('aria-pressed', 'false')
     bt.textContent = b.letra
     // `mousedown` y no `click`: para cuando llega el `click`, el navegador ya
     // deshizo la seleccion y no habria nada que envolver.
@@ -149,11 +249,24 @@ export function panelDeFormato(vista: EditorView, raiz: HTMLElement): () => void
       esconder()
     })
     panel.append(bt)
+    botones.set(b.formato, bt)
   }
   raiz.append(panel)
 
   function esconder() {
     panel.hidden = true
+  }
+
+  /** Enciende los botones de los formatos que el texto ya lleva. */
+  function pintarEstado(desde: number, hasta: number) {
+    const puestos = formatosActivos(vista.state, desde, hasta)
+    for (const [formato, bt] of botones) {
+      const activo = puestos.has(formato)
+      bt.classList.toggle('activo', activo)
+      bt.setAttribute('aria-pressed', String(activo))
+      const base = BOTONES.find((b) => b.formato === formato)!.titulo
+      bt.title = activo ? base.replace(/ \(/, ' — puesto, pulsa para quitar (') : base
+    }
   }
 
   function colocar(sel: EditorSelection['main']) {
@@ -183,6 +296,9 @@ export function panelDeFormato(vista: EditorView, raiz: HTMLElement): () => void
   function revisar() {
     const sel = vista.state.selection.main
     if (sel.empty || !vista.hasFocus) return esconder()
+    const { desde, hasta } = acotada(vista.state, sel.from, sel.to)
+    if (desde >= hasta) return esconder()
+    pintarEstado(desde, hasta)
     colocar(sel)
   }
 

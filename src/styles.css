@@ -311,6 +311,21 @@ body { display: flex; flex-direction: column; }
 .fmt-cursiva { font-style: italic; font-family: Georgia, serif; }
 .fmt-tachado { text-decoration: line-through; }
 
+/* Un botón encendido: el texto seleccionado YA lleva ese formato, y pulsarlo lo
+   quita. Sin esto el panel no dice nada de lo que hay, y acabas poniendo cursiva
+   a algo que ya estaba en cursiva. Lo pidió Lalo el 2026-09-17. */
+.fmt-boton.activo {
+  background: color-mix(in srgb, var(--acento) 22%, transparent);
+  border-color: color-mix(in srgb, var(--acento) 60%, transparent);
+  color: var(--acento);
+}
+.fmt-boton.activo:hover { background: color-mix(in srgb, var(--acento) 32%, transparent); }
+/* El de resaltar no cambia de color --su color ES el mensaje-- así que lo dice
+   con un aro, como los demás pero sin tocar el cuadrito. */
+.fmt-resaltar.activo::before {
+  box-shadow: 0 0 0 2px var(--acento);
+}
+
 /* El resaltado no lleva letra: lleva su propio color, que es lo que promete. */
 .fmt-resaltar::before {
   content: "";

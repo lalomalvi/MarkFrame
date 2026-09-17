@@ -216,6 +216,17 @@ Trabaja sobre **el panel que se está mirando**.
 al picar fuera, al hacer scroll o con Escape. Lleva resaltar, **N**, *K* y ~~S~~,
 y cada botón se ve como lo que hace.
 
+**Los botones se encienden si el texto ya lleva ese formato**, y pulsarlos
+entonces lo quita. No basta con mirar si las marcas tocan la selección: en un
+párrafo entero en cursiva, marcar tres palabras de en medio **también** es
+cursiva, y las marcas quedan a decenas de caracteres. Por eso se sube por el
+árbol sintáctico buscando `Emphasis`, `StrongEmphasis` o `Strikethrough`. El
+`==resaltado==` **no está en el árbol** —— no es markdown estándar—— así que ese se
+busca a mano dentro del bloque.
+
+Al quitar, **se quita del tramo entero**, no sólo de lo seleccionado: partir una
+cursiva de un párrafo en tres trozos dejaría un markdown peor del que había.
+
 Las cuatro marcas son **markdown de toda la vida**: `==resaltado==`,
 `**negrita**`, `*cursiva*` y `~~tachado~~`. Lalo eligió un solo color de
 resaltado en vez de inventar sintaxis propia para tres, y tachado en lugar de
@@ -342,6 +353,49 @@ declara un tamaño menor que su propia cabecera no avanza nunca** —— es la f
 más fácil de colgar a un lector de ISOBMFF, y hay una prueba que la usa.
 
 ---
+
+## Rendimiento, medido con `npm run medir`
+
+**2026-09-17.** Lo que se paga en cada pulsación es `construir()`: recorre el
+documento entero, en el hilo de la interfaz, sin presupuesto de tiempo.
+
+| Tamaño | Analizar (una vez) | Construir (por tecla) | |
+|---:|---:|---:|---|
+| 50 KB | 39 ms | **2.6 ms** | suave |
+| 100 KB | 47 ms | **2.4 ms** | suave |
+| 250 KB | 82 ms | 4.9 ms | suave |
+| 500 KB | 138 ms | 9.4 ms | se aguanta |
+| 1 MB | 255 ms | **21.5 ms** | se nota |
+| 2 MB | 504 ms | 43.1 ms | se nota |
+
+**El punto de inflexión está en medio mega.** Por debajo de 250 KB no hay nada
+que optimizar.
+
+**Y los archivos reales de Lalo: el mayor tiene 35 KB**, la mediana 2.8 KB, y de
+108 `.md` **ninguno pasa de 100 KB**. O sea: treinta veces por debajo de donde
+esto empieza a notarse. Cualquier optimización del panel de presentación hoy
+sería trabajo sin beneficio medible.
+
+La detección de formato del panel tarda **0.01 ms** —— ni se mide.
+
+### Lo que sí pesa, y por qué no se ha tocado
+
+| Recursos del programa | |
+|---|---|
+| **Mermaid y sus motores** | **4.26 MB** |
+| Tipografías (6 familias) | 1.86 MB |
+| El programa | 1.58 MB |
+| KaTeX | 0.52 MB |
+| Lenguajes de código | 0.36 MB |
+| **total** | **8.6 MB** en 296 archivos |
+
+Dentro de Mermaid, **ELK pesa 1.42 MB** y **Cytoscape 424 KB**: motores de
+layout para tipos de diagrama que no se usan aquí.
+
+**Están todos diferidos.** No se cargan al arrancar ni ocupan memoria: sólo
+disco. Quitarlos ahorraría ~1.9 MB y **cero milisegundos**, a cambio de que un
+diagrama de arquitectura falle en silencio el día que alguien escriba uno. El
+arranque son 110 ms con 279 KB de entrada.
 
 ## Números medidos, no supuestos
 

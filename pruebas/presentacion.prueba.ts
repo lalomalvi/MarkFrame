@@ -30,7 +30,7 @@ import { construir } from '../src/livepreview.ts'
 import { destinoSeguro, rutaAbsoluta, permitirRemotas, olvidarPermisosSueltos,
          celdasCon, saneadaParaCelda,
          WidgetImagen, WidgetTabla } from '../src/widgets.ts'
-import { acotada, MARCAS } from '../src/formato.ts'
+import { acotada, MARCAS, formatosActivos, tramoConFormato } from '../src/formato.ts'
 
 let hechas = 0
 function prueba(nombre: string, fn: () => void) {
@@ -378,9 +378,18 @@ prueba('el texto de un widget de tabla es el de su tramo', () => {
 // Lo que se prueba es el recorte de la selección, que es lo único capaz de
 // estropear el documento: si los límites están mal, la marca cae donde no debe.
 
-/** Una vista de mentira: `acotada` sólo necesita leer el documento. */
-const vistaDe = (texto: string) =>
-  ({ state: EditorState.create({ doc: texto }) }) as unknown as Parameters<typeof acotada>[0]
+/** Un estado suelto: `acotada` sólo necesita leer el documento. */
+const vistaDe = (texto: string) => EditorState.create({ doc: texto })
+
+/** Un estado CON el lenguaje markdown y el árbol ya analizado. */
+function estadoMd(texto: string) {
+  const e = EditorState.create({
+    doc: texto,
+    extensions: [markdown({ base: markdownLanguage })],
+  })
+  ensureSyntaxTree(e, texto.length, 5000)
+  return e
+}
 
 prueba('la seleccion se recorta por los dos lados', () => {
   const v = vistaDe('  hola mundo  ')
@@ -428,6 +437,72 @@ prueba('las cuatro marcas son markdown de siempre', () => {
   assert.deepEqual({ ...MARCAS }, {
     resaltar: '==', negrita: '**', cursiva: '*', tachado: '~~',
   })
+})
+
+// --- saber qué formato lleva ya lo seleccionado ----------------------------- //
+//
+// Esto es lo que enciende los botones del panel. Lo pidió Lalo el 2026-09-17
+// tras ver que el panel callaba sobre un texto que ya estaba en cursiva.
+
+/** Los formatos activos en el tramo que ocupa `aguja` dentro del documento. */
+function activosEn(doc: string, aguja: string) {
+  const i = doc.indexOf(aguja)
+  assert.ok(i >= 0, `la prueba está mal: «${aguja}» no está en el documento`)
+  return formatosActivos(estadoMd(doc), i, i + aguja.length)
+}
+
+prueba('reconoce negrita, cursiva y tachado exactos', () => {
+  assert.deepEqual([...activosEn('esto **va** asi', 'va')], ['negrita'])
+  assert.deepEqual([...activosEn('esto *va* asi', 'va')], ['cursiva'])
+  assert.deepEqual([...activosEn('esto ~~va~~ asi', 'va')], ['tachado'])
+})
+
+prueba('reconoce el formato aunque las marcas esten lejos', () => {
+  // EL caso de Lalo: seleccionar unas palabras de en medio de un párrafo que
+  // está entero en cursiva. Las marcas quedan a decenas de caracteres, así que
+  // mirar sólo los bordes de la selección no las ve.
+  const doc = '*Propuesta de un protocolo para que varios LLMs trabajen juntos.*'
+  assert.deepEqual([...activosEn(doc, 'protocolo para que varios')], ['cursiva'])
+})
+
+prueba('reconoce el resaltado, que no esta en el arbol', () => {
+  // `==texto==` no es markdown estándar: el analizador no lo conoce y hay que
+  // buscarlo a mano. Que funcione igual es el punto.
+  assert.deepEqual([...activosEn('esto ==va== asi', 'va')], ['resaltar'])
+  assert.deepEqual(
+    [...activosEn('un ==tramo largo de varias palabras== aqui', 'largo de varias')],
+    ['resaltar'],
+  )
+})
+
+prueba('reconoce dos formatos a la vez', () => {
+  const puestos = activosEn('esto **~~va~~** asi', 'va')
+  assert.ok(puestos.has('negrita'), 'la negrita de fuera')
+  assert.ok(puestos.has('tachado'), 'y el tachado de dentro')
+})
+
+prueba('no inventa formatos donde no hay', () => {
+  assert.deepEqual([...activosEn('texto del todo normal', 'del todo')], [])
+  // Marcas de otro tramo, que no envuelven a lo seleccionado.
+  assert.deepEqual([...activosEn('**otra cosa** y esto suelto', 'esto suelto')], [])
+})
+
+prueba('el tramo devuelto incluye las marcas, para poder quitarlas', () => {
+  const doc = 'esto **va** asi'
+  const i = doc.indexOf('va')
+  const t = tramoConFormato(estadoMd(doc), i, i + 2, 'negrita')
+  assert.ok(t, 'tendria que encontrarlo')
+  assert.equal(doc.slice(t!.abre, t!.cierra), '**va**', 'de marca a marca')
+  assert.equal(doc.slice(t!.desde, t!.hasta), 'va', 'y el texto de dentro')
+})
+
+prueba('el arbol sin analizar no da falsos positivos', () => {
+  // Sin lenguaje montado no hay árbol: la respuesta correcta es «no sé», que
+  // aquí significa no encender nada —— nunca encender de más.
+  const doc = 'esto **va** asi'
+  const crudo = EditorState.create({ doc })
+  const i = doc.indexOf('va')
+  assert.equal(tramoConFormato(crudo, i, i + 2, 'negrita'), null)
 })
 
 console.log(`\n${hechas} pruebas, todas pasan.\n`)
