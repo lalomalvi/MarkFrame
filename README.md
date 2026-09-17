@@ -12,7 +12,7 @@ Como el Bloc de notas, pero que entiende markdown.
 
 </div>
 
-![Los dos paneles, tema oscuro](assets/capturas/ambos-oscuro.png)
+![Los dos paneles, con el aviso de imagen remota](assets/capturas/imagen-remota.png)
 
 ---
 
@@ -97,29 +97,6 @@ Esto se construyó para el trabajo diario de una persona y se publica porque
 puede servirle a alguien más, no como producto. **No hay soporte, no hay hoja de
 ruta comprometida y los issues están cerrados.** Úsalo, cópialo, bifúrcalo,
 haz lo que quieras con él —— la licencia es MIT.
-
-## Capturas
-
-**Tema claro**
-
-![Tema claro](assets/capturas/ambos-claro.png)
-
-**Sólo el texto formateado, y sólo la fuente**
-
-![Modo vista](assets/capturas/vista.png)
-![Modo fuente](assets/capturas/fuente.png)
-
-**El panel de formato, que dice qué hay aplicado**
-
-![Panel de formato](assets/capturas/formato.png)
-
-**El aviso de imagen remota**
-
-![Aviso de imagen remota](assets/capturas/imagen-remota.png)
-
-**El índice del documento**
-
-![Índice](assets/capturas/indice.png)
 
 ## Desarrollo
 
