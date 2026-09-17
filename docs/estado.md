@@ -1,8 +1,9 @@
 # Estado vigente
 
-**Última actualización: 2026-09-17.** MarkFrame **v1.0.0**, en uso diario. La
+**Última actualización: 2026-09-17.** MarkFrame **v1.0.0**, en uso diario y
+**publicado**: https://github.com/lalomalvi/MarkFrame (MIT). La
 auditoría de seguridad está cerrada del todo y el programa lleva la marca de
-Lalo. **Se publica con licencia MIT**, y ya no hay nada esperando decisión suya.
+Lalo. Ya no hay nada esperando decisión suya.
 
 **Se llamaba MarkFlow hasta el 2026-09-17.** El nombre estaba tomado por
 `drl990114/MarkFlowy` —— 2 393 estrellas, editor de markdown **también en
@@ -19,9 +20,10 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 
 | | |
 |---|---|
-| Repo | `lalomalvi/MarkFrame`, privado. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
-| Ejecutable | `markframe.exe`, **7.79 MB** |
-| Instalador | `MarkFrame_0.1.0_x64-setup.exe`, **4.93 MB**, NSIS, **sin UAC** |
+| Repo | `lalomalvi/MarkFrame`, **público, MIT**, sin issues. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
+| Ejecutable | `markframe.exe`, **7.80 MB** |
+| Instalador | `MarkFrame_1.0.0_x64-setup.exe`, **4.94 MB**, NSIS, **sin UAC**. SHA-256 `d6a49e17…` |
+| Release | [v1.0.0](https://github.com/lalomalvi/MarkFrame/releases/tag/v1.0.0), con el instalador y su hash |
 | Cadena | Rust 1.98.1 (MSVC), Node 22, Tauri 2, Vite 8, TypeScript 6 |
 | WebView2 | ya venía en la máquina, v153 |
 

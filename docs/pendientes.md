@@ -39,21 +39,51 @@ empieza ninguno antes de publicar.
 
 ---
 
-## La cola de trabajo
+## Publicado el 2026-09-17
+
+**https://github.com/lalomalvi/MarkFrame** —— público, MIT, con el
+[release v1.0.0](https://github.com/lalomalvi/MarkFrame/releases/tag/v1.0.0).
 
 | | Qué | Estado |
 |---|---|---|
-| 1 | **Renombrado a MarkFrame** —— configuración, código, identificador, documentación | ✅ hecho |
-| 2 | **`LICENSE` MIT** y los campos de licencia en `package.json` y `Cargo.toml` | ⏳ |
-| 3 | **Versión 1.0.0** en los tres sitios | ⏳ |
-| 4 | **[TERCEROS.md](../TERCEROS.md) y `licencias/`** —— lo único con filo legal | ✅ hecho, con un hueco marcado: el paquete de Source Serif 4 no trae su línea de copyright |
-| 5 | **Capturas** —— tema claro y oscuro, los tres modos, el panel de formato, el aviso de imagen remota, el índice, las tablas editables | ⏳ |
-| 6 | **README para alguien que no es Lalo**, con las capturas y el aviso de editor desconocido | ⏳ |
-| 7 | **Nota de cierre en el informe de auditoría** | ⏳ |
-| 8 | **`AGENTS.md`** canónico, con `CLAUDE.md` reducido a un *import* | ⏳ |
-| 9 | **Quitar la ruta absoluta** de `auditoria/architecture.md` | ⏳ |
-| 10 | **Recompilar** con el nombre y la versión nuevos | ⏳ |
-| 11 | **`filter-repo` y renombrar el repo en GitHub** —— lo último, y se avisa antes del `push --force` | ⏳ |
+| 1 | **Renombrado a MarkFrame** —— configuración, código, identificador, documentación | ✅ |
+| 2 | **`LICENSE` MIT** y los campos de licencia en los dos manifiestos | ✅ |
+| 3 | **Versión 1.0.0** en los tres sitios | ✅ |
+| 4 | **[TERCEROS.md](../TERCEROS.md) y `licencias/`** —— lo único con filo legal | ✅ con un hueco marcado: el paquete de Source Serif 4 no trae su línea de copyright |
+| 5 | **README para alguien que no es Lalo** | ✅ |
+| 6 | **Nota de cierre en el informe de auditoría** | ✅ |
+| 7 | **`AGENTS.md`** canónico, con `CLAUDE.md` reducido a un *import* | ✅ |
+| 8 | **Ruta absoluta fuera** de `auditoria/architecture.md` | ✅ |
+| 9 | **Recompilado** —— `MarkFrame_1.0.0_x64-setup.exe`, SHA-256 `d6a49e17…` | ✅ |
+| 10 | **Historial reescrito** con `filter-branch`, repo renombrado, issues apagados, `push --force`, público y release | ✅ |
+| 11 | **Capturas** | ⏳ falta todo menos la del aviso de imagen remota |
+
+### Lo único que queda: las capturas
+
+Para las capturas de los tres modos, los dos temas, el panel de formato, el
+índice y las tablas editables **hacen falta clics en la ventana**, y el permiso
+del sistema sólo alcanza a aplicaciones que su índice conoce —— ese índice se
+construye al arrancar la sesión, así que no veía MarkFrame recién instalado.
+**En una sesión nueva sí lo verá.**
+
+Hay dos formas de rodearlo y las dos se descartaron: automatizar el ratón desde
+PowerShell, o copiar el ejecutable nuevo encima del viejo para colarlo en el
+permiso ya concedido. Las dos son saltarse el control que existe para que un
+agente no haga clics por su cuenta.
+
+El script que captura la ventana exacta —sin bordes ni escritorio— es
+`capturar.ps1`, y vive fuera del repo a propósito: es herramienta, no producto.
+
+### El respaldo del historial
+
+La rama local **`respaldo-antes-de-filtrar`** conserva el historial con
+`migracion-zettlr/` dentro. No se sube. Se borra cuando Lalo esté tranquilo,
+junto con `refs/original` y un `git gc --prune=now`.
+
+**Nota sobre el force-push:** en el servidor pueden quedar objetos huérfanos
+accesibles por su SHA hasta que GitHub los recoja. Como el repo **nunca fue
+público antes**, nadie conoce esos identificadores —— el riesgo real es nulo, pero
+queda dicho.
 
 ### Lo que el renombrado sí rompe, y está aceptado
 
