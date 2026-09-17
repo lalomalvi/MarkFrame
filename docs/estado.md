@@ -454,6 +454,22 @@ las historias.
 inicio daba por tapado al nodo raíz del documento y cortaba el recorrido del
 árbol desde la raíz.
 
+**El icono va incrustado en el `.exe`, y cambiarlo no basta con cambiar el
+`.ico`.** El recurso de Windows lo genera `build.rs`, y Cargo cachea ese script
+por sus entradas declaradas —— que no incluían la carpeta de iconos. El `.ico` era
+el nuevo, el instalador decía que todo bien, **y el ejecutable seguía llevando el
+icono anterior dentro**. Por eso `build.rs` declara ahora
+`cargo:rerun-if-changed=icons`.
+
+Y la lección de método: **para saber qué icono tiene un programa, extráelo del
+`.exe`**, no mires los archivos del proyecto. Son cosas distintas, y mirar el
+archivo llevó a dar por bueno algo que no lo era y a culpar a la caché de
+Windows:
+
+```
+[System.Drawing.Icon]::ExtractAssociatedIcon($ruta).ToBitmap().Save($png, 'Png')
+```
+
 **Un tema de CodeMirror pierde contra el suyo si el selector es más corto.** El
 tema base trae cosas como
 `.ͼ2.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground` ——
