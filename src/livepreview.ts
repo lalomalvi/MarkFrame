@@ -100,6 +100,25 @@ const RE_INVISIBLES = new RegExp(
   'gu',
 )
 
+/**
+ * Tope de tamano para el panel de presentacion.
+ *
+ * Esta es la red de seguridad de toda una familia de fallos, no el parche de
+ * uno. `construir()` recorre el documento entero, sin presupuesto de tiempo, en
+ * el hilo de la interfaz, y se reejecuta en cada tecla y cada movimiento de
+ * cursor. La auditoria del 2026-09-16 encontro dos expresiones con coste
+ * cuadratico ahi dentro; se arreglaron las dos, pero el validador lo dijo
+ * mejor que nadie: parchear una a una es jugar al topo.
+ *
+ * Con este tope, la proxima expresion mal escrita apaga la vista y avisa, en
+ * vez de colgar el programa -- que en esta aplicacion, ademas, significa una
+ * ventana sin botones que cerrar, porque la barra de titulo es HTML.
+ *
+ * 2 MB son mas de un millon de caracteres: ningun documento escrito a mano se
+ * acerca, y el panel de fuente sigue funcionando igual.
+ */
+const TOPE_VISTA = 2 * 1024 * 1024
+
 const ocultar = Decoration.replace({})
 
 function sinAcentos(s: string) {
@@ -110,6 +129,10 @@ function sinAcentos(s: string) {
 function construir(estado: EditorState): DecorationSet {
   const marcas: Range<Decoration>[] = []
   const doc = estado.doc
+
+  // Por encima del tope, el panel muestra el texto tal cual: sin decorar, pero
+  // vivo y con el documento intacto.
+  if (doc.length > TOPE_VISTA) return Decoration.none
 
   // Renglones que el cursor esta tocando: ahi todo vuelve a ser texto crudo.
   const activas = new Set<number>()
@@ -184,11 +207,20 @@ function construir(estado: EditorState): DecorationSet {
       }
 
       if (nombre === 'FencedCode') {
-        const texto = doc.sliceString(nodo.from, nodo.to)
-        const m = texto.match(/^([`~]{3,})[ \t]*([\w-]*)\n([\s\S]*?)\n?[`~]{3,}[ \t]*$/)
-        if (m && m[2].toLowerCase() === 'mermaid' && !tocado(nodo.from, nodo.to)) {
+        // Para saber SI es mermaid basta la primera linea. Antes se aplicaba la
+        // expresion al bloque entero, con un `[`~]{3,}` codicioso dentro de un
+        // `[\s\S]*?` perezoso: coste ~3R²/2, y repagado en cada tecla. Con 30 KB
+        // de virgulillas eran segundos por pulsacion. Medido en la auditoria.
+        const primeraLinea = doc.lineAt(nodo.from).text
+        const cerca = /^\s*([`~]{3,})[ \t]*([\w-]*)\s*$/.exec(primeraLinea)
+        const esMermaid = cerca !== null && cerca[2].toLowerCase() === 'mermaid'
+        const texto = esMermaid ? doc.sliceString(nodo.from, nodo.to) : ''
+        const m = esMermaid
+          ? /^[`~]{3,}[^\n]*\n([\s\S]*?)\n?[`~]{3,}[ \t]*$/.exec(texto)
+          : null
+        if (m && !tocado(nodo.from, nodo.to)) {
           marcas.push(Decoration.replace({
-            widget: new WidgetMermaid(m[3], nodo.from, esOscuro()),
+            widget: new WidgetMermaid(m[1], nodo.from, esOscuro()),
             block: true,
           }).range(doc.lineAt(nodo.from).from, doc.lineAt(nodo.to).to))
           tapados.push([nodo.from, nodo.to])
@@ -312,7 +344,7 @@ function construir(estado: EditorState): DecorationSet {
    * cualquier otra cosa. La definicion `[^1]: texto` se marca al margen; la
    * referencia se dibuja en volado.
    */
-  for (const m of texto.matchAll(/^[ \t]*\[\^([^\]\s]+)\]:/gm)) {
+  for (const m of texto.matchAll(/^[ \t]*\[\^([^[\]\s]+)\]:/gm)) {
     const desde = m.index!
     if (enCodigo(desde) || estaTapado(desde, desde + m[0].length)) continue
     marcas.push(Decoration.line({ class: 'mf-nota-def' }).range(doc.lineAt(desde).from))
@@ -323,7 +355,11 @@ function construir(estado: EditorState): DecorationSet {
     }
   }
 
-  for (const m of texto.matchAll(/\[\^([^\]\s]+)\](?!:)/g)) {
+  // La clase excluye `[` a proposito. Sin eso, el corchete -- que es a la vez
+  // el arranque de cada intento -- se queda dentro de la parte repetida y el
+  // motor recorre el mismo tramo una vez por posicion: coste n²/2, o sea
+  // 5×10¹¹ pasos con un megabyte de `[^` repetido. Medido en la auditoria.
+  for (const m of texto.matchAll(/\[\^([^[\]\s]+)\](?!:)/g)) {
     const desde = m.index!
     const hasta = desde + m[0].length
     if (enCodigo(desde) || estaTapado(desde, hasta) || tocado(desde, hasta)) continue
@@ -362,7 +398,11 @@ function construir(estado: EditorState): DecorationSet {
 
   // Inline: se exige que no haya espacio pegado a los delimitadores, para no
   // confundir «$100 y $200» con una formula.
-  for (const m of texto.matchAll(/\$(?![\s$])((?:[^$\n\\]|\\.)+?)(?<![\s\\])\$/g)) {
+  // Misma familia que la de nota al pie: la alternativa `\\.` podia atravesar
+  // el `$` de cierre y hacer que el motor reintentara desde cada posicion. Se
+  // acota la longitud, que es lo que corta el crecimiento cuadratico sin
+  // cambiar lo que se reconoce en un texto real.
+  for (const m of texto.matchAll(/\$(?![\s$])((?:[^$\n\\]|\\[^\n]){1,400}?)(?<![\s\\])\$/g)) {
     const desde = m.index!
     const hasta = desde + m[0].length
     if (enCodigo(desde) || estaTapado(desde, hasta) || tocado(desde, hasta)) continue

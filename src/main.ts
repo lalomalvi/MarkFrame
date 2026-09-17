@@ -104,6 +104,9 @@ function activar(i: number) {
   activa = i
   const p = abiertas[i]
   fijarCarpeta(p.ruta)
+  // El permiso de una imagen remota es por documento: cambiar de pestana es
+  // cambiar de documento. El codigo lo prometia y no lo cumplia.
+  olvidarPermisosSueltos()
   if (p.estadoF && p.estadoP) par.restaurar(p.estadoF, p.estadoP)
   else par.cargar('')
   par.verNumeros(P.numerosLinea)
@@ -115,6 +118,7 @@ function activar(i: number) {
 function nuevaVacia() {
   if (abiertas.length >= pest.TOPE) return avisoTope()
   guardarEstadoVivo()
+  olvidarPermisosSueltos()
   abiertas.push(pest.crear())
   activa = abiertas.length - 1
   fijarCarpeta(null)
@@ -679,6 +683,16 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => apli
 // --- atajos ------------------------------------------------------------------
 
 window.addEventListener('keydown', (e) => {
+  // Con un dialogo en pantalla NO pasa ningun atajo.
+  //
+  // La auditoria del 2026-09-16 mostro lo que costaba: un Ctrl+Tab mientras se
+  // preguntaba por un archivo cambiado por fuera cargaba el contenido de una
+  // pestana DENTRO DE OTRA, borrandole la historia. Y un Ctrl+W reasignaba los
+  // botones del dialogo compartido, dejaba la promesa sin resolver para
+  // siempre y apagaba en silencio la deteccion de cambios externos el resto de
+  // la sesion. Son tres vias distintas del mismo descuido: creer que un `div`
+  // con `aria-modal` bloquea algo. No bloquea nada.
+  if (!velo.hidden) { e.preventDefault(); return }
   if (e.key === 'Escape' && !panelOp.hidden) { abrirOpciones(false); return }
   if (!e.ctrlKey || e.altKey) return
   const k = e.key.toLowerCase()

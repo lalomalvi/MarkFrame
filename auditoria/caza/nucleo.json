@@ -1,0 +1,211 @@
+{
+  "cazador": "nucleo-rust",
+  "unidades": ["U-06", "U-07"],
+  "comprobaciones": [
+    {
+      "unidad": "U-06",
+      "que_revise": "Derivacion del nombre del temporal (lib.rs:98-101): padre.join(format!(\".{}.markflow-tmp\", p.file_name())). file_name() devuelve SIEMPRE un solo componente, nunca contiene separador ni prefijo de unidad, asi que por esta via no hay escape de la carpeta del destino: ni '..\\', ni barras, ni ruta absoluta. La ruta que llega ya viene canonizada por leer (lib.rs:70-74) y el frontend guarda doc.ruta (main.ts:356), no la que tecleo el usuario.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "file_name() == None con parent() == Some (ruta terminada en '..'): unwrap_or_default deja el nombre vacio y el temporal queda como '..markflow-tmp' en la carpeta padre. Se crea un archivo con ese nombre y el rename posterior contra un directorio falla, se ejecuta el remove_file de la 107 y se devuelve error. Ensucia, no rompe.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Que pasa si el temporal YA existe (lib.rs:103). fs::write es File::create, o sea CreateFileW con CREATE_ALWAYS: no hay create_new, no hay comprobacion previa de existencia ni de tipo, y el nombre es 100% predecible a partir del nombre del .md. Un tercero que entregue el .md (zip, repo, carpeta compartida, sincronizacion en la nube, USB) puede entregar tambien el nombre del temporal.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Enlaces en el nombre del temporal: no hay symlink_metadata, no hay create_new y no hay FILE_FLAG_OPEN_REPARSE_POINT. fs::write sigue el enlace (escribe en el destino del enlace) y fs::rename NO lo sigue (mueve la entrada de directorio). Los dos lados del par estan mal emparejados, y estan a tres lineas de distancia.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Longitud del nombre resultante: leer quita a proposito el prefijo \\\\?\\ (lib.rs:67-74, con prueba en 322-329 para que no vuelva), y escribir le suma 13 caracteres al nombre ('.' + '.markflow-tmp'). Un .md cuya ruta completa este entre 248 y 260 caracteres se abre pero no se puede guardar nunca, porque el temporal cruza MAX_PATH. Mismo origen que la comprobacion anterior: el nombre se arma y se usa sin mirar el resultado.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Residuos: el camino de error de rename SI limpia (lib.rs:107) pero el de fs::write NO (lib.rs:103-104 sale con '?' sin remove_file). La prueba escribir_no_deja_temporales_regados (284-296) solo cubre el camino feliz.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Carrera entre fs::write (103) y fs::rename (106): en esa ventana existe en la carpeta del documento un archivo con el texto COMPLETO y con los permisos heredados de la carpeta, no los del documento. Quien pueda escribir en esa carpeta puede sustituir su contenido antes del rename y lo que se guarda es lo suyo. Requiere un principal con permiso de crear/escribir en la carpeta que NO lo tenga sobre el .md: carpeta compartida de red o carpeta de tipo buzon. Ventana pequena pero repetible en cada Ctrl+S.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Que conserva el rename del destino: nada. MoveFileExW sustituye la entrada de directorio, el archivo viejo se destruye con su descriptor de seguridad, sus flujos alternos (incluida la marca de la web) y su atributo de cifrado; el archivo que queda es el temporal, creado desde cero y con lo que herede de la carpeta. No hay ni un intento de propagar ACL ni flujos.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Destino de solo lectura: escribir NO comprueba nada (86-112). La unica puerta es el frontend (main.ts:300, con p.soloLectura venido de lib.rs:63-65). Si esa puerta se salta -- por IPC directo, o porque el atributo se puso DESPUES de abrir -- el fs::write del temporal tiene exito y el MoveFileExW contra un destino de solo lectura falla, se limpia el temporal y se devuelve error. El archivo del usuario no se toca. El frontend deja la pestana sucia y grita con un modal (main.ts:326-338).",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Destino abierto por otro programa (bloqueo de comparticion) y destino que es un directorio: en los dos casos el rename falla, se ejecuta remove_file y se devuelve error. No hay ningun camino en el que el archivo del usuario quede truncado ni borrado: el original solo se toca en el rename final, que sustituye o falla. Esta parte del diseno esta bien y hay que decirlo.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Unidad de red: el temporal y el destino estan siempre en la misma carpeta, asi que el rename no cruza volumenes. Si el reemplazo es realmente atomico lo decide el servidor SMB, no este codigo; con un servidor que lo emule como borrar+renombrar, un corte en medio deja el documento sin archivo. No establecible leyendo codigo; queda anotado, no inventado como hallazgo propio.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Memoria de leer: fs::read (42) carga N bytes; sin_bom.to_vec() (46-48) hace una SEGUNDA copia completa; texto.replace(\"\\r\\n\",\"\\n\") (77) hace una TERCERA, y 'crudo' sigue vivo hasta el final de la funcion. Encima, la respuesta se serializa a JSON para el IPC, donde cada caracter de control valido en UTF-8 se expande a 6 bytes. No hay tope de ningun tipo, cuando leer_imagen SI tiene uno (TOPE_IMAGEN, 25 MB, lib.rs:116,148): la asimetria muestra que el tope se penso para las imagenes y no para el documento.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Dispositivos y tuberias en leer: leer NO llama is_file(), va directo a fs::read. \\\\.\\PhysicalDrive0 y \\\\.\\C: exigen elevacion y MarkFlow se instala por usuario y sin UAC (tauri.conf.json:66-74), asi que CreateFileW falla y sale el error normal. CON no se puede abrir: el binario es windows_subsystem=\"windows\" (main.rs:2) y no tiene consola. NUL devuelve vacio. Una tuberia con nombre si daria una lectura sin fin, pero quien la crea es un proceso de la misma cuenta, que ya tiene la misma autoridad; el problema real que queda ahi es la falta de tope, ya levantada arriba.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "TOCTOU interno de leer: la misma cadena se resuelve TRES veces por separado -- fs::read (42), fs::metadata (63) y fs::canonicalize (70). Entre una y otra el nombre puede apuntar a otra cosa, y entonces el texto mostrado, el atributo de solo lectura y la ruta devuelta pueden venir de archivos distintos, y esa ruta es la que se usara para guardar. Para ganar la carrera hace falta escribir en esa carpeta; en el modelo del proyecto ese principal ya tiene la misma autoridad que el usuario. Invariante resuelta, sin victima de menor confianza.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Panicos en 32-112: no hay un solo unwrap()/expect(), ni indexado, ni aritmetica. Todo es unwrap_or / unwrap_or_else / unwrap_or_default / ok_or / map_err. El unico expect del archivo esta en run() (204) y solo cubre el arranque. Contraste importante para la pregunta 5: como Cargo.toml:34 fija panic = \"abort\" en el perfil release, CUALQUIER panico en un comando de Tauri no devuelve error al DOM -- mata el proceso entero, sin pasar por onCloseRequested (main.ts:701-712), o sea sin preguntar por las pestanas sucias.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Fuga de rutas en los mensajes de error de leer y escribir: los cuatro mensajes usan nombre_de(), que devuelve solo el nombre del archivo (42, 50-55, 108); el del temporal ni siquiera lleva ruta, porque el io::Error de fs::write en Rust no incorpora el camino (103-104). El unico que si suelta la ruta completa a proposito es leer_imagen (146), que NO es de esta unidad. Unico borde: nombre_de cae a la ruta completa cuando file_name() es None (35), y eso solo puede pasar con una ruta que el propio llamante armo.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-06",
+      "que_revise": "Enlace simbolico en el DESTINO (no en el temporal): leer canoniza (70) y el frontend guarda doc.ruta ya resuelta (main.ts:356), asi que escribir recibe la ruta real y el rename no rompe el enlace del usuario ni deja el archivo verdadero con contenido viejo. Solo se degrada si canonicalize falla y el unwrap_or(p.clone()) deja la ruta cruda.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "std::env::args() (lib.rs:191) entra en panico durante la iteracion si algun argumento no es Unicode valido -- comportamiento documentado de la biblioteca estandar. En Windows los argumentos llegan como UTF-16 desde GetCommandLineW y un sustituto sin pareja es exactamente eso. La forma segura, args_os(), no se usa. Sumado a panic = \"abort\" (Cargo.toml:34), el panico no es un Err para el DOM: es la muerte del proceso.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "Comillas en el argumento: quien trocea la linea de comandos es el analizador de la biblioteca estandar sobre GetCommandLineW; las comillas se consumen ahi y MarkFlow nunca vuelve a armar una linea de comandos ni invoca un interprete -- no hay plugin cli, no hay Command::new, no hay shell. No hay reinyeccion posible por esta via.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "Ruta UNC como argumento: Path::is_file() sobre \\\\servidor\\recurso\\x.md abre una conexion SMB con autenticacion implicita antes de que el usuario confirme nada. Como entrada de U-07 no cruza frontera: quien puede pasar argumentos ya ejecuta codigo en la cuenta, y un acceso directo apuntando a la UNC consigue lo mismo sin MarkFlow. La variante que SI importaria es la otra entrada del mismo sumidero, P.ultimoArchivo de localStorage (main.ts:737) -> leer, que convertiria una ejecucion de guion de una sola vez en una autenticacion saliente silenciosa en cada arranque; ese prerrequisito es de otra unidad (preferencias / renderizado) y no lo doy por establecido. Pista cruzada, no candidato mio.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "TOCTOU entre is_file() (194) y la lectura posterior (main.ts:736 -> abrirRuta -> leer): la comprobacion y el uso estan separados por un viaje completo de IPC, y leer ni siquiera repite is_file(). El unico resultado es abrir otro contenido, y quien pueda sustituir el archivo en esa ventana ya escribe en esa carpeta con la misma autoridad. Invariante resuelta.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "Sin filtro de extension (a diferencia del dialogo, src/archivo.ts:16): archivo_inicial abre cualquier archivo existente. No es escalada -- son archivos que la cuenta ya lee -- pero si el usuario teclea y guarda, leer/escribir aplican la doctrina del .md a un archivo que no lo es: el BOM se descarta al leer y no se vuelve a escribir (lib.rs:44-48), asi que un .ps1, .xml o .csv con BOM abierto por equivocacion lo pierde. Nota de endurecimiento, no candidato: exige edicion deliberada y el nombre esta a la vista en la pestana y en el titulo.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "El filtro !a.starts_with('-') (193): '-nota.md' es un nombre de archivo perfectamente legal en Windows, y al abrirlo con doble clic archivo_inicial devuelve None; el arranque cae entonces en P.ultimoArchivo (main.ts:737) y MarkFlow abre OTRO documento sin avisar de que ignoro el que se le pidio. Resultado confuso, sin consecuencia de seguridad: el nombre real se pinta en la pestana y en document.title. Nota de endurecimiento.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "archivo_inicial esta expuesto como comando de IPC sin argumentos y con withGlobalTauri=true (tauri.conf.json:13): cualquier guion de la pagina puede leer el primer argumento del proceso. Lo unico que revela es una ruta que ese mismo webview ya recibe por doc.ruta. Sin ganancia para el atacante.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-07",
+      "que_revise": "Avisos de seguridad de las versiones fijadas (src-tauri/Cargo.lock): tauri 2.11.5, tauri-plugin-dialog 2.7.3, tauri-plugin-opener 2.5.5, serde 1.0.229, serde_json 1.0.151, base64 0.22.1 (mas 0.21.7 y 0.23.1 transitivos). Lo que aparece publicado para esta linea son avisos de dependencias transitivas (rustls, glib, RUSTSEC-2026-0098 sobre restricciones de nombre en URI), ninguno alcanzable desde leer, escribir ni archivo_inicial, que solo usan std::fs y std::env. El repaso serio del arbol de dependencias es trabajo de una unidad de cadena de suministro, que hoy no existe en el registro de cobertura.",
+      "resultado": "limpio"
+    }
+  ],
+  "candidatos": [
+    {
+      "titulo": "El temporal de escribir se crea con CREATE_ALWAYS sobre un nombre predecible: quien ocupe ese nombre decide si el usuario puede guardar",
+      "unidad": "U-06",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 103,
+      "frontera_violada": "Un .md de tercero solo debe ser dato a dibujar. Aqui el paquete que lo entrega decide el resultado de una operacion del usuario sobre su propio disco: si MarkFlow puede guardar o no ese documento, y para siempre.",
+      "entrada_del_atacante": "El nombre del archivo .md y el contenido de la carpeta en la que se entrega. El nombre del temporal se deriva por completo del nombre del .md ('.' + nombre + '.markflow-tmp', lib.rs:98-101), asi que el atacante lo conoce antes de que MarkFlow exista en la maquina. Basta con que el zip, el repositorio, la carpeta sincronizada o la memoria USB traiga junto a 'nota.md' una entrada llamada '.nota.md.markflow-tmp' que sea un directorio, o un archivo de solo lectura, o un archivo con una ACE de denegacion de escritura. Sin privilegios y sin ejecutar nada.",
+      "cadena_hasta_el_impacto": "1) El usuario abre nota.md (src-tauri/src/lib.rs:39 via src/main.ts:347). 2) Edita y pulsa Ctrl+S: src/main.ts:312 llama al comando escribir. 3) src-tauri/src/lib.rs:98-101 arma el nombre del temporal a partir del nombre del destino, sin ninguna aleatoriedad. 4) src-tauri/src/lib.rs:103 hace fs::write, que es CreateFileW con CREATE_ALWAYS: no pide creacion exclusiva, no comprueba si el nombre esta ocupado y no mira que tipo de objeto hay ahi. 5) Si lo ocupa un directorio, o algo no escribible, la llamada falla y el '?' devuelve 'No se pudo escribir el temporal: ...'. 6) src/main.ts:326-338 muestra el modal de fallo y la pestana queda sucia. 7) El paso 4 vuelve a fallar en todos los intentos posteriores, porque el obstaculo sigue ahi y el nombre nunca cambia.",
+      "impacto": "El usuario no puede guardar ESE documento en ESA carpeta, nunca, y el mensaje no le dice por que: habla de 'el temporal', un archivo del que nadie le ha hablado, y ni siquiera le da el nombre. La unica salida que le queda es la que sugiere el propio modal, guardarlo en otra carpeta. No hay perdida silenciosa de datos -- el fallo es ruidoso y el texto sigue en la ventana (main.ts:330-333) -- pero si hay una operacion del usuario cancelada indefinidamente por decision de un tercero. La misma falta de comprobacion tiene una segunda cara sin atacante: como el temporal anade 13 caracteres a una ruta a la que leer ya le quito el prefijo \\\\?\\ (lib.rs:67-74), un .md cuya ruta completa mida entre 248 y 260 caracteres -- una carpeta honda de OneDrive, un arbol extraido de un zip -- se abre normal y no se puede guardar jamas, con el mismo mensaje opaco.",
+      "severidad": "media",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Nombre corto y aleatorio, creacion exclusiva y sin seguir reanalisis: temporal = padre.join(format!(\".mf-{:08x}.tmp\", aleatorio)) abierto con OpenOptions::new().write(true).create_new(true).custom_flags(FILE_FLAG_OPEN_REPARSE_POINT) en vez de fs::write, reintentando con otro nombre si devuelve AlreadyExists. Con create_new, un nombre ocupado deja de ser un bloqueo permanente y pasa a ser un reintento. Para la parte de MAX_PATH: hacer el write y el rename sobre la forma \\\\?\\ de la ruta y seguir ensenando al usuario la forma corta, que es lo unico que exige la prueba de lib.rs:322-329."
+    },
+    {
+      "titulo": "El temporal no se crea en exclusiva ni rechaza enlaces: el texto del documento acaba donde apunte el enlace que dejo un tercero, y el .md del usuario queda sustituido por su entrada",
+      "unidad": "U-06",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 103,
+      "frontera_violada": "MarkFlow actua de diputado confundido: escribe con la autoridad completa de la cuenta de Windows en una ruta que eligio otro, en el momento en que el usuario pide guardar su documento. Quien planta el enlace no tiene esa autoridad; MarkFlow se la presta.",
+      "entrada_del_atacante": "Una entrada de directorio con el nombre exacto '.<nombre>.markflow-tmp' junto al .md, que sea un enlace duro o simbolico a otra ruta de la misma cuenta -- mas el CONTENIDO del .md, que el mismo atacante escribe y que es lo que terminara escrito en el destino del enlace. El principal realista es un proceso local de menor integridad o de otra cuenta con permiso de crear archivos en esa carpeta (carpeta compartida, buzon de red, carpeta de descargas). Un enlace duro no necesita privilegios de administrador; uno simbolico si (Modo de desarrollador o SeCreateSymbolicLinkPrivilege).",
+      "cadena_hasta_el_impacto": "1) El atacante crea '.nota.md.markflow-tmp' como enlace a, por ejemplo, un .cmd de la carpeta de Inicio del usuario, y deja 'nota.md' con un contenido que ademas de parecer markdown es un guion valido. 2) El usuario abre nota.md y la edita (src/main.ts:347 -> src-tauri/src/lib.rs:39). 3) Ctrl+S -> src/main.ts:312 -> src-tauri/src/lib.rs:86. 4) src-tauri/src/lib.rs:103: fs::write usa CreateFileW con CREATE_ALWAYS y SIN FILE_FLAG_OPEN_REPARSE_POINT, o sea que SIGUE el enlace y escribe el texto del documento en el archivo apuntado, con el token del usuario. 5) src-tauri/src/lib.rs:106: fs::rename es MoveFileExW, que NO sigue el enlace: mueve la propia entrada de directorio encima de nota.md. 6) El rename tiene exito y escribir devuelve Ok: ni el nucleo ni el frontend se enteran de nada.",
+      "impacto": "Contenido elegido por el atacante escrito en una ruta elegida por el atacante, con la autoridad completa de la cuenta, sin dialogo y sin rastro en la interfaz: el usuario ve un guardado normal. Si el destino del enlace es un archivo que se ejecuta solo (carpeta de Inicio, una tarea, un perfil de shell), es ejecucion de codigo en el siguiente arranque de sesion. De propina, el .md del usuario queda sustituido por la entrada de directorio del atacante, asi que todos los guardados siguientes van al mismo sitio. El par write-sigue-enlaces / rename-no-sigue-enlaces es la contradiccion exacta que lo hace posible, y esta a tres lineas de distancia en el mismo archivo.",
+      "severidad": "alta",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "El mismo arreglo de la creacion exclusiva, que ademas cierra esto: OpenOptions::new().write(true).create_new(true).custom_flags(FILE_FLAG_OPEN_REPARSE_POINT) sobre un nombre corto y aleatorio. CREATE_NEW con OPEN_REPARSE_POINT falla ante cualquier punto de reanalisis en vez de seguirlo, y falla ante un enlace duro existente en vez de escribir por el. Hechos que faltan por comprobar, ninguno deducible del codigo: (a) si una cuenta sin privilegios puede crear ahi el enlace duro -- CreateHardLinkW sobre un archivo del que solo tiene lectura -- y si el Modo de desarrollador esta activo para los simbolicos; (b) confirmar leyendo la fuente de std (windows-msvc) que File::create no pasa FILE_FLAG_OPEN_REPARSE_POINT; (c) confirmar con una prueba acotada que MoveFileExW traslada la entrada del enlace y no su destino."
+    },
+    {
+      "titulo": "El rename sustituye el archivo del usuario: el documento pierde su ACL explicita, sus flujos alternos y su cifrado, y adopta los del temporal",
+      "unidad": "U-06",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 106,
+      "frontera_violada": "Guardar un documento no deberia relajar quien puede leerlo. Aqui el primer Ctrl+S cambia en silencio los permisos del archivo, siempre en direccion igual o mas abierta que la de la carpeta.",
+      "entrada_del_atacante": "Para la perdida de permisos no hace falta atacante: la dispara el propio usuario al guardar. Si lo hay, controla la carpeta del .md y consigue algo mejor: como CreateFileW con CREATE_ALWAYS sobre un archivo que ya existe conserva el descriptor de seguridad del archivo existente, quien preplante '.<nombre>.markflow-tmp' con una ACL que se conceda control total a si mismo (y escritura al usuario) consigue que, tras el rename, el documento del usuario quede con ESA ACL de forma permanente.",
+      "cadena_hasta_el_impacto": "1) El usuario tiene notas.md con una ACE explicita que lo protege de las demas cuentas de la maquina, o cifrado a nivel de archivo, o con marca de la web por venir de una descarga. 2) Edita y guarda: src/main.ts:312 -> src-tauri/src/lib.rs:86. 3) src-tauri/src/lib.rs:103 crea el temporal desde cero: su descriptor de seguridad sale de lo que herede de la CARPETA, no del documento, y no tiene ningun flujo alterno. 4) src-tauri/src/lib.rs:106 hace MoveFileExW con MOVEFILE_REPLACE_EXISTING: el archivo viejo se destruye con todo lo suyo y el temporal ocupa su nombre conservando lo que el temporal traia. 5) No hay ni una linea que lea el descriptor de seguridad del destino ni que lo propague al temporal.",
+      "impacto": "Un documento cuya ACL era mas estricta que la de su carpeta queda, tras el primer guardado y sin aviso, legible para todo el que la carpeta permita: regresion de confidencialidad que el usuario no pidio y que no puede ver desde MarkFlow. Se pierden tambien el cifrado a nivel de archivo, los flujos alternos y con ellos la marca de la web. En la variante con atacante, el documento del usuario termina con la ACL que el atacante eligio y se la queda: puede leerlo y escribirlo desde entonces, y cada guardado posterior lo reafirma.",
+      "severidad": "media",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "Antes del rename, y solo cuando el destino ya existia, copiar su descriptor de seguridad al temporal (GetNamedSecurityInfoW sobre el destino + SetSecurityInfo sobre el descriptor del temporal, con windows-sys, que ya esta en el arbol). Como minimo minimo y barato: detectar que el destino tiene ACE no heredadas y avisar una vez de que el guardado atomico las va a perder. Hechos que faltan por comprobar, los tres de Windows: (a) que CREATE_ALWAYS sobre un archivo existente conserva su descriptor de seguridad; (b) que MoveFileExW dentro del mismo volumen traslada el descriptor del origen y no reaplica la herencia de la carpeta; (c) que los flujos alternos y el atributo de cifrado del destino se pierden. Prueba acotada: crear un archivo con una ACE explicita y un flujo alterno, guardarlo desde MarkFlow y comparar icacls y dir /R antes y despues."
+    },
+    {
+      "titulo": "Cuando falla la escritura del temporal no se limpia: queda en la carpeta del documento una copia del texto del usuario que nadie pidio",
+      "unidad": "U-06",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 104,
+      "frontera_violada": "Discrecion de la maquina y de los datos: el programa deja en disco -- y por tanto en la sincronizacion de la nube, en el repositorio git o en la carpeta compartida del tercero -- una copia del documento que el usuario nunca creo y de la que no se entera.",
+      "entrada_del_atacante": "Cualquier cosa que haga fallar el fs::write despues de que el archivo ya se creo: disco lleno, cuota, Acceso controlado a carpetas de Defender (que ya bloqueo una escritura en esta maquina el 2026-09-16, segun el comentario de src/main.ts:326-328), desconexion de la unidad de red, o la ACE de denegacion del primer candidato. Un tercero que controle la carpeta lo provoca a voluntad.",
+      "cadena_hasta_el_impacto": "1) src/main.ts:312 llama a escribir. 2) src-tauri/src/lib.rs:103 crea el temporal y empieza a volcar el texto. 3) La escritura falla a medias; el '?' de la 104 devuelve el error de inmediato. 4) No hay remove_file en ese camino -- comparese con la 107, que si lo tiene para el fallo del rename. 5) El archivo '.<nombre>.markflow-tmp' se queda en la carpeta del documento con lo que se alcanzo a escribir. 6) La prueba escribir_no_deja_temporales_regados (lib.rs:284-296) solo recorre el camino feliz, asi que la asimetria no la ve nadie.",
+      "impacto": "Una copia parcial o completa del documento -- que puede no ser un .md de juguete, porque leer abre lo que le den -- queda tirada en la carpeta donde el usuario trabaja, con un nombre que no aparece en ningun .gitignore y que Windows no oculta (el punto inicial no significa nada aqui). Si la carpeta esta sincronizada con OneDrive o Dropbox, la copia sube; si es un repositorio, entra en el proximo git add .; si es una carpeta compartida o de un tercero, se queda donde el tercero la lee. Y como el nombre es predecible, ese tercero sabe exactamente que pedir.",
+      "severidad": "baja",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Simetria con el camino del rename: if let Err(e) = fs::write(&temporal, salida.as_bytes()) { let _ = fs::remove_file(&temporal); return Err(format!(\"No se pudo escribir el temporal: {e}\")); }. Y ampliar la prueba de la 284 con un caso de escritura fallida (carpeta sin permiso o destino ocupado) que compruebe que tampoco quedan restos por ahi."
+    },
+    {
+      "titulo": "leer carga el archivo entero tres veces y sin ningun tope; con panic = abort, quedarse sin memoria mata el programa y se lleva las pestanas sin guardar",
+      "unidad": "U-06",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 46,
+      "frontera_violada": "Un .md de tercero es dato a dibujar y no deberia poder terminar con el proceso. Lo que se pierde ademas no es su documento: son los OTROS documentos abiertos, con los cambios que el usuario todavia no habia guardado.",
+      "entrada_del_atacante": "El tamano y el contenido de un archivo que el usuario abre con doble clic, arrastrandolo o desde el dialogo. No hace falta que sea .md valido ni que pase ninguna comprobacion: leer lee primero y valida despues. Un archivo de varios cientos de MB relleno de caracteres de control (validos en UTF-8) maximiza el coste, porque cada byte se expande a 6 al serializarse a JSON para el IPC.",
+      "cadena_hasta_el_impacto": "1) src/main.ts:347 -- o el bucle de arrastrar y soltar, src/main.ts:722 -- llama a leer con la ruta. 2) src-tauri/src/lib.rs:42: fs::read reserva N bytes. 3) src-tauri/src/lib.rs:46-48: sin_bom.to_vec() reserva OTROS N, copia completa del buffer solo para poder quitarle tres bytes de BOM. 4) src-tauri/src/lib.rs:50: String::from_utf8 consume ese vector sin copiar, pero 'crudo' sigue vivo hasta el final de la funcion. 5) src-tauri/src/lib.rs:77: texto.replace(\"\\r\\n\",\"\\n\") reserva un TERCER buffer de hasta N. 6) La respuesta se serializa a JSON para cruzar el IPC, donde los caracteres de control se escapan a 6 bytes cada uno. 7) No hay ninguna comprobacion de tamano en todo el camino, mientras que leer_imagen si tiene su TOPE_IMAGEN de 25 MB (lib.rs:116,148). 8) Si alguna de esas reservas falla, Rust llama a handle_alloc_error, que aborta; y src-tauri/Cargo.toml:34 fija panic = \"abort\" en release, asi que no hay ninguna red debajo.",
+      "impacto": "Abrir un archivo grande mata el proceso entero en vez de devolver 'no se pudo abrir'. Al morir por aborto no se dispara onCloseRequested (src/main.ts:701-712), que es justo el codigo que pregunta pestana por pestana si hay cambios sin guardar: se pierde el trabajo no guardado de TODAS las pestanas abiertas, no solo de la que se intento abrir. Antes del aborto hay ademas un periodo de arrastre de la maquina entera mientras se comprometen varios GB. La correccion mas barata -- quitar el to_vec y poner un tope, como ya lo tienen las imagenes -- elimina las dos cosas.",
+      "severidad": "media",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "Tope simetrico al de las imagenes: const TOPE_DOCUMENTO: u64 = 64*1024*1024, comprobado con fs::metadata ANTES del fs::read, devolviendo un Err con mensaje claro (el frontend ya lo sabe mostrar, src/main.ts:375). Y quitar la copia de mas: recortar el BOM sobre el propio Vec (split_off(3)) o sobre la String, y hacer la normalizacion de CRLF en sitio. Falta por comprobar, en un entorno acotado y con limites de memoria y reloj: si con un archivo de 2 GB el proceso aborta de verdad o solo se arrastra, y a partir de que tamano; de ahi sale si la severidad sube o baja."
+    },
+    {
+      "titulo": "archivo_inicial usa std::env::args(), que entra en panico con un argumento que no sea Unicode valido, y panic = abort convierte ese panico en la muerte del programa",
+      "unidad": "U-07",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 191,
+      "frontera_violada": "El nombre de un archivo de tercero es dato, no una palanca sobre el ciclo de vida del proceso. Aqui decide si MarkFlow arranca, y si se le llama con pestanas sucias, decide si el trabajo no guardado sobrevive.",
+      "entrada_del_atacante": "El NOMBRE del archivo, no su contenido: una ruta que contenga un sustituto UTF-16 sin pareja. Windows la pasa tal cual desde la asociacion de archivos declarada en src-tauri/tauri.conf.json:48-61, asi que el doble clic basta. Tambien sirve cualquier acceso directo o proceso que lance MarkFlow con ese argumento.",
+      "cadena_hasta_el_impacto": "1) Windows lanza MarkFlow.exe con la ruta del archivo como argumento. 2) src/main.ts:735 invoca archivo_inicial. 3) src-tauri/src/lib.rs:191: std::env::args() -- la documentacion de la biblioteca estandar dice literalmente que el iterador entra en panico durante la iteracion si algun argumento no es Unicode valido; la forma que no entra en panico, args_os(), no se usa. 4) El panico ocurre dentro del manejador del comando de Tauri. 5) src-tauri/Cargo.toml:34 fija panic = \"abort\" en el perfil release: no hay desenrollado, no hay Err de vuelta al DOM, el proceso se aborta en el acto. 6) src/main.ts:735-738 nunca recibe respuesta, y la promesa nunca se resuelve porque no queda proceso.",
+      "impacto": "En el camino de arranque: MarkFlow muere al abrir ese archivo, sin ventana, sin mensaje y sin nada en pantalla que diga por que -- para el usuario el programa 'no abre'. En el camino de IPC (withGlobalTauri=true, tauri.conf.json:13, y el comando no toma argumentos), la misma llamada con el programa ya en marcha aborta el proceso saltandose onCloseRequested (src/main.ts:701-712) y se lleva los cambios sin guardar de todas las pestanas. El arreglo es cambiar una palabra.",
+      "severidad": "media",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "std::env::args_os().skip(1).filter_map(|a| a.into_string().ok()).find(|a| !a.starts_with('-')).filter(|a| Path::new(a).is_file()) -- args_os no entra en panico nunca, y el filter_map descarta lo que no sea Unicode en vez de matar el proceso. Mejor todavia, buscar sobre OsString comparando con OsStr para no descartar el archivo, y convertir solo al final con to_string_lossy. Hecho que falta por comprobar, y es de Windows, no del codigo: que un archivo cuyo nombre lleva un sustituto sin pareja se puede crear en NTFS (por ejemplo al extraer un zip con nombres invalidos) y que el Explorador se lo pasa tal cual al programa asociado. Prueba acotada: crear ese nombre con la API nativa en una carpeta de usar y tirar y lanzar un binario minimo que solo itere std::env::args()."
+    }
+  ]
+}

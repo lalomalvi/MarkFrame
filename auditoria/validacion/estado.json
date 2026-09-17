@@ -1,0 +1,245 @@
+{
+  "fase": 3,
+  "rol": "validador adversarial",
+  "metodo": "solo inspeccion de codigo. No se ejecuto, compilo ni abrio el programa. Las afirmaciones sobre CodeMirror se verificaron leyendo node_modules/@codemirror/view/dist/index.js; las afirmaciones sobre decodeURI se apoyan en ECMA-262 (algoritmo Decode), no en una corrida.",
+  "fecha": "2026-09-16",
+  "candidatos": [
+    {
+      "id": "U-13",
+      "titulo": "El dialogo de recarga no es modal y revisarCambiosDeFuera no revalida la pestana tras el await",
+      "archivo": "src/main.ts:573-620",
+      "veredicto": "confirmado",
+      "severidad_propuesta": "media",
+      "severidad_final": "media",
+      "clase": "integridad de datos / fallo abierto de un control de seguridad",
+      "verificado_leyendo": [
+        "src/main.ts:573-620 (revisarCambiosDeFuera)",
+        "src/main.ts:681-695 (keydown en window)",
+        "src/main.ts:101-113 (activar)",
+        "src/main.ts:202-284 (mostrarDialogo, avisar, preguntarQueHacer, preguntarRecarga)",
+        "src/main.ts:138-155 (cerrarPestana), 298-338 (guardar), 701-712 (onCloseRequested)",
+        "src/editor.ts:106-115 (reflejar), 176-206 (cargar/capturar/restaurar)",
+        "index.html:253-262 (marcado del dialogo)",
+        "node_modules/@codemirror/view/dist/index.js:8018-8055 (setState no dispara updateListener)"
+      ],
+      "intentos_de_refutacion": [
+        {
+          "intento": "Quiza el dialogo si bloquea el teclado y los atajos no corren.",
+          "resultado": "FALLA. El velo es un <div> con role=dialog y aria-modal=true (index.html:253-254); aria-modal es una pista para lectores de pantalla, no bloquea eventos ni foco. No es <dialog>/showModal, no hay inert, no hay trampa de foco. Ademas preguntarRecarga (main.ts:273-283) es el UNICO de los tres dialogos que ni siquiera registra un keydown propio. Y aun en avisar (:229) y preguntarQueHacer (:251) el handler solo hace preventDefault de Escape/Enter, nunca stopPropagation. El keydown de :681 cuelga de window, en burbuja, y su cadena de else-if no consulta velo.hidden en ningun punto. Los atajos estan vivos durante los tres dialogos."
+        },
+        {
+          "intento": "Quiza activar() sale temprano o no llega a tocar el editor compartido.",
+          "resultado": "FALLA, con una precondicion. activar() solo retorna temprano si i===activa (main.ts:102), asi que hace falta que haya al menos 2 pestanas abiertas -- con una sola, (activa+1)%1===activa y no pasa nada. Con 2 o mas: :103 guardarEstadoVivo() vuelca el texto vivo de A (con los cambios sin guardar) a A.estadoF/estadoP, :104 activa=i, :107 par.restaurar(B.estadoF,B.estadoP). El editor ya es de B cuando la promesa del dialogo resuelve."
+        },
+        {
+          "intento": "Quiza par.cargar respeta la historia de deshacer de B y el hallazgo exagera.",
+          "resultado": "FALLA. editor.ts:177-180: cargar() hace setState(estadoFuente(nuevo)) y setState(estadoPresentacion(nuevo)), estados recien creados; history() arranca vacia. Ctrl+Z no devuelve nada. MATIZ que corrijo al cazador: B.estadoF sigue apuntando al EditorState anterior de B (restaurar no lo anula), asi que el contenido de B sobrevive en memoria hasta el siguiente guardarEstadoVivo(), que lo pisa. Es decir: la perdida se vuelve definitiva en el siguiente cambio de pestana, no en el instante. Desde la interfaz no hay forma de recuperarlo."
+        },
+        {
+          "intento": "Quiza par.cargar dispara el updateListener y B se marca sucia, con lo que el usuario si ve que algo paso.",
+          "resultado": "FALLA, y el resultado agrava el hallazgo. EditorView.setState (node_modules/@codemirror/view/dist/index.js:8071-8099) reconstruye viewState, plugins y docView sin crear ningun ViewUpdate: los updateListener NO corren. El alEditar de editor.ts:94 no se dispara, asi que B conserva su bandera sucio anterior. Si B estaba limpia, el punto de la pestana sigue apagado y el boton Guardar deshabilitado: el cambio es invisible. CORRIJO al cazador en un punto: con B limpia, un Ctrl+S NO escribe nada, porque guardar() sale en :301 con !p.sucio. El sobrescribir el archivo de B con el contenido de A exige que B ya estuviera sucia antes del Ctrl+Tab."
+        },
+        {
+          "intento": "Quiza A no queda marcada limpia, o el cierre si avisa.",
+          "resultado": "FALLA. main.ts:607-608 escribe p.finDeLinea y p.sucio=false sobre p, que sigue siendo A (capturada en :574). A.estadoF conserva el texto sin guardar. pintar() deshabilita Guardar con !p.sucio (:163) y onCloseRequested (:702) decide con esa misma bandera: al cerrar la ventana no pregunta y el trabajo de A se va sin aviso."
+        },
+        {
+          "intento": "Quiza el camino del Ctrl+W (promesa huerfana) no se sostiene.",
+          "resultado": "FALLA: se sostiene y es la parte mas grave. Con el dialogo de recarga abierto, Ctrl+W entra por :689 -> cerrarPestana(activa) -> permisoParaDescartar (:287) -> preguntarQueHacer (:233), que reasigna $('dlg-guardar').onclick y $('dlg-descartar').onclick (:248-249) sobre los MISMOS botones que preguntarRecarga habia cableado (:281-282). Los closures de responder de preguntarRecarga quedan inalcanzables: la promesa de :600 no resuelve nunca, el finally de :617-619 no corre y comprobando se queda en true para el resto de la sesion. El listener de focus (:622) sigue llamando, pero revisarCambiosDeFuera retorna en :575. La deteccion de edicion externa -- el control que evita escribir encima del trabajo del agente -- queda apagada en silencio y sin traza."
+        },
+        {
+          "intento": "Quiza el Ctrl+W es el unico modo de orfanar la promesa y es rebuscado.",
+          "resultado": "FALLA: hay al menos dos caminos mas, uno de ellos sin siquiera cambiar de pestana. (a) Ctrl+S durante el dialogo sobre una pestana sucia cuyo guardado falla -> guardar() llama avisar() (:329), y avisar oculta dlg-guardar/dlg-descartar/dlg-cancelar (:214): el dialogo de recarga se queda sin botones que pulsar ademas de huerfano. (b) Ctrl+O o Ctrl+T durante el dialogo llaman a abrirRuta/nuevaVacia, que hacen guardarEstadoVivo y par.cargar con el dialogo en pantalla. Ademas, preguntarQueHacer no restaura los rotulos ('Recargar del disco'/'Conservar lo mio' se restauran solo dentro del responder de :277-278, que nunca corre), asi que el segundo dialogo aparece con el titulo 'Hay cambios sin guardar' y botones rotulados 'Recargar del disco' -- riesgo de clic equivocado sobre trabajo sin guardar."
+        },
+        {
+          "intento": "Quiza WebView2 se traga Ctrl+Tab o Ctrl+W y las teclas nunca llegan al DOM.",
+          "resultado": "NO REFUTA. Es el unico eslabon que no puedo cerrar por codigo fuente sin ejecutar. Pesa en contra de la refutacion: el propio programa declara Ctrl+Tab y Ctrl+W como sus atajos de pestanas (:689-693), asi que si no llegaran la funcion no existiria; y el handler hace preventDefault, que suprime cualquier accion por omision del control. Ademas el camino (a) del punto anterior solo necesita Ctrl+S. Comprobacion barata si se quiere cerrar: abrir dos pestanas, provocar el dialogo y pulsar Ctrl+Tab."
+        }
+      ],
+      "impacto_demostrable_por_codigo": "Tres efectos, todos sobre datos del usuario: (1) la pestana B queda mostrando el contenido en disco de A, con historia de deshacer perdida y sin indicador de que cambio; si B ya estaba sucia, el siguiente Guardar escribe el contenido de A dentro del archivo de B (main.ts:312). (2) La pestana A queda con sucio=false teniendo cambios sin guardar: Guardar deshabilitado y cierre sin preguntar. (3) Por el camino Ctrl+W/Ctrl+S, comprobando queda en true de forma permanente y la deteccion de cambios externos se apaga en silencio para toda la sesion.",
+      "arreglo_minimo": {
+        "1_revalidar_tras_cada_await": "En src/main.ts, dentro de revisarCambiosDeFuera: declarar `const sigue = () => laActiva() === p` justo despues de `comprobando = true`, y poner `if (!sigue()) return` inmediatamente despues de cada await: tras `const ahora = await huella(p.ruta)` (:578), tras `const doc = await leer(p.ruta)` (:583), tras `const r = await preguntarRecarga(p.nombre)` (:600) y tras `const doc = await leer(p.ruta)` (:602). Con eso la recarga se aborta limpia y el proximo focus la vuelve a ofrecer, porque p.visto no se toco.",
+        "2_dialogo_modal_de_verdad": "En el keydown de src/main.ts:681, primera linea del handler: `if (!velo.hidden) return`  // con un dialogo en pantalla no corre ningun atajo. Dejar la rama de Escape del panel de opciones despues de esa guarda.",
+        "3_no_reusar_el_dialogo_sin_saldar_la_promesa_anterior": "En src/main.ts, junto a mostrarDialogo:\n\nlet saldarPendiente: (() => void) | null = null\n\nfunction mostrarDialogo(titulo: string, texto: string, detalle?: string) {\n  saldarPendiente?.()          // cierra la promesa viva antes de reciclar los botones\n  saldarPendiente = null\n  $('dlg-titulo').textContent = titulo\n  $('dlg-texto').textContent = texto\n  const d = $('dlg-detalle')\n  d.textContent = detalle ?? ''\n  d.hidden = !detalle\n  velo.hidden = false\n}\n\nY en cada dialogo, registrar su salida segura y limpiarla al responder. En preguntarRecarga:\n\n  return new Promise((resolver) => {\n    const responder = (r: 'recargar' | 'conservar') => {\n      saldarPendiente = null\n      velo.hidden = true\n      bRecargar.textContent = 'Guardar y salir'\n      bConservar.textContent = 'Salir sin guardar'\n      resolver(r)\n    }\n    saldarPendiente = () => responder('conservar')   // lo seguro es NO pisar el trabajo local\n    bRecargar.onclick = () => responder('recargar')\n    bConservar.onclick = () => responder('conservar')\n  })\n\nEquivalente en preguntarQueHacer con `saldarPendiente = () => responder('cancelar')` y en avisar con `saldarPendiente = cerrar`.",
+        "4_regresion_sugerida": "Prueba de cabeza: dos pestanas, A sucia con huella vieja; simular focus -> dialogo; llamar activar(1); resolver 'recargar'; comprobar que el documento del editor sigue siendo el de B, que A.sucio sigue true y que comprobando volvio a false."
+      }
+    },
+    {
+      "id": "U-05",
+      "titulo": "El permiso suelto de imagen remota sobrevive al cambio de pestana: activar() no llama a olvidarPermisosSueltos()",
+      "archivo": "src/widgets.ts:156-165 y src/main.ts:101-113",
+      "veredicto": "confirmado",
+      "severidad_propuesta": "baja",
+      "severidad_final": "baja",
+      "clase": "fuga de consentimiento entre documentos (privacidad)",
+      "verificado_leyendo": [
+        "src/widgets.ts:145-165 (permitidasSueltas, olvidarPermisosSueltos), 196-235 (la compuerta en toDOM)",
+        "src/main.ts:101-113 (activar), 115-126 (nuevaVacia), 340-377 (abrirRuta), 573-620 (revisarCambiosDeFuera)",
+        "src/preferencias.ts:37-47 (la doctrina declarada de imagenesRemotas)"
+      ],
+      "intentos_de_refutacion": [
+        {
+          "intento": "Quiza activar() o abrirRuta si limpian y el cazador no miro bien.",
+          "resultado": "FALLA en cuanto a activar. olvidarPermisosSueltos() aparece exactamente tres veces en el frontend: main.ts:364 (abrirRuta), :585 y :603 (las dos ramas de recarga externa). activar() (:101-113) y nuevaVacia() (:115-126) no la llaman. El hallazgo es factualmente correcto y contradice el comentario de main.ts:363 ('Los permisos de imagen remota son por documento: no se heredan')."
+        },
+        {
+          "intento": "Quiza no importa, porque el usuario ya autorizo esa URL una vez.",
+          "resultado": "REFUTA EN PARTE, y por eso la severidad se queda abajo. permitidasSueltas es un Set indexado por la cadena exacta de la URL (widgets.ts:209, :224). Para que la fuga sirva de algo, el segundo documento tiene que llevar la URL IDENTICA, ya autorizada en esta misma sesion. Ademas abrirRuta limpia el conjunto, asi que la fuga solo alcanza pestanas abiertas ANTES de conceder el permiso. Lo que gana el atacante es concreto pero chico: se salta la compuerta de consentimiento en los documentos 2..N que lleven su mismo faro, y obtiene un aviso extra de que la victima abrio otro archivo suyo."
+        },
+        {
+          "intento": "Quiza el widget ni se reconstruye al volver a la pestana y el permiso nunca se consulta.",
+          "resultado": "FALLA. activar -> par.restaurar -> setState (editor.ts:203-206) reconstruye el DocView entero, asi que toDOM vuelve a correr y vuelve a leer permitidasSueltas.has(this.fuente) (widgets.ts:209)."
+        },
+        {
+          "intento": "Quiza es solo robustez, sin atacante.",
+          "resultado": "NO REFUTA. Si hay atacante: el autor del .md de tercero, que es la frontera declarada del proyecto, y hay un control de seguridad explicito que se elude. Pero el impacto demostrable no pasa de una peticion HTTP extra a un servidor que la victima ya habia autorizado una vez, asi que la severidad no puede subir de baja."
+        }
+      ],
+      "impacto_demostrable_por_codigo": "Una peticion a un servidor de tercero sin pedir consentimiento en el documento donde se produce, cuando ese servidor ya fue autorizado para la misma URL en otro documento de la sesion. Revela IP y confirma la apertura de ese segundo archivo. Nada mas: no hay lectura de disco ni ejecucion.",
+      "arreglo_minimo": {
+        "codigo": "En src/main.ts, dentro de activar(), justo despues de fijarCarpeta(p.ruta):\n\nfunction activar(i: number) {\n  if (i === activa || i < 0 || i >= abiertas.length) return\n  guardarEstadoVivo()\n  activa = i\n  const p = abiertas[i]\n  fijarCarpeta(p.ruta)\n  olvidarPermisosSueltos()   // el permiso de imagen remota es por documento\n  if (p.estadoF && p.estadoP) par.restaurar(p.estadoF, p.estadoP)\n  ...\n}\n\nY lo mismo en nuevaVacia() despues de fijarCarpeta(null), por consistencia.",
+        "alternativa_mas_solida": "Si se prefiere no perder el permiso al ir y volver entre pestanas, cambiar el Set global por un conjunto POR PESTANA: mover permitidasSueltas a la interfaz Pestana (src/pestanas.ts) y que widgets.ts consulte el de la pestana activa. Cuesta mas, pero cumple la doctrina declarada sin castigar el uso normal.",
+        "regresion_sugerida": "Prueba de cabeza sobre widgets: autorizar una URL, llamar olvidarPermisosSueltos(), y comprobar que toDOM vuelve a devolver la caja mf-w-bloqueada."
+      }
+    },
+    {
+      "id": "U-04",
+      "titulo": "decodeURI sin proteccion dentro de rutaAbsoluta: un porcentaje mal formado en la ruta de una imagen lanza URIError dentro de toDOM y rompe el panel de presentacion",
+      "archivo": "src/widgets.ts:177-194 (linea 182), consumido en :244 dentro de toDOM",
+      "veredicto": "confirmado",
+      "severidad_propuesta": "baja",
+      "severidad_final": "media",
+      "clase": "fallo no contenido en el renderizador: rompe el panel y desincroniza los dos editores",
+      "verificado_leyendo": [
+        "src/widgets.ts:177-194 (rutaAbsoluta, cargarImagen), 204-259 (WidgetImagen.toDOM)",
+        "src/livepreview.ts:199-209 (construccion del widget de imagen), :123-128 (tocado), :379-389 (StateField)",
+        "src/editor.ts:106-115 (reflejar), :177-184 (cargar/enfocar)",
+        "src/main.ts:340-377 (abrirRuta)",
+        "node_modules/@codemirror/view/dist/index.js:2155-2162 (WidgetTile.of -> widget.toDOM sin try/catch), :2764 (ContentBuilder.emit), :2929-2931 (constructor de DocView -> updateInner), :8006-8045 (view.update: solo finally), :8071-8099 (setState: destruye el docView antes de reasignarlo)",
+        "src/contexto.ts:8-14 (carpetaActual)"
+      ],
+      "intentos_de_refutacion": [
+        {
+          "intento": "Quiza decodeURI('50%') no lanza.",
+          "resultado": "FALLA. ECMA-262, algoritmo Decode: al encontrar '%' con menos de dos digitos hexadecimales detras, se lanza URIError. Vale para '50%', '50%of.png', 'a%zz.png', 'foo%2.png'. Nota: NO lo verifique ejecutando nada, por la regla de solo inspeccion; es comportamiento especificado, no dependiente de motor."
+        },
+        {
+          "intento": "Quiza lezer-markdown no reconoce ![](50%) como imagen y la linea nunca se alcanza.",
+          "resultado": "FALLA. El destino '50%' es un link destination valido de CommonMark (sin espacios ni parentesis). Y aunque ese caso concreto fallara, el hallazgo sobrevive con entradas mas normales: livepreview.ts:201 casa /^!\\[([^\\]]*)\\]\\(([^)\\s]+)(?:\\s+\"[^\"]*\")?\\)$/ y entrega m[2] tal cual a WidgetImagen, asi que cualquier ![](descuento-50%off.png) o ![](fotos/100%.png) llega igual. El '%' es un caracter legal en nombres de archivo de Windows: esto no necesita atacante, basta un nombre de archivo del propio usuario."
+        },
+        {
+          "intento": "Quiza rutaAbsoluta sale antes de llegar a la linea 182.",
+          "resultado": "FALLA con una precondicion razonable. :178 solo desvia http/https/data/blob; :179 solo desvia rutas absolutas de Windows (C:\\... o UNC); :181 exige carpetaActual() no nula, es decir un archivo abierto desde disco -- el caso normal. Una ruta RELATIVA con '%' pasa las tres guardas y llega a decodeURI."
+        },
+        {
+          "intento": "Quiza la excepcion ocurre dentro de la promesa de cargarImagen y solo rompe esa imagen.",
+          "resultado": "FALLA. widgets.ts:244 llama cargarImagen(this.fuente) de forma sincrona dentro de toDOM, y cargarImagen llama rutaAbsoluta en :186, tambien sincrono, ANTES de crear promesa alguna. La URIError sale de toDOM."
+        },
+        {
+          "intento": "Quiza CodeMirror contiene la excepcion y solo muere ese widget.",
+          "resultado": "FALLA, y esto es lo que sube la severidad. WidgetTile.of llama widget.toDOM(view) sin try/catch (index.js:2157), desde ContentBuilder.emit (:2764), que corre dentro de docView.update() y del constructor de DocView (:2931). En view.update() (:8029) solo hay un finally que repone updateState; en setState (:8085-8095) el docView viejo ya fue destruido y el nuevo no llega a asignarse, asi que la vista queda con un docView destruido. Ademas vistaPresentacion es un StateField (livepreview.ts:380), no un ViewPlugin, asi que no hay logException de por medio. Respuesta directa a la pregunta: muere el panel, no el widget."
+        },
+        {
+          "intento": "Quiza el dano se limita al panel de presentacion y el texto del usuario esta a salvo.",
+          "resultado": "FALLA. editor.ts:106-115: reflejar hace `vista.update(trs)` PRIMERO y solo despues `otra().dispatch(...)`. Si la vista que lanza es presentacion -- que es la que recibe el foco por omision (editor.ts:181-184, modo 'ambos') -- la excepcion corta el reenvio y fuente NUNCA recibe el cambio. Y texto()/guardar() leen fuente.state (editor.ts:175, main.ts:312). Resultado: lo que se teclea en el panel de presentacion deja de llegar a lo que se guarda. El disparo no exige teclear dentro de la imagen: tocado() es por linea (livepreview.ts:123-128), asi que basta mover el cursor fuera de esa linea para que el widget se construya."
+        },
+        {
+          "intento": "Quiza al abrir el archivo el fallo se ve y se recupera solo.",
+          "resultado": "PARCIAL, y no salva el hallazgo. En abrirRuta, par.cargar (:365) esta dentro del try, asi que la URIError cae en el catch de :373 y sale 'No se pudo abrir el archivo'. Pero para entonces la pestana ya se empujo a abiertas y activa ya apunta a ella (:359-360), fuente ya se cargo con el documento (editor.ts:178 corre antes que :179), y nueva.visto (:368) nunca se asigna: esa pestana queda con la deteccion de cambios externos desactivada (main.ts:575 sale con !p.visto). El mensaje de error dice 'no se pudo abrir' mientras el panel izquierdo muestra el archivo abierto."
+        }
+      ],
+      "impacto_demostrable_por_codigo": "Un .md con una ruta de imagen relativa que contenga '%' sin dos hexadecimales detras: (a) al abrirlo, la apertura se reporta como fallida, el panel de presentacion queda con su docView destruido y la pestana queda sin huella, o sea sin deteccion de edicion externa; (b) con el archivo ya abierto, en cuanto el cursor sale de esa linea el panel de presentacion se rompe y, a partir de ahi, las ediciones hechas en ese panel no llegan al panel de fuente, que es el que se escribe a disco. Entrada de tercero (F1) y tambien accidente cotidiano con un nombre de archivo legal en Windows.",
+      "arreglo_minimo": {
+        "1_la_causa": "En src/widgets.ts, rutaAbsoluta:\n\nfunction rutaAbsoluta(fuente: string): string | null {\n  if (/^(https?|data|blob):/i.test(fuente)) return null\n  if (/^([a-z]:[\\\\/]|\\\\\\\\)/i.test(fuente)) return fuente\n  const base = carpetaActual()\n  if (!base) return null\n  // Un '%' suelto es legal en un nombre de archivo de Windows: si no se puede\n  // decodificar, la cadena va tal cual en vez de tumbar el panel.\n  let limpia: string\n  try { limpia = decodeURI(fuente) } catch { limpia = fuente }\n  return base + '\\\\' + limpia.replace(/\\//g, '\\\\')\n}",
+        "2_el_cinturon": "Ningun toDOM debe poder tumbar el panel. En src/widgets.ts, renombrar el cuerpo actual de WidgetImagen.toDOM a `private dibujar(vista: EditorView)` y dejar:\n\n  toDOM(vista: EditorView) {\n    try {\n      return this.dibujar(vista)\n    } catch (e) {\n      const caja = document.createElement('div')\n      caja.className = 'mf-w mf-w-imagen mf-w-rota'\n      caja.textContent = 'No se pudo mostrar la imagen: ' + String(e)\n      return caja\n    }\n  }\n\nConviene el mismo envoltorio en WidgetTabla, WidgetMermaid, WidgetMate y WidgetCasilla: es la unica frontera donde una excepcion de contenido se convierte en fallo de la vista.",
+        "3_regresion_sugerida": "Caso de prueba de parser: construir el estado de presentacion con el documento '![](a%zz.png)' y una carpeta base fijada, y comprobar que se produce un widget roto en vez de una excepcion."
+      }
+    },
+    {
+      "id": "U-09",
+      "titulo": "PROFUNDIDAD[p.profundidad] indefinido tumba el arranque entero, sin salida desde la interfaz",
+      "archivo": "src/preferencias.ts:146 (y 103-113, leer)",
+      "veredicto": "es_robustez_no_seguridad",
+      "severidad_propuesta": "baja",
+      "severidad_final": "no es vulnerabilidad. Defecto de robustez de prioridad alta por lo caro que es recuperarse.",
+      "clase": "robustez / disponibilidad; sin vector de atacante propio",
+      "verificado_leyendo": [
+        "src/preferencias.ts:94-99 (PROFUNDIDAD), 103-117 (leer/guardar), 127-158 (aplicar)",
+        "src/main.ts:26-29 (P = prefs.leer(); prefs.aplicar(P) en el tope del modulo), :180-194 (aplicarTodo), :508-542 (conectarOpciones), :729-733 (arranque)",
+        "index.html:162-169 (el <select> de profundidad)",
+        "git log -p sobre src/preferencias.ts (los tres valores nunca han cambiado)"
+      ],
+      "intentos_de_refutacion": [
+        {
+          "intento": "Quiza el propio programa puede escribir un valor invalido.",
+          "resultado": "REFUTA. El unico escritor es cambia('op-profundidad', ...) (main.ts:521), que toma el value de un <select> con exactamente tres <option>: suave, normal, profundo (index.html:164-168). El resto de escrituras son DE_FABRICA. No hay migracion, ni import, ni URL, ni IPC que toque profundidad."
+        },
+        {
+          "intento": "Quiza una version anterior guardo otro vocabulario y al actualizar revienta.",
+          "resultado": "REFUTA. git log -p sobre src/preferencias.ts: el tipo nace ya como 'suave' | 'normal' | 'profundo' y no ha cambiado en ningun commit. No existe la via de actualizacion."
+        },
+        {
+          "intento": "Quiza un .md de tercero puede envenenar localStorage.",
+          "resultado": "REFUTA en solitario. Escribir localStorage exige ejecucion de script en el origen de la aplicacion o acceso al disco del perfil de WebView2. Quien tenga cualquiera de las dos cosas dispone ya de invoke('leer'/'escribir') sin restriccion de rutas (src-tauri/src/lib.rs, deliberado por ESPEC.md §2), que es estrictamente peor. No es un vector propio."
+        },
+        {
+          "intento": "Quiza, aun sin atacante, no es grave y se puede ignorar.",
+          "resultado": "NO REFUTA, y esto es lo que hay que conservar del hallazgo. prefs.aplicar(P) esta en el tope del modulo (main.ts:29): la excepcion aborta la evaluacion de main.ts y NINGUN listener llega a registrarse, incluido el de la X de la ventana (main.ts:647), que es propia porque decorations es false. Queda una ventana pintada e inerte, en cada arranque, sin camino desde la interfaz para deshacerlo. Solo ocurre si el tema activo es oscuro (la guarda de :145). Hay ademas un SEGUNDO ladrillo de la misma raiz que el cazador no vio: sangria con valor '-1' o '1e9' hace ' '.repeat(Number(s)) lanzar RangeError en editor.ts:191, invocado desde aplicarTodo (main.ts:184) en el arranque (:731). La causa comun es que leer() (preferencias.ts:103-113) mezcla JSON arbitrario sobre DE_FABRICA sin validar nada."
+        },
+        {
+          "intento": "Quiza conviene marcarlo necesita_validacion.",
+          "resultado": "NO. No falta ningun hecho de despliegue: el codigo fuente basta para decidir que no hay atacante y que el defecto existe. necesita_validacion seria aparcarlo."
+        }
+      ],
+      "impacto_demostrable_por_codigo": "Con localStorage editado a mano y tema oscuro activo, la aplicacion no arranca nunca mas y la propia interfaz no ofrece manera de arreglarlo. Sin edicion manual (o sin ejecucion de script previa) no hay forma de llegar ahi. Amplificador a registrar: si el candidato U-12 (href javascript: en celda de tabla, widgets.ts:72) se confirma, esta falta de validacion convierte un clic en un ladrillo permanente; el arreglo de abajo le quita esa persistencia.",
+      "arreglo_minimo": {
+        "codigo": "En src/preferencias.ts, sanear al leer en vez de parchear la linea 146:\n\nconst UNO_DE = <T extends string>(v: unknown, ops: readonly T[], porOmision: T): T =>\n  (ops as readonly string[]).includes(v as string) ? (v as T) : porOmision\n\nconst NUM = (v: unknown, min: number, max: number, porOmision: number): number =>\n  typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : porOmision\n\n/** Lo guardado es dato ajeno: se acepta lo que se reconoce y lo demas vuelve a fabrica. */\nfunction sanear(g: Record<string, unknown>): Preferencias {\n  const p = { ...DE_FABRICA, ...g } as Preferencias\n  return {\n    ...p,\n    tema: UNO_DE(p.tema, ['sistema', 'claro', 'oscuro'] as const, DE_FABRICA.tema),\n    profundidad: UNO_DE(p.profundidad, ['suave', 'normal', 'profundo'] as const, DE_FABRICA.profundidad),\n    paleta: UNO_DE(p.paleta, ['tinta', 'notas', 'sobria'] as const, DE_FABRICA.paleta),\n    sangria: UNO_DE(p.sangria, ['2', '4', 'tab'] as const, DE_FABRICA.sangria),\n    modo: UNO_DE(p.modo, ['fuente', 'ambos', 'presentacion'] as const, DE_FABRICA.modo),\n    tamano: NUM(p.tamano, 8, 48, DE_FABRICA.tamano),\n    interlineado: NUM(p.interlineado, 1, 3, DE_FABRICA.interlineado),\n    ancho: NUM(p.ancho, 0, 200, DE_FABRICA.ancho),\n    division: NUM(p.division, 0.05, 0.95, DE_FABRICA.division),\n    ultimoArchivo: typeof p.ultimoArchivo === 'string' ? p.ultimoArchivo : null,\n  }\n}\n\nexport function leer(): Preferencias {\n  try {\n    const crudo = localStorage.getItem(CLAVE)\n    if (!crudo) return { ...DE_FABRICA }\n    const g = JSON.parse(crudo)\n    return sanear(g && typeof g === 'object' ? g : {})\n  } catch {\n    return { ...DE_FABRICA }\n  }\n}",
+        "cinturon_opcional": "Envolver el arranque de src/main.ts en un try/catch que, si algo revienta antes de cablear la interfaz, borre localStorage.removeItem('markflow.preferencias') y recargue. Con el saneado de arriba deja de hacer falta, pero cuesta cuatro lineas y cubre la proxima preferencia que se agregue.",
+        "regresion_sugerida": "Prueba unitaria de preferencias: sanear({ profundidad: 'x', sangria: '-1', tamano: 'grande' }) devuelve los valores de fabrica en esos tres campos."
+      }
+    },
+    {
+      "id": "U-11",
+      "titulo": "csp: null, protocolo de recursos abierto con scope ** y permisos concedidos sin consumidor",
+      "archivo": "src-tauri/tauri.conf.json:26-34 y src-tauri/capabilities/default.json:8-20",
+      "veredicto": "es_robustez_no_seguridad",
+      "severidad_propuesta": "media (endurecimiento)",
+      "severidad_final": "endurecimiento / defensa en profundidad. No es un hallazgo: no hay impacto demostrable por si solo. Va a la seccion de notas de endurecimiento del informe, no a la tabla de hallazgos.",
+      "clase": "endurecimiento de la configuracion",
+      "verificado_leyendo": [
+        "src-tauri/tauri.conf.json:12-34 (withGlobalTauri, csp null, assetProtocol scope **)",
+        "src-tauri/capabilities/default.json:8-20",
+        "src-tauri/gen/schemas/acl-manifests.json (contenido real de cada conjunto por omision)",
+        "src-tauri/src/lib.rs:38-205 (comandos sin restriccion de rutas; opener y dialog registrados)",
+        "src/archivo.ts:1-38 (unico consumidor de dialog: open y save)",
+        "src/widgets.ts:64-73 (enriquecer), :98 y :303 (innerHTML), :174-176 (el comentario que dice que el protocolo de recursos NO se usa)",
+        "grep en src/ e index.html: ni un solo uso de opener, openUrl, openPath, revealItemInDir, setTitle ni dialog.message"
+      ],
+      "intentos_de_refutacion": [
+        {
+          "intento": "Quiza los permisos sobrantes tienen dientes por si mismos.",
+          "resultado": "REFUTA en su mayor parte, uno por uno contra el manifiesto real. opener:default = allow-open-url + allow-reveal-item-in-dir + allow-default-urls; NO incluye open-path, asi que no hay ejecucion de programas por ahi. dialog:default = allow-message + allow-save + allow-open; solo open y save tienen consumidor (src/archivo.ts:4). core:window:allow-set-title no tiene ningun consumidor: el programa usa document.title (main.ts:164). core:default arrastra core:menu:* y core:tray:* (creacion de menus y de icono de bandeja: suplantacion de interfaz, nada mas), core:image:allow-from-path (devuelve un id de recurso, no contenido legible desde JS), core:path:* y core:event:* (inocuos). NINGUNO es utilizable sin ejecucion de script previa, y ninguno supera lo que ya conceden invoke('leer') e invoke('escribir') sin restriccion de rutas, que es una decision deliberada del proyecto (ESPEC.md §2, lib.rs:1-4)."
+        },
+        {
+          "intento": "Quiza csp: null tambien es solo higiene.",
+          "resultado": "NO REFUTA, y es lo unico que rescato con peso. La CSP es precisamente la capa que mitiga la clase de defecto que esta misma auditoria ya encontro en este codigo: enriquecer (widgets.ts:64-73) escapa &<>\" del TEXTO pero mete el destino del enlace crudo en href=\"$2\" (:72), de modo que javascript: pasa; y hay dos sumideros innerHTML alimentados por contenido del documento (:98 celdas de tabla, :303 SVG de Mermaid). Con csp: null y withGlobalTauri: true (tauri.conf.json:13), cualquier ejecucion de script en ese origen alcanza window.__TAURI__ y con el, lectura y escritura de cualquier archivo del disco. La CSP no demuestra impacto por si sola, pero no se puede llamar higiene: es la red debajo del trapecio."
+        },
+        {
+          "intento": "Quiza el protocolo de recursos con scope ** no agrega nada porque 'leer' ya lee cualquier ruta.",
+          "resultado": "REFUTA EN PARTE. Es cierto que 'leer' ya no tiene restriccion de rutas, pero rechaza lo que no sea UTF-8 (lib.rs:50-55) y leer_imagen exige extension de imagen y 25 MB (lib.rs:148-158). El protocolo de recursos con scope ** si agrega una capacidad que hoy no existe: leer cualquier archivo BINARIO por URL desde el webview. Y el propio codigo declara que no lo usa (widgets.ts:174-176). Apagarlo es gratis y quita capacidad real."
+        },
+        {
+          "intento": "Quiza deberia confirmarse como hallazgo porque el javascript: de U-12 existe.",
+          "resultado": "NO. U-12 no es mio y no lo doy por confirmado. Sin ejecucion de script confirmada, esto no demuestra impacto y no puede entrar como hallazgo: entra como endurecimiento con una dependencia explicita de U-12. Si U-12 se confirma, esta entrada es el mitigante principal a aplicar junto con el arreglo de U-12, no en su lugar."
+        }
+      ],
+      "impacto_demostrable_por_codigo": "Ninguno por si solo. Todo su valor es condicional a que exista ejecucion de script en el origen de la aplicacion. Ordenado por lo que cuesta y lo que quita: (1) csp: null -- el mitigante que falta para los sumideros innerHTML/href del propio proyecto; (2) assetProtocol enable+scope ** -- unica capacidad que agrega algo nuevo (lectura de binarios arbitrarios) y declarada como no usada; (3) opener:allow-open-url -- unico permiso sobrante con valor de exfiltracion (datos en la URL abierta en el navegador del usuario), sin consumidor; (4) el resto (set-title, dialog:message, menu, tray) es cosmetico o suplantacion de interfaz.",
+      "arreglo_minimo": {
+        "1_csp_y_protocolo_de_recursos": "src-tauri/tauri.conf.json, bloque app.security:\n\n\"security\": {\n  \"csp\": \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'\",\n  \"assetProtocol\": { \"enable\": false, \"scope\": [] }\n}\n\nNotas de por que asi: data: en img-src es obligatorio (leer_imagen devuelve data:...;base64, lib.rs:161); 'unsafe-inline' en style-src es obligatorio por como CodeMirror, KaTeX y Mermaid inyectan estilo; https: en img-src conserva la funcion de imagenes remotas, cuyo control real es la compuerta de widgets.ts:209, no la CSP. NO VERIFICADO: no compile ni corri la aplicacion, asi que esta CSP hay que probarla con `npm run tauri dev` y con el binario empaquetado antes de darla por buena; si dev se queja, usar devCsp aparte en vez de aflojar la de produccion.",
+        "2_permisos_sin_consumidor_retiro_seguro": "src-tauri/capabilities/default.json: quitar \"opener:default\" y \"core:window:allow-set-title\", y cambiar \"dialog:default\" por \"dialog:allow-open\" y \"dialog:allow-save\". Los tres estan verificados sin un solo consumidor en src/ ni en index.html. Coherente con eso, quitar .plugin(tauri_plugin_opener::init()) de src-tauri/src/lib.rs:201 y la dependencia tauri-plugin-opener de src-tauri/Cargo.toml.",
+        "3_adelgazar_core_default_propuesta_no_verificada": "Sustituir \"core:default\" por lo que el programa usa de verdad -- \"core:event:default\" mas los core:window:allow-* que ya estan enumerados -- retirando de paso menu, tray, image y resources. NO LO DOY POR BUENO: no compile ni probe, y un permiso de menos rompe en tiempo de ejecucion con un error de ACL, no en compilacion. Aplicarlo solo con una pasada de humo que cubra abrir, guardar, arrastrar y soltar, minimizar, maximizar, arrastrar la barra de titulo y cerrar con cambios sin guardar.",
+        "4_lo_que_NO_arregla_esto": "Nada de lo anterior corrige el href sin filtrar de widgets.ts:72. El saneado del destino del enlace (permitir solo http, https y mailto) es el arreglo de U-12 y es el que de verdad cierra la puerta; la CSP solo la traba."
+      }
+    }
+  ]
+}

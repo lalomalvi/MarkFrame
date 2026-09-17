@@ -1,0 +1,357 @@
+{
+ "validador": "rendimiento-adversarial (Fase 3)",
+ "postura": "Se parte de que cada candidato esta equivocado. Solo se confirma lo que no se pudo refutar.",
+ "metodo": "SOLO lectura de codigo. No se compilo, no se ejecuto, no se instalo, no se escribio ningun programa de prueba, no hubo red. Leidos: src/livepreview.ts, src/widgets.ts, src/editor.ts, src/main.ts, src/contexto.ts, src/refresco.ts, src-tauri/src/lib.rs, y dentro de node_modules: @codemirror/language/dist/index.js (LanguageState.init/apply), @codemirror/view/dist/index.js (getViewport, ensureLineGaps, lineStructure), @lezer/markdown/dist/index.js (FencedCode). El comportamiento de V8/Irregexp se razona sobre el automata y sobre las optimizaciones documentadas del motor; no se midio.",
+ "limite_declarado": "Todos los tiempos en segundos/minutos son estimaciones a partir del conteo de pasos (1-3 ns por paso primitivo en codigo nativo de Irregexp). El conteo de pasos si es analitico. Ningun numero de reloj fue observado.",
+ "candidatos": [
+  {
+   "id": "U-10/regex-nota-al-pie",
+   "titulo_del_cazador": "Retroceso cuadratico en la regex de referencia de nota al pie (livepreview.ts:326)",
+   "veredicto": "confirmado",
+   "severidad_final": "alta",
+   "severidad_del_cazador": "alta",
+   "cambio_de_severidad": "ninguno",
+   "intentos_de_refutacion": [
+    {
+     "via": "1. Que V8 no sea cuadratico: buscar una optimizacion de Irregexp que lo evite",
+     "resultado": "REFUTACION FALLIDA",
+     "detalle": "Irregexp es un motor de retroceso puro. (a) No hay memoizacion ni poda de posiciones ya fallidas; el unico motor lineal de V8 es el experimental (--enable-experimental-regexp-engine, bandera 'l'), que no esta activo ni se usa aqui. (b) GetQuickCheckDetails/Boyer-Moore si filtra arranques: el patron exige '[' en la posicion 0 y '^' en la 1, asi que las posiciones impares (donde hay '^') se descartan en ~1 paso. Eso divide entre dos el numero de arranques, NO la clase de complejidad. (c) La optimizacion de greedy loop (EmitGreedyLoop / GreedyLoopTextAction) aplica al bucle [^\\]\\s]+ y hace que cada retroceso sea aritmetica de posicion en vez de replay: abarata la CONSTANTE, no el exponente. (d) --regexp-backtracks-before-fallback (50 000) no es un tope de trabajo: es el umbral con el que el interprete de regex asciende a codigo nativo compilado, o sea que ACELERA el ataque. (e) No hay desbordamiento de pila que corte la ejecucion: el bucle codicioso guarda una sola entrada de retroceso (la posicion), no una por caracter. Conclusion: cuadratico, sin escape."
+    },
+    {
+     "via": "2. Que matchAll/lastIndex cambien la cuenta (pista del padre)",
+     "resultado": "REFUTACION FALLIDA, y confirma la eleccion de entrada",
+     "detalle": "En la entrada '[^' x 500 000 NO hay ningun ']', asi que NO hay ninguna coincidencia: lastIndex nunca avanza porque nunca se devuelve nada. Una sola llamada interna a exec recorre las 10^6 posiciones de arranque y devuelve null tras hacer todo el trabajo. El avance tras un fallo es de +1 posicion (con el salto de quick-check saltandose las impares), no mas. Si la entrada SI casara (p. ej. '[^[^...]'), la coincidencia leftmost-first empezaria en 0, se tragaria todo y matchAll terminaria: eso seria LINEAL. El cazador escogio la entrada peor posible; es correcta."
+    },
+    {
+     "via": "3. Que exista un tope de tamano antes de llegar ahi",
+     "resultado": "REFUTACION FALLIDA",
+     "detalle": "Si existe un tope, pero es de 64 MB (TOPE_DOCUMENTO, src-tauri/src/lib.rs:47, comprobado en leer() :53-62). Un .md de 1 MB pasa con holgura. Peor: el tope de 64 MB autoriza entradas cuyo coste seria 2.2x10^15 pasos. El tope no protege nada aqui."
+    },
+    {
+     "via": "4. Que no corra sincrono al abrir (verificacion pedida)",
+     "resultado": "REFUTACION FALLIDA. Cadena verificada linea a linea",
+     "detalle": "src/main.ts:340 abrirRuta -> :347 await leer(destino) -> :365 par.cargar(doc.texto) -> src/editor.ts:177-180 cargar(): fuente.setState(estadoFuente(nuevo)) y DESPUES presentacion.setState(estadoPresentacion(nuevo)) -> editor.ts:122-125 estadoPresentacion = EditorState.create({doc, extensions:[...comunes(), vistaPresentacion()]}) -> src/livepreview.ts:380-381 StateField.define({create: (estado) => construir(estado)}). EditorState.create inicializa los campos de estado de forma sincrona. Dentro de construir, la :289 hace doc.toString() y la :326 el matchAll. Nada de esto depende del arbol de sintaxis, asi que el coste se paga entero dentro de EditorState.create."
+    },
+    {
+     "via": "5. Que el modo de vista 'solo fuente' lo evite",
+     "resultado": "REFUTACION FALLIDA",
+     "detalle": "crearPar (editor.ts:127-137) crea SIEMPRE las dos EditorView, y cargar() (:177-180) hace setState en las dos pase lo que pase. El modo (ponerModo, main.ts) solo cambia clases de CSS. No hay ninguna ruta en la que el panel de presentacion no construya su estado."
+    },
+    {
+     "via": "6. Que la regex de DEFINICION (:315) sufra lo mismo (control negativo)",
+     "resultado": "No sufre, y eso apoya el diagnostico",
+     "detalle": "/^[ \\t]*\\[\\^([^\\]\\s]+)\\]:/gm lleva la MISMA clase ambigua pero esta anclada con ^ y bandera m: solo hay tantos arranques como lineas. En un .md de una sola linea gigante hay 1 arranque = O(n). Lo que mata a la :326 no es la clase sola: es la clase ambigua SIN ancla. Ese contraste dentro del mismo archivo es la mejor prueba de que la causa raiz esta bien identificada."
+    },
+    {
+     "via": "7. Que el arreglo propuesto por el cazador no sirva",
+     "resultado": "El arreglo SI sirve, y ademas se puede demostrar",
+     "detalle": "Con [^\\[\\]\\s]+ el grupo no puede atravesar un '[', que es el unico caracter que inicia un arranque. Por tanto el trabajo de un arranque en la posicion i esta acotado por la distancia hasta el siguiente '['. La suma de esas distancias sobre todos los arranques es <= n. Coste total O(n). Demostrado, no intuido."
+    },
+    {
+     "via": "8. Hallazgo ADICIONAL: la variante de :365 tambien es cuadratica y el cazador no la cuantifico",
+     "resultado": "Confirmada por analisis propio",
+     "detalle": "/\\$(?![\\s$])((?:[^$\\n\\\\]|\\\\.)+?)(?<![\\s\\\\])\\$/g con la entrada '$' + '\\$' x N: en cada '$' (posiciones pares) el grupo perezoso crece de dos en dos porque la alternativa \\\\. se traga la pareja barra-dolar, y el delimitador de cierre nunca aparece. Coste ~n^2/8 iteraciones, cada una de ~5 pasos primitivos. Esto importa para el ARREGLO: parchear solo la :326 deja la clase entera abierta. El arreglo (b) del cazador -- tope de documento -- es el unico que cierra la familia."
+    }
+   ],
+   "numeros": {
+    "modelo": "pasos ~= n^2/2, con n = bytes del .md (entrada: '[^' repetida n/2 veces, sin salto de linea)",
+    "por_tamano": [
+     {
+      "n_bytes": 1000,
+      "pasos": 500000.0,
+      "tiempo_estimado": "~1 ms. Invisible."
+     },
+     {
+      "n_bytes": 10000,
+      "pasos": 50000000.0,
+      "tiempo_estimado": "~50-150 ms. Se nota el tiron al abrir."
+     },
+     {
+      "n_bytes": 100000,
+      "pasos": 5000000000.0,
+      "tiempo_estimado": "~5-15 s de ventana congelada."
+     },
+     {
+      "n_bytes": 1000000,
+      "pasos": 500000000000.0,
+      "tiempo_estimado": "~8-25 min. Indistinguible de un cuelgue."
+     },
+     {
+      "n_bytes": 67108864,
+      "pasos": 2250000000000000.0,
+      "tiempo_estimado": "semanas. Es el maximo que TOPE_DOCUMENTO (64 MB) deja pasar."
+     }
+    ],
+    "variante_formula_en_linea_linea_365": {
+     "modelo": "iteraciones ~= n^2/8, ~5 pasos primitivos por iteracion",
+     "por_tamano": [
+      {
+       "n_bytes": 1000,
+       "iteraciones": 125000.0
+      },
+      {
+       "n_bytes": 10000,
+       "iteraciones": 12500000.0
+      },
+      {
+       "n_bytes": 100000,
+       "iteraciones": 1250000000.0
+      },
+      {
+       "n_bytes": 1000000,
+       "iteraciones": 125000000000.0,
+       "pasos": 620000000000.0
+      }
+     ]
+    },
+    "umbral_practico": "A partir de ~100 KB de basura el editor deja de responder de forma visible; a partir de ~500 KB no vuelve en toda la sesion."
+   },
+   "impacto_que_sobrevive": "El hilo del webview queda bloqueado dentro de EditorState.create. Verificado en el repositorio, no supuesto: (a) la ventana va sin decoraciones de Windows, asi que los botones de cerrar son HTML y mueren con el hilo -- y esto YA quedo demostrado por ejecucion en esta misma auditoria por la via del enlace javascript: en celda de tabla; (b) no hay autoguardado en src/; (c) el tope de pestanas es de 30 y cada una guarda su documento entero, asi que matar el proceso desde el Administrador de tareas tira lo no guardado de todas; (d) onCloseRequested, que es quien preguntaria, ya no corre; (e) P.ultimoArchivo se escribe en main.ts:369, DESPUES del punto donde se cuelga, asi que al menos reabrir no repite el cuelgue.",
+   "arreglo_minimo": {
+    "a_quitar_la_ambiguedad_de_las_dos_regex": "src/livepreview.ts:326  ->  for (const m of texto.matchAll(/\\[\\^([^\\[\\]\\s]+)\\](?!:)/g))   // se anade '[' a la clase negada\nsrc/livepreview.ts:315  ->  for (const m of texto.matchAll(/^[ \\t]*\\[\\^([^\\[\\]\\s]+)\\]:/gm))   // por coherencia; esta ya estaba a salvo por el ancla\nsrc/livepreview.ts:365  ->  la alternativa de escape no debe poder cubrir el delimitador. Si se acepta perder el escape '\\$' dentro de una formula:  /\\$(?![\\s$])((?:[^$\\n\\\\]|\\\\[^$\\n])+?)(?<![\\s\\\\])\\$/g . Si NO se quiere perderlo, no hay parche de regex bueno: hay que buscar las formulas linea por linea (el grupo ya excluye \\n, asi que el cambio es semanticamente neutro) y saltarse las lineas de mas de ~10 000 caracteres.",
+    "b_el_que_de_verdad_cierra_la_clase": "Al principio de construir(), src/livepreview.ts:110:\n\n  const TOPE_VISTA = 2 * 1024 * 1024   // bytes\n  if (doc.length > TOPE_VISTA) return Decoration.none\n\nCon eso, cualquier regex mal parida que aparezca en el futuro degrada a 'vista enriquecida apagada por tamano' -- que conviene decir en la barra de estado -- en vez de colgar el programa. El arreglo (a) sin el (b) es jugar al topo.",
+    "regresion": "Un .md de 1 MB formado por '[^' repetido debe abrirse en menos de un segundo, con el panel de presentacion sin decorar o decorado pero sin congelacion."
+   },
+   "fingerprint_sugerido": "livepreview-construir-sin-presupuesto/regex-nota-al-pie"
+  },
+  {
+   "id": "U-10/regex-cerca-mermaid",
+   "titulo_del_cazador": "Retroceso cuadratico en la regex de bloque cercado (livepreview.ts:188)",
+   "veredicto": "confirmado",
+   "severidad_final": "alta",
+   "severidad_del_cazador": "alta",
+   "cambio_de_severidad": "ninguno, pero estuvo en media hasta que se resolvieron los intentos 3 y 5",
+   "intentos_de_refutacion": [
+    {
+     "via": "1. Que el ^ sin bandera m limite los arranques a uno y por tanto no sea cuadratico",
+     "resultado": "REFUTACION FALLIDA. Es cuadratico por otra via, y el mecanismo del cazador es correcto",
+     "detalle": "Cierto que hay UN solo arranque (sin bandera m, ^ solo casa en la posicion 0). El coste no viene de los arranques sino del par perezoso/codicioso. Traza del automata sobre el nodo '```\\n' + '~' x R + '\\n```': ([`~]{3,}) casa exactamente 3 (no hay margen de retroceso, lo siguiente es \\n); [ \\t]* y ([\\w-]*) casan vacio; \\n casa. Entonces, para cada expansion k = 0..R del grupo perezoso ([\\s\\S]*?): \\n? casa vacio, [`~]{3,} CODICIOSO se traga las R-k virgulillas que quedan, choca con $ -- que sin bandera m solo casa el final absoluto de la cadena, y detras quedan '\\n```' -- y retrocede de una en una hasta su minimo de 3, probando [ \\t]* y $ en cada paso. Coste de la expansion k ~= 3(R-k). Suma sobre k = 3R^2/2. La coincidencia acaba llegando en k = R (ahi \\n? si casa el salto y [`~]{3,} casa '```'), m[2] sale vacio, no es 'mermaid' y no se dibuja nada: el coste se pago para no hacer nada."
+    },
+    {
+     "via": "2. Que el nodo FencedCode no abarque las tres lineas",
+     "resultado": "REFUTACION FALLIDA. Verificado en el parser real",
+     "detalle": "node_modules/@lezer/markdown/dist/index.js:453-492, FencedCode: el bucle solo cierra cuando encuentra una linea con al menos 'len' repeticiones del MISMO caracter 'ch' de apertura. Una linea de virgulillas no cierra una cerca de acentos graves. El nodo abarca las tres lineas."
+    },
+    {
+     "via": "3. Que el arbol de sintaxis NO este listo al abrir, y por tanto no se cuelgue al abrir (este era el intento fuerte)",
+     "resultado": "REFUTACION FALLIDA, pero con matiz que se conserva",
+     "detalle": "@codemirror/language/dist/index.js:540-546, LanguageState.init: al crear el estado solo se analiza hasta min(3000, doc.length) con presupuesto de 20 ms, y el resto lo hace despues un ViewPlugin en tiempo ocioso. Eso abria la puerta a decir 'al abrir no pasa nada'. Pero @lezer/markdown consume la cerca ENTERA en un solo advance() (el bucle de :462-489 corre hasta el cierre), asi que si la cerca es el primer bloque del documento, tras ese primer advance parsedPos ya vale ~R y el nodo FencedCode ESTA en el arbol que ve construir(). Poner la cerca arriba del archivo le sale gratis al atacante. MATIZ CONSERVADO: si la cerca queda mas abajo del tramo analizado, el coste no se paga al abrir sino en la primera tecla o el primer movimiento de cursor, porque livepreview.ts:384 reconstruye con tr.docChanged || tr.selection. Segundos de diferencia, mismo resultado."
+    },
+    {
+     "via": "4. Que el guardia de tocado o de estaTapado evite ejecutar la regex",
+     "resultado": "REFUTACION FALLIDA",
+     "detalle": "En livepreview.ts:186-189 el slice (:187) y el match (:188) corren ANTES de evaluar m && ... && !tocado(...). El estaTapado de :222 esta despues del bloque de FencedCode. La regex es incondicional."
+    },
+    {
+     "via": "5. Que el bucle perezoso desborde la pila de retroceso de V8 y lance RangeError en vez de colgarse (seria robustez, no DoS)",
+     "resultado": "REFUTACION FALLIDA",
+     "detalle": "Dos razones independientes. (a) El trabajo pesado esta en el bucle CODICIOSO [`~]{3,}, que usa la optimizacion de greedy loop: una sola entrada de pila, retroceso por aritmetica de posicion. (b) Aunque el bucle perezoso empujara un marco por iteracion, serian R = 300 000 marcos de unas pocas palabras (~5-10 MB), por debajo del maximo de la pila de regex de V8. No hay corte. Y en el peor caso en que lo hubiera, el desbordamiento ocurriria despues de gastar ya miles de millones de pasos: congelacion larga mas dialogo 'No se pudo abrir el archivo' con la pestana ya creada. Sigue siendo malo."
+    },
+    {
+     "via": "6. Que haga falta un archivo enorme (proporcionalidad)",
+     "resultado": "REFUTACION FALLIDA, y aqui esta lo peor del candidato",
+     "detalle": "No hace falta colgarlo del todo para inutilizarlo. Con R = 30 000 virgulillas -- 30 KB, un archivo que nadie mira dos veces -- son 1.35x10^9 pasos, o sea 1.5-4 s POR TECLA Y POR MOVIMIENTO DE CURSOR, para siempre, porque livepreview.ts:384 lo repaga en cada transaccion con docChanged o selection. Esa es la version peligrosa: el usuario cree que el archivo esta bien y va perdiendo el trabajo a mordiscos. Por byte de entrada este candidato es incluso PEOR que el de la nota al pie (constante 1.5 frente a 0.5)."
+    }
+   ],
+   "numeros": {
+    "modelo": "pasos ~= 3*R^2/2, con R = numero de virgulillas dentro de la cerca (el .md pesa R + ~10 bytes)",
+    "por_tamano": [
+     {
+      "R": 1000,
+      "pasos": 1500000.0,
+      "tiempo_estimado": "~2-5 ms por reconstruccion. Invisible."
+     },
+     {
+      "R": 10000,
+      "pasos": 150000000.0,
+      "tiempo_estimado": "~0.15-0.5 s por tecla. Molesto."
+     },
+     {
+      "R": 30000,
+      "pasos": 1350000000.0,
+      "tiempo_estimado": "~1.5-4 s por tecla y por flecha del cursor. Inutilizable pero no parece roto."
+     },
+     {
+      "R": 100000,
+      "pasos": 15000000000.0,
+      "tiempo_estimado": "~15-45 s al abrir y otra vez por cada tecla."
+     },
+     {
+      "R": 300000,
+      "pasos": 135000000000.0,
+      "tiempo_estimado": "~2-7 min. Cuelgue a efectos practicos."
+     }
+    ],
+    "diferencia_con_el_candidato_1": "Mismo impacto terminal, pero el 1 se paga UNA vez dentro de EditorState.create y este se paga OTRA VEZ en cada transaccion. Y por byte es 3x mas caro."
+   },
+   "arreglo_minimo": {
+    "idea": "Para saber si la cerca es mermaid basta la PRIMERA linea. No hay ningun motivo para pasar una regex con retroceso sobre 300 KB.",
+    "codigo": "Sustituir src/livepreview.ts:186-197 por:\n\n  if (nombre === 'FencedCode') {\n    const cabecera = doc.lineAt(nodo.from)\n    const mc = cabecera.text.match(/^[ \\t]*[`~]{3,}[ \\t]*([\\w-]*)/)\n    if (mc && mc[1].toLowerCase() === 'mermaid' && !tocado(nodo.from, nodo.to)) {\n      const ultima = doc.lineAt(nodo.to)\n      const cierra = /^[ \\t]*[`~]{3,}[ \\t]*$/.test(ultima.text)\n      const iniCuerpo = Math.min(cabecera.to + 1, nodo.to)\n      const finCuerpo = cierra ? Math.max(iniCuerpo, ultima.from - 1) : nodo.to\n      const cuerpo = doc.sliceString(iniCuerpo, finCuerpo)\n      marcas.push(Decoration.replace({\n        widget: new WidgetMermaid(cuerpo, nodo.from, esOscuro()),\n        block: true,\n      }).range(cabecera.from, ultima.to))\n      tapados.push([nodo.from, nodo.to])\n      return false\n    }\n  }\n\nLa regex de cabecera es lineal y no puede retroceder: [`~]{3,} es codicioso pero detras solo quedan cuantificadores que aceptan vacio, asi que nunca se le pide devolver nada.",
+    "red_de_seguridad": "El mismo tope de documento del candidato 1 lo tapa tambien.",
+    "regresion": "Un .md cuyo unico contenido sea una cerca con 300 000 virgulillas dentro debe abrirse y aceptar teclas sin retraso perceptible, y un bloque mermaid legitimo debe seguir dibujandose con su cuerpo completo."
+   },
+   "fingerprint_sugerido": "livepreview-construir-sin-presupuesto/regex-cerca-mermaid"
+  },
+  {
+   "id": "U-10/busquedas-lineales-en-bucle",
+   "titulo_del_cazador": "Coste cuadratico de enCodigo, estaTapado y tocado",
+   "veredicto": "es_robustez_no_seguridad",
+   "severidad_final": "baja",
+   "severidad_del_cazador": "media",
+   "cambio_de_severidad": "BAJADA. Y una de las tres funciones acusadas queda refutada.",
+   "intentos_de_refutacion": [
+    {
+     "via": "1. tocado() no es cuadratico",
+     "resultado": "REFUTACION CONSEGUIDA. El cazador se equivoca en esta",
+     "detalle": "tocado (livepreview.ts:123-128) recorre las LINEAS del tramo, no una lista que crece. Su coste por llamada es el numero de lineas que abarca el nodo, y solo se llama sobre Table (:175), FencedCode ya filtrado por mermaid (:189), Image (:202) y TaskMarker (:213). La suma sobre todos esos nodos esta acotada por el numero total de lineas del documento por una constante pequena, porque esos nodos no se anidan entre si. Es LINEAL. El conjunto activas (:116-119) tampoco crece con el documento sino con la seleccion, y en el peor caso (Ctrl+A) hace que tocado devuelva true en la primera vuelta. Ademas la correccion que el cazador propone para tocado -- comparar contra el minimo y el maximo de linea de la seleccion -- seria INCORRECTA con seleccion multiple, que este editor habilita expresamente (editor.ts:84, EditorState.allowMultipleSelections). No tocar tocado."
+    },
+    {
+     "via": "2. Que enCodigo() y estaTapado() tampoco lo sean",
+     "resultado": "REFUTACION FALLIDA. Confirmadas como hecho, con una correccion al alza",
+     "detalle": "enCodigo (:290) es codigo.some(...). La lista codigo se llena ENTERA durante el recorrido del arbol (:168-170), que termina en :283, antes de que empiece cualquier bucle de formulas (:292 en adelante). Por tanto no es N^2/2 como dice el cazador: cada una de las M coincidencias paga el recorrido COMPLETO de las N entradas cuando no esta en codigo -- que es el caso normal --, o sea N*M exacto. estaTapado (:144) si crece durante el recorrido, asi que ahi el N^2/2 del cazador es correcto."
+    },
+    {
+     "via": "3. Que el dano sea desproporcionado respecto al tamano de la entrada (la prueba estricta que pidio el padre)",
+     "resultado": "REFUTACION CONSEGUIDA en lo esencial",
+     "detalle": "Comparado con los candidatos 1 y 2, la constante por byte es unas 1000 veces menor. Para que muerda hacen falta ~10^5 elementos, o sea cientos de kilobytes bien empaquetados; y el resultado TERMINA, no cuelga: la interfaz responde entre pulsaciones, los botones de ventana siguen vivos, se puede cerrar la pestana y el programa. No hay perdida de datos ni salto de frontera. Un .md de 500 lineas -- el tamano real de trabajo de este programa -- paga menos de un milisegundo. Y sobre todo: un tercero no obtiene aqui nada que un documento legitimo del mismo tamano no le haga ya al propio autor. Eso es la definicion de defecto de robustez, no de vulnerabilidad."
+    },
+    {
+     "via": "4. Steelman: empaquetado adversarial en 1 MB",
+     "resultado": "Parcialmente cierto, y por eso no se descarta del todo",
+     "detalle": "Con ~500 KB de imagenes en una linea (tapados ~71 000) seguidos de ~500 KB de texto con marcas, las llamadas a estaTapado de :222 suman ~3.5x10^10 -- del orden de 35-140 s. Es malo. Pero a ese mismo megabyte el candidato 1 le saca 5x10^11, y el tope de documento que ya exige el candidato 1 cubre este caso tambien. No justifica un hallazgo separado."
+    },
+    {
+     "via": "5. Que el arreglo propuesto por el cazador sea correcto",
+     "resultado": "NO lo es del todo. Defecto real en el arreglo",
+     "detalle": "El cazador afirma que 'las tres listas ya vienen ordenadas por construccion' y propone busqueda binaria. Falso para tapados: las entradas del recorrido del arbol (:181, :194, :206) van en orden de documento, pero el bucle de $$ de :292-301 vuelve a empezar desde la posicion 0 y APILA mas entradas en :300. tapados queda como dos tramos ordenados concatenados, no ordenado. Una busqueda binaria encima daria falsos negativos silenciosos: un nodo dentro de un bloque $$ dejaria de considerarse tapado y se decoraria por dentro. Hay que ordenar tapados antes de la fase de regex, o mantener dos listas. Ademas la heuristica 'ultimo tramo cuyo inicio sea <= p' solo vale si los tramos son disjuntos: cierto hoy para codigo, conviene dejarlo escrito."
+    }
+   ],
+   "numeros": {
+    "modelo_enCodigo": "iteraciones = N * M, con N = nodos InlineCode/FencedCode/CodeBlock y M = coincidencias de formula, nota al pie o resaltado que no caen en codigo",
+    "modelo_estaTapado": "iteraciones ~= T^2/2, con T = imagenes + tablas + mermaid + bloques $$",
+    "por_tamano": [
+     {
+      "caso": ".md de 500 lineas, una marca de codigo y una formula por linea (~5 KB)",
+      "iteraciones": 250000.0,
+      "tiempo_estimado": "<1 ms. Imperceptible. Este es el tamano real de trabajo."
+     },
+     {
+      "caso": ".md de 5 000 lineas, igual (~45 KB)",
+      "iteraciones": 25000000.0,
+      "tiempo_estimado": "~30-80 ms por tecla. Se nota, se aguanta."
+     },
+     {
+      "caso": ".md de 50 000 lineas, igual (~450 KB)",
+      "iteraciones": 2500000000.0,
+      "tiempo_estimado": "~4-10 s por tecla y por movimiento de cursor. Inservible."
+     },
+     {
+      "caso": ".md de 100 000 parrafos '![](a.png)' (~1.2 MB), estaTapado",
+      "iteraciones": 5000000000.0,
+      "tiempo_estimado": "~8-20 s por reconstruccion."
+     },
+     {
+      "caso": "1 MB empaquetado a proposito (imagenes mas marcas)",
+      "iteraciones": 35000000000.0,
+      "tiempo_estimado": "~35-140 s. Sigue 1-2 ordenes por debajo del candidato 1 al mismo tamano."
+     }
+    ],
+    "contraste_decisivo": "Candidato 1 con 1 MB: 5x10^11 y no termina. Candidato 3 con 1 MB empaquetado a proposito: 3.5x10^10 y termina. Con un .md normal de 500 lineas, el candidato 3 cuesta menos de un milisegundo."
+   },
+   "arreglo_minimo": {
+    "prioridad": "Arreglarlo por higiene, no por seguridad. Va en la misma pasada que el candidato 1, no en una urgente.",
+    "codigo": "En src/livepreview.ts, antes de la fase de regex (justo antes de la :289):\n\n  tapados.sort((a, b) => a[0] - b[0])   // OBLIGATORIO: el bucle de $$ rompe el orden\n\n  const ultimoQueEmpiezaAntes = (lista: Array<[number, number]>, p: number) => {\n    let lo = 0, hi = lista.length - 1, r = -1\n    while (lo <= hi) {\n      const md = (lo + hi) >> 1\n      if (lista[md][0] <= p) { r = md; lo = md + 1 } else hi = md - 1\n    }\n    return r\n  }\n\nY sustituir:\n  :290  const enCodigo = (p: number) => { const i = ultimoQueEmpiezaAntes(codigo, p); return i >= 0 && p < codigo[i][1] }\n  :144  estaTapado por la version binaria equivalente, pero SOLO despues del sort y solo si se garantiza que los tramos son disjuntos. Mientras estaTapado se use DENTRO del recorrido del arbol (:222) la lista aun esta creciendo, asi que ahi conviene dejar el some lineal o llevar el ultimo tramo aparte.\n\nNO tocar tocado(): no es el problema y el cambio propuesto por el cazador rompe la seleccion multiple.",
+    "regresion": "Un documento con frontmatter, una tabla, un bloque $$ y una imagen debe decorarse exactamente igual antes y despues del cambio; en particular, un enfasis dentro de un bloque $$ debe seguir sin decorarse."
+   },
+   "fingerprint_sugerido": "livepreview-construir-sin-presupuesto/busquedas-lineales (subsumible en el fingerprint del candidato 1 si el padre prefiere una sola causa raiz)"
+  },
+  {
+   "id": "U-05/cache-de-imagenes-sin-tope",
+   "titulo_del_cazador": "cacheImagenes sin tope ni normalizacion: un .md de kilobytes retiene gigabytes",
+   "veredicto": "confirmado",
+   "severidad_final": "media",
+   "severidad_del_cazador": "media",
+   "cambio_de_severidad": "ninguno, pero la CIFRA titular del cazador esta mal argumentada y se corrige",
+   "intentos_de_refutacion": [
+    {
+     "via": "1. LA PRUEBA DE ASIMETRIA QUE PIDIO EL PADRE: si hay que entregar 1.2 GB de imagenes, no es hallazgo",
+     "resultado": "La refutacion ACIERTA contra el ejemplo del cazador y FALLA contra la raiz",
+     "detalle": "El ejemplo del cazador -- foto.png de 24 MB en el mismo zip, 50 escrituras, 1.6 GB retenidos -- tiene una amplificacion de solo 66x sobre lo entregado. Titular el hallazgo como 'un .md de un kilobyte retiene gigabytes' es enganoso, porque ese kilobyte va acompanado de 24 MB. Pero la asimetria SI existe por otra rama, que el cazador menciona en la entrada y luego no usa al calcular el impacto: la rama de ruta absoluta de src/widgets.ts:179 devuelve la cadena TAL CUAL, asi que el .md puede apuntar a un archivo que YA ESTA en el disco de la victima. Con un fondo de pantalla de Windows (extension .jpg, aceptada por tipo_por_extension en lib.rs:204-216, y muy por debajo del TOPE_IMAGEN de 25 MB) y 500 escrituras distintas de la misma ruta, el atacante entrega ~25 KB de markdown y no adjunta NADA. Ahi la amplificacion es de cuatro a cinco ordenes de magnitud. La refutacion falla."
+    },
+    {
+     "via": "2. Que la falta de normalizacion no produzca claves distintas de verdad",
+     "resultado": "REFUTACION FALLIDA",
+     "detalle": "rutaAbsoluta (widgets.ts:177-184): la rama absoluta (:179) devuelve fuente sin tocar; la rama relativa (:182-183) concatena base + separador + decodeURI(fuente) con las barras cambiadas, sin normalizar. cacheImagenes.get(abs) (:188) usa esa cadena como clave. Formas equivalentes para Windows pero distintas como clave de Map: './x.png', './/x.png', 'y/../x.png', './/./x.png', 'C:/W/./eb/...', y cualquier cambio de mayusculas (Windows no distingue mayusculas en rutas; el Map si). Generar 500 variantes es trivial. Cada una dispara su propio invoke('leer_imagen') (:190) y su propia lectura completa mas codificacion base64 del lado de Rust (lib.rs:245-246)."
+    },
+    {
+     "via": "3. Que la cache si se vacie en algun sitio",
+     "resultado": "REFUTACION FALLIDA. Verificado por barrido",
+     "detalle": "cacheImagenes aparece exactamente tres veces en todo src/: la declaracion (widgets.ts:145), el get (:188) y el set (:191). No hay ningun delete ni clear, ni al abrir otro archivo, ni al cambiar de pestana, ni al cerrarla, ni dentro de olvidarPermisosSueltos(). Retiene mientras viva el proceso."
+    },
+    {
+     "via": "4. Que CodeMirror no dibuje todos los widgets de una linea larga (el hueco de linea los tapa)",
+     "resultado": "REFUTACION FALLIDA. Y esta era la buena",
+     "detalle": "@codemirror/view tiene ensureLineGaps (dist/index.js:6505+), que sustituye tramos de lineas muy largas por un hueco y evitaria construir los widgets escondidos. No salva: checkLine (:6542-6547) exige line.length >= doubleMargin Y structure.total >= doubleMargin, donde structure sale de lineStructure(line.from, line.to, this.stateDeco) -- que DESCUENTA los tramos cubiertos por decoraciones de reemplazo. Como cada '![](...)' esta integramente cubierto por un Decoration.replace con widget, structure.total es practicamente cero y checkLine se sale antes de crear ningun hueco. Ademas getViewport (:6447+) alinea el viewport a limites de bloque de linea, asi que una linea que asome se dibuja entera. Conclusion: los widgets de la primera linea se construyen todos, y toDOM llama a cargarImagen en todos."
+    },
+    {
+     "via": "5. Que el tope de 25 MB por imagen acote el total",
+     "resultado": "REFUTACION FALLIDA",
+     "detalle": "TOPE_IMAGEN (lib.rs:202) es POR LLAMADA. No hay tope de numero de llamadas, ni de bytes acumulados, ni del lado de Rust ni del de JS. El cazador lo dice bien."
+    },
+    {
+     "via": "6. Que sea la misma causa raiz que el hallazgo de la UNC (U-04) y no un hallazgo aparte",
+     "resultado": "Parcialmente. Se deja anotado para que el padre decida",
+     "detalle": "Comparten la falta de normalizacion. Pero son dos defectos separables: aun confinando las rutas a la carpeta del documento (el arreglo de U-04), un .md con 500 escrituras distintas de una imagen adjunta de 24 MB seguiria reteniendo 16 GB, porque la cache no tiene tope ni se vacia nunca. Al reves tambien: poner tope a la cache no arregla la UNC. Dos fingerprints."
+    }
+   ],
+   "numeros": {
+    "modelo": "memoria retenida = (numero de claves distintas) x 1.334 x (tamano del archivo) + ~30 B de cabecera data:, para siempre. Mas una lectura completa y una codificacion base64 por clave, casi simultaneas.",
+    "rutas_de_entrega": [
+     {
+      "ruta": "A. El atacante adjunta la imagen (el ejemplo del cazador)",
+      "entregado": "24 MB de imagen mas ~1.2 KB de .md",
+      "retenido": "50 x 32 MB = 1.6 GB",
+      "amplificacion": "66x",
+      "juicio": "Poca asimetria. Por si sola no seria hallazgo."
+     },
+     {
+      "ruta": "A-prima. Igual pero con 500 escrituras",
+      "entregado": "24 MB mas ~12 KB",
+      "retenido": "500 x 32 MB = 16 GB",
+      "amplificacion": "666x",
+      "juicio": "Ya mata el proceso, pero el atacante sigue pagando 24 MB."
+     },
+     {
+      "ruta": "B. Sin adjuntar nada: rama de ruta absoluta (widgets.ts:179) contra un archivo que ya esta en el disco, p. ej. un fondo de pantalla .jpg de ~2.4 MB",
+      "entregado": "~25 KB de .md y nada mas",
+      "retenido": "500 x ~3.2 MB = ~1.6 GB",
+      "amplificacion": "~65 000x",
+      "juicio": "ESTA es la que hace que el candidato sobreviva. Depende de que exista un archivo grande de extension aceptada en una ruta previsible."
+     },
+     {
+      "ruta": "C. Rama UNC (depende del hallazgo U-04): archivo de 25 MB en el servidor del atacante",
+      "entregado": "~5 KB de .md",
+      "retenido": "100 x ~33 MB = ~3.3 GB, mas ~2.5 GB bajados por SMB",
+      "amplificacion": "~600 000x",
+      "juicio": "La mas fuerte, pero acoplada al hallazgo de la UNC y a que haya red."
+     }
+    ],
+    "lo_que_no_se_midio": "En que punto exacto muere el proceso de WebView2. No se ejecuto nada. Lo que SI esta demostrado por codigo es que la retencion no tiene tope, que las claves duplicadas son triviales de generar y que los widgets de una linea se construyen todos."
+   },
+   "impacto_que_sobrevive": "Muerte del proceso por falta de memoria, o arrastre de la maquina al intercambio. Mismo desenlace que los candidatos 1 y 2 en cuanto a datos: no hay autoguardado en src/ y el tope de pestanas es 30, asi que se va lo no guardado de todas. No hay escritura, ni ejecucion, ni filtracion. Se queda en media y no sube a alta porque el desenlace exacto no se observo y porque la ruta sin adjunto depende de que la victima tenga un archivo grande en una ruta adivinable.",
+   "nota_adyacente_no_es_este_hallazgo": "Al analizar esta ruta aparecio otra asimetria mayor que NO es la de este candidato y que no se persiguio por estar fuera del encargo: leer_imagen no mira las dimensiones, solo los bytes. Un PNG de ~100 KB puede declarar 20000x20000 y descomprimir a ~1.6 GB de mapa de bits en el webview al asignarlo a img.src (widgets.ts:245). Eso si es kilobytes a gigabytes sin trampa. Se anota para que el padre decida si abre unidad.",
+   "arreglo_minimo": {
+    "codigo": "En src/widgets.ts, junto a la declaracion de :145:\n\n  const TOPE_ENTRADAS = 32\n  const TOPE_BYTES = 128 * 1024 * 1024\n  let bytesEnCache = 0\n  // Guardar {promesa, bytes} en vez de la promesa suelta, para poder restar al desalojar.\n\n  /** Misma imagen = misma clave. Solo para la CLAVE; que ruta se puede leer es cosa de U-04. */\n  function claveDe(p: string) {\n    const partes: string[] = []\n    for (const t of p.replace(/\\//g, '\\\\').split('\\\\')) {\n      if (t === '' || t === '.') continue\n      if (t === '..') { partes.pop(); continue }\n      partes.push(t)\n    }\n    return (p.startsWith('\\\\\\\\') ? '\\\\\\\\' : '') + partes.join('\\\\').toLowerCase()\n  }\n\n  export function olvidarImagenes() { cacheImagenes.clear(); bytesEnCache = 0 }\n\nY en cargarImagen (:186-195):\n\n  const clave = claveDe(abs)\n  let e = cacheImagenes.get(clave)\n  if (!e) {\n    while (cacheImagenes.size >= TOPE_ENTRADAS || bytesEnCache >= TOPE_BYTES) {\n      const viejo = cacheImagenes.keys().next()   // Map conserva orden de insercion\n      if (viejo.done) break\n      bytesEnCache -= cacheImagenes.get(viejo.value)!.bytes\n      cacheImagenes.delete(viejo.value)\n    }\n    e = { promesa: invoke<string>('leer_imagen', { ruta: abs }), bytes: 0 }\n    e.promesa.then((d) => { e!.bytes = d.length; bytesEnCache += d.length }).catch(() => {})\n    cacheImagenes.set(clave, e)\n  }\n  return e.promesa\n\nY llamar a olvidarImagenes() exactamente donde ya se llama a olvidarPermisosSueltos(): src/main.ts:364 y las dos recargas por cambio externo; ademas dentro de activar() (main.ts:101-113) y al cerrar pestana.",
+    "regresion": "Un .md con 500 escrituras distintas de la misma imagen debe producir UNA sola llamada a leer_imagen y una sola entrada de cache. Un .md con 100 imagenes distintas de 5 MB no debe retener mas de TOPE_BYTES."
+   },
+   "fingerprint_sugerido": "widgets-cache-imagenes-sin-tope-ni-normalizacion"
+  }
+ ],
+ "resumen_del_validador": [
+  "1. Nota al pie (livepreview.ts:326): CONFIRMADO, alta. Cuadratico de verdad: Irregexp no memoiza, el filtro de primer caracter solo divide entre dos y la optimizacion de greedy loop abarata la constante, no el exponente. 1 MB = 5x10^11 pasos. Verificada la cadena sincrona abrirRuta -> par.cargar -> EditorState.create -> construir, y que el modo de vista no la evita. Se anade que la regex de formula en linea (:365) es una segunda instancia de la misma clase, con lo que el unico arreglo que cierra la familia es el tope de documento.",
+  "2. Cerca mermaid (livepreview.ts:188): CONFIRMADO, alta. El intento fuerte de refutacion -- que el arbol de sintaxis no esta listo al abrir -- se cayo al ver que @lezer/markdown consume la cerca entera en un solo advance. Por byte es 3 veces peor que el candidato 1 y ademas se repaga en cada tecla: con 30 KB de virgulillas ya son segundos por pulsacion.",
+  "3. enCodigo / estaTapado / tocado: ES ROBUSTEZ, NO SEGURIDAD, baja. tocado queda REFUTADO (es lineal, y el arreglo que proponia el cazador rompe la seleccion multiple). Las otras dos si son cuadraticas, pero necesitan ~10^5 elementos, terminan, y no dan al tercero nada que un .md legitimo del mismo tamano no le haga ya al autor. Ademas el arreglo del cazador tiene un defecto real: tapados NO esta ordenado, porque el bucle de $$ apila despues.",
+  "4. cacheImagenes: CONFIRMADO, media, con la cifra corregida. El titular del cazador enganaba -- el kilobyte de markdown viene con 24 MB de imagen adjunta, o sea 66x de amplificacion, que no bastaria. Sobrevive por otra rama que el cazador menciono y no uso: la ruta absoluta apunta a un archivo que ya esta en el disco, asi que 25 KB de .md sin adjunto retienen ~1.6 GB. Se refuto con exito el argumento del hueco de linea de CodeMirror (no aplica: lineStructure descuenta los tramos reemplazados).",
+  "5. Denominador comun de 1, 2 y 3: construir() recorre el documento entero sin tope, sin presupuesto de tiempo y en el hilo de interfaz, y se reejecuta en cada tecla y cada movimiento de cursor. El unico tope existente es de 64 MB y esta en Rust. Un tope de documento en construir(), con degradacion visible en la barra de estado, convierte toda esta familia -- incluida la que aparezca el ano que viene -- en una vista apagada en vez de un cuelgue."
+ ]
+}

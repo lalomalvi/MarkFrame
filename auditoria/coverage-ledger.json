@@ -1,0 +1,253 @@
+[
+  {
+    "id": "U-01-tabla-innerhtml",
+    "archivo": "src/widgets.ts",
+    "lineas": "64-110",
+    "que_hace": "enriquecer() escapa a mano & < > \" (linea 66) y luego aplica cinco sustituciones de regex que VUELVEN a meter etiquetas: <code>, <strong>, <em>, <s> y <a href=\"$2\" rel=\"noreferrer\"> (linea 72). El resultado se asigna con innerHTML a cada celda (linea 98). Es el unico camino del proyecto donde texto de un .md ajeno se convierte en HTML escrito a mano. La deteccion del bloque y el texto crudo que se le pasa estan en src/livepreview.ts:174-184; el troceo por barras, en celdas() src/widgets.ts:33-53.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (texto de una tabla)",
+      "destino de enlace dentro de una celda",
+      "HTML embebido en el markdown"
+    ],
+    "clases_de_ataque": [
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "ATTACK-CLASSES.md#Injection",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Over-broad native bridge capabilities"
+    ],
+    "tambien": ["src/livepreview.ts:174-184", "src/widgets.ts:33-61"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-02-mermaid-innerhtml",
+    "archivo": "src/widgets.ts",
+    "lineas": "262-313",
+    "que_hace": "Carga Mermaid bajo demanda, lo inicializa con securityLevel 'strict' y tema segun claro/oscuro (lineas 294-299), le entrega el codigo crudo del bloque cercado y asigna el SVG devuelto con innerHTML (linea 303). El id del diagrama es un contador global (lineas 265, 300). La deteccion del bloque, con su regex de informacion de lenguaje, esta en src/livepreview.ts:186-197. Verificar que hace de verdad 'strict' en Mermaid 12.0.0 y en su DOMPurify 3.4.15 (package-lock.json:2530 y :2127) exige leer node_modules: no se dio por bueno.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (codigo Mermaid)",
+      "cadena de informacion del bloque cercado"
+    ],
+    "clases_de_ataque": [
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "ATTACK-CLASSES.md#Injection",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md"
+    ],
+    "tambien": ["src/livepreview.ts:186-197", "package-lock.json:2530"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-03-katex-render",
+    "archivo": "src/widgets.ts",
+    "lineas": "315-356",
+    "que_hace": "Carga KaTeX bajo demanda y renderiza la formula dentro del elemento con throwOnError: false y output: 'html', sin pasar la opcion trust -- o sea trust: false por omision (lineas 343-347). Las dos detecciones viven en src/livepreview.ts: bloque $$...$$ en 292-301 e inline $...$ en 365-372, ambas con matchAll sobre el documento completo. Hay que comprobar los valores por omision de trust y maxExpand en KaTeX 0.18.7 (package-lock.json:2224) y que macros recursivas no cuelguen el panel.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (formulas LaTeX)"
+    ],
+    "clases_de_ataque": [
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md",
+      "ATTACK-CLASSES.md#Injection"
+    ],
+    "tambien": ["src/livepreview.ts:292-301", "src/livepreview.ts:365-372"],
+    "prioridad": "media"
+  },
+  {
+    "id": "U-04-rutas-de-imagen-y-leer-imagen",
+    "archivo": "src/widgets.ts",
+    "lineas": "142-194",
+    "que_hace": "rutaAbsoluta() (177-183) arma la ruta de una imagen local por CONCATENACION DE CADENAS: base + '\\' + decodeURI(fuente) con las barras normales cambiadas por invertidas. La base es la carpeta del .md abierto, derivada con una regex en src/contexto.ts:10-12. No hay normalizacion ni comprobacion de que el resultado siga bajo la base -- y por doctrina del proyecto no debe haberla, pero el destino se lo come el comando nativo leer_imagen (src-tauri/src/lib.rs:139-162), que decide el tipo MIME POR LA EXTENSION (118-131, con image/svg+xml en la 125) y devuelve un data: en base64. El error de la linea 146 incluye la ruta completa a proposito. La cache de src/widgets.ts:145 no tiene tope: crece con cada ruta distinta vista en la sesion. decodeURI puede lanzar con una secuencia porcentual mal formada.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (destino de imagen)",
+      "nombres y rutas de archivo",
+      "imagenes locales (bytes y extension)",
+      "contenido SVG de disco"
+    ],
+    "clases_de_ataque": [
+      "ATTACK-CLASSES.md#Resource and file handling",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Over-broad native bridge capabilities",
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md"
+    ],
+    "tambien": ["src-tauri/src/lib.rs:114-162", "src/contexto.ts:1-14", "src/livepreview.ts:199-209"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-05-puerta-de-imagenes-remotas",
+    "archivo": "src/widgets.ts",
+    "lineas": "147-260",
+    "que_hace": "Unico control de red del programa. Bandera global remotasPermitidas (155-160) mas un conjunto de permisos sueltos por documento (156, 163-165, 224), que se vacian al abrir otro archivo o al recargarlo (src/main.ts:364, 585, 603). La decision de si algo es remoto es una sola regex: /^https?:/i (linea 167). rutaAbsoluta devuelve null para https, data y blob (linea 178), y cargarImagen entonces devuelve la cadena tal cual (186-187), que acaba en img.src (linea 245). Hay que revisar que pasa con esquemas y formas que no casen con ninguna de las dos regex, y si el permiso suelto se puede conceder sin intervencion del usuario.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (URL de imagen)",
+      "imagenes remotas",
+      "localStorage (la preferencia imagenesRemotas)"
+    ],
+    "clases_de_ataque": [
+      "CLIENT-SIDE.md#Client-side navigation confusion",
+      "ATTACK-CLASSES.md#Feature abuse and data leakage",
+      "CLIENT-SIDE.md#Browser-storage disclosure and stale authorization"
+    ],
+    "tambien": ["src/main.ts:186", "src/main.ts:364", "src/preferencias.ts:37-47"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-06-comandos-leer-y-escribir",
+    "archivo": "src-tauri/src/lib.rs",
+    "lineas": "32-112",
+    "que_hace": "Los dos comandos nativos con mas autoridad: leer (39-83) abre cualquier ruta, descarta BOM, exige UTF-8, detecta el fin de linea y devuelve la ruta canonizada quitando el prefijo \\\\?\\ (70-74); escribir (86-112) guarda por escritura atomica -- temporal '.<nombre>.markflow-tmp' en la MISMA carpeta del destino (98-101) y fs::rename encima (106). Sin restriccion de rutas por contrato (ESPEC.md 2, prueba en 356-364). Revisar: el nombre del temporal se arma con el nombre del archivo del usuario y es predecible; que ocurre si el destino es un enlace simbolico, una union de directorio o un dispositivo; si la carpeta es escribible por alguien de menor confianza; y si un fallo de rename despues de haber escrito el temporal deja residuos (el remove_file de la 107 es de mejor esfuerzo).",
+    "entradas_no_confiables": [
+      "nombres y rutas de archivo",
+      "contenido de archivos .md de terceros",
+      "cualquier script que corra en el webview (via invoke)",
+      "el sistema de archivos (enlaces, ACL, carreras)"
+    ],
+    "clases_de_ataque": [
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Local file ownership and TOCTOU",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Privileged helper as confused deputy",
+      "ATTACK-CLASSES.md#Resource and file handling"
+    ],
+    "tambien": ["src/archivo.ts:18-28", "src/main.ts:298-338"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-07-argumento-de-arranque-y-nombres",
+    "archivo": "src-tauri/src/lib.rs",
+    "lineas": "188-195",
+    "que_hace": "archivo_inicial() toma el primer argumento de linea de comandos que no empiece por '-' y exige que sea archivo existente; NO comprueba la extension. Es el camino de la asociacion .md declarada en src-tauri/tauri.conf.json:48-61, o sea el doble clic sobre un archivo de tercero. Se consume en src/main.ts:735-738, que ademas reabre P.ultimoArchivo desde localStorage si la preferencia esta encendida. El nombre y la ruta resultantes se pintan en la barra de pestanas (src/main.ts:56-99: title en la 62, textContent en la 72, aria-label en la 76) y en document.title (164); el nombre de destino al guardar se recorta con split de barras en la 306. Todo con createElement y textContent, sin HTML -- hay que confirmar que no queda ningun hueco.",
+    "entradas_no_confiables": [
+      "argumentos de linea de comandos",
+      "nombres y rutas de archivo",
+      "localStorage (ultimoArchivo)"
+    ],
+    "clases_de_ataque": [
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#File-open and intent authority confusion",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Custom-scheme and deep-link ambiguity",
+      "CLIENT-SIDE.md#DOM-based XSS"
+    ],
+    "tambien": ["src/main.ts:735-738", "src/main.ts:56-99", "src-tauri/tauri.conf.json:48-61"],
+    "prioridad": "media"
+  },
+  {
+    "id": "U-08-arrastrar-y-soltar",
+    "archivo": "src/main.ts",
+    "lineas": "714-725",
+    "que_hace": "onDragDropEvent del webview: con 'over' y 'leave' solo mueve el velo, y con 'drop' toma ev.payload.paths (linea 722) y las abre TODAS en bucle secuencial, una por pestana, sin tope propio ni filtro de extension. El limite de 30 pestanas se comprueba dentro de abrirRuta (src/main.ts:344) y tras el tope solo sale un aviso, pero el bucle sigue iterando. Cada ruta pasa por leer y por huella. Revisar que llega en paths cuando el arrastre viene de otra aplicacion, y el coste de soltar muchos archivos o uno enorme.",
+    "entradas_no_confiables": [
+      "contenido arrastrado y soltado (lista de rutas de otra aplicacion)",
+      "nombres y rutas de archivo",
+      "contenido de archivos .md de terceros"
+    ],
+    "clases_de_ataque": [
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#File-open and intent authority confusion",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md",
+      "ATTACK-CLASSES.md#Business logic"
+    ],
+    "tambien": ["src/main.ts:340-377", "src/pestanas.ts:41"],
+    "prioridad": "media"
+  },
+  {
+    "id": "U-09-preferencias-en-localstorage",
+    "archivo": "src/preferencias.ts",
+    "lineas": "101-158",
+    "que_hace": "leer() hace JSON.parse de la clave 'markflow.preferencias' y esparce el resultado sobre los valores de fabrica SIN validar tipos ni rangos (103-113); el try solo atrapa JSON mal formado. Ese objeto manda luego en cosas con consecuencia: imagenesRemotas abre la puerta de red (src/main.ts:186 -> U-05), ultimoArchivo se abre al arrancar (src/main.ts:737), modo se interpola en paneles.className (src/main.ts:393), y tema/paleta/profundidad/fuentes/tamano/ancho se vuelcan a atributos data-* y a variables CSS con setProperty (127-158, sustituciones en 138-142). Quien puede escribir ahi: cualquier script que llegue a ejecutarse en el webview (ver U-01..U-03) y cualquier proceso de la cuenta que toque el perfil de WebView2 en disco. El boton de fabrica (src/main.ts:534-541) conserva ultimoArchivo a proposito.",
+    "entradas_no_confiables": [
+      "localStorage",
+      "cualquier script que corra en el webview",
+      "otro proceso local de la misma cuenta (perfil de WebView2 en disco)"
+    ],
+    "clases_de_ataque": [
+      "CLIENT-SIDE.md#Browser-storage disclosure and stale authorization",
+      "CLIENT-SIDE.md#Prototype pollution and gadget chain",
+      "ATTACK-CLASSES.md#Business logic",
+      "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries"
+    ],
+    "tambien": ["src/main.ts:26", "src/main.ts:181-194", "src/main.ts:391-399", "src/main.ts:534-541"],
+    "prioridad": "media"
+  },
+  {
+    "id": "U-10-constructor-de-decoraciones",
+    "archivo": "src/livepreview.ts",
+    "lineas": "110-390",
+    "que_hace": "construir() recorre el DOCUMENTO ENTERO y se reejecuta en cada cambio de texto Y en cada movimiento de cursor (StateField, condicion en la 384). Dentro: cuatro pasadas matchAll sobre todo el texto con regex de retroceso -- $$...$$ (292), notas al pie (315, 326), ==resaltado== con anticipacion y retrospeccion (336), $...$ (365) -- mas RE_INVISIBLES (91-101) con la clase Unicode E0000-E007F; y tres busquedas lineales anidadas dentro de esos bucles: enCodigo() (290), estaTapado() (144-145) y tocado() (123-128), todas con .some() sobre arreglos que crecen con el documento. Ademas hay aritmetica de indices cruda que construye rangos de decoracion: avisos (243-244), notas al pie (320-322, 331-332), resaltado (342-343). Un rango fuera del documento o mal ordenado lanza y, al estar en el campo de estado, puede tumbar el panel entero o el arranque. Revisar coste cuadratico, retroceso catastrofico y los limites de esos indices con markdown adversario.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (documento completo)",
+      "HTML embebido en el markdown",
+      "caracteres invisibles y de control Unicode"
+    ],
+    "clases_de_ataque": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md",
+      "ATTACK-CLASSES.md#Business logic",
+      "ATTACK-CLASSES.md#Wildcard"
+    ],
+    "tambien": ["src/editor.ts:106-137", "src/resalte.ts:47-62"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-11-politica-del-webview-y-capacidades",
+    "archivo": "src-tauri/tauri.conf.json",
+    "lineas": "12-35",
+    "que_hace": "Las tres decisiones que amplifican cualquier ejecucion en el DOM: \"csp\": null (linea 27, sin Content-Security-Policy), \"withGlobalTauri\": true (linea 13, window.__TAURI__ expuesto a todo script de la pagina) y assetProtocol habilitado con \"scope\": [\"**\"] (28-33) junto a la caracteristica protocol-asset de src-tauri/Cargo.toml:21 -- alcance de todo el disco, aunque el codigo de imagenes no lo use. Las capacidades concedidas estan en src-tauri/capabilities/default.json:8-20: core:default, opener:default, dialog:default y ocho permisos de ventana. La expansion leida del artefacto GENERADO src-tauri/gen/schemas/acl-manifests.json (carpeta ignorada por git) da opener:default = allow-open-url + allow-reveal-item-in-dir + allow-default-urls, SIN allow-open-path, y dialog:default = message + save + open. El plugin opener se inicializa en src-tauri/src/lib.rs:201 pero el frontend NO lo llama nunca: concedido sin consumidor. Hay que fijar que puede hacer de verdad un script inyectado con esta superficie.",
+    "entradas_no_confiables": [
+      "cualquier script que corra en el webview (consecuencia de U-01, U-02, U-03)",
+      "contenido de archivos .md de terceros"
+    ],
+    "clases_de_ataque": [
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Over-broad native bridge capabilities",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Navigation-origin to bridge confusion",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Webview file and universal access",
+      "ATTACK-CLASSES.md#Obvious things"
+    ],
+    "tambien": ["src-tauri/capabilities/default.json:1-21", "src-tauri/Cargo.toml:20-27", "src-tauri/src/lib.rs:197-205"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-12-enlaces-y-navegacion-desde-la-vista",
+    "archivo": "src/widgets.ts",
+    "lineas": "19-27",
+    "que_hace": "alPicar() intercepta el mousedown de cada widget para devolver el cursor al texto tapado, pero se aparta si el clic cae en un input o en un ANCLA (linea 22): o sea, los enlaces de una celda de tabla (generados en src/widgets.ts:72 con href sin validar el esquema) reciben el clic. No hay ningun manejador de navegacion, ni de click sobre anclas, ni de window.open en todo src/ ni en index.html -- lo comprobado por grep. En el panel de presentacion la URL de un enlace markdown se OCULTA visualmente (src/livepreview.ts:273-280) pero el enlace sigue ahi, asi que lo que se lee no dice a donde va. Con la CSP nula de U-11, que ocurre al picar un href de esquema javascript:, data: o file: es el hecho decisivo y NO se puede establecer leyendo este repositorio: depende del manejador de navegacion de Tauri 2 y de WebView2.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (destino y rotulo de enlace)",
+      "HTML embebido en el markdown"
+    ],
+    "clases_de_ataque": [
+      "CLIENT-SIDE.md#Client-side navigation confusion",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Navigation-origin to bridge confusion",
+      "CLIENT-SIDE.md#Window and opener state disclosure"
+    ],
+    "tambien": ["src/widgets.ts:64-73", "src/livepreview.ts:273-280", "src-tauri/tauri.conf.json:26-34"],
+    "prioridad": "alta"
+  },
+  {
+    "id": "U-13-reconciliacion-con-el-disco",
+    "archivo": "src/main.ts",
+    "lineas": "557-622",
+    "que_hace": "revisarCambiosDeFuera() corre al recuperar el foco de la ventana (linea 622) y compara la huella de disco con la guardada: si es distinta y NO hay cambios locales, RECARGA SOLA sin preguntar (582-598) y coloca el cursor acotado al documento nuevo; si hay cambios locales, pregunta (600-609) y en ambas ramas acepta la huella nueva. La huella es solo mtime en milisegundos y tamano (src-tauri/src/lib.rs:176-186), asi que una edicion que conserve el tamano dentro del mismo milisegundo no se ve. El catch de la 614 se traga en silencio que el archivo se movio o se borro. Junto con guardar() (298-338, que refresca la huella tras escribir en la 317) y buscarPorRuta() (src/pestanas.ts:87-90, que normaliza a minusculas y a barra invertida), esta es la maquina de estados que protege la integridad del archivo del usuario -- el recurso que el proyecto declara mas importante.",
+    "entradas_no_confiables": [
+      "otro proceso local que edita el mismo archivo (agente, script)",
+      "contenido de archivos .md de terceros (recargado sin aviso)",
+      "el sistema de archivos (mtime, tamano, borrados, movimientos)",
+      "nombres y rutas de archivo"
+    ],
+    "clases_de_ataque": [
+      "ATTACK-CLASSES.md#Business logic",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Local file ownership and TOCTOU",
+      "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries"
+    ],
+    "tambien": ["src-tauri/src/lib.rs:164-186", "src/main.ts:298-338", "src/pestanas.ts:86-90"],
+    "prioridad": "media"
+  },
+  {
+    "id": "U-14-casilla-de-tarea-la-unica-escritura",
+    "archivo": "src/widgets.ts",
+    "lineas": "112-140",
+    "que_hace": "La UNICA interaccion del panel de presentacion que escribe en el documento: un mousedown sobre la casilla despacha un cambio de un caracter en el desplazamiento guardado (129-134). Ese desplazamiento lo fija el markdown del tercero: es nodo.from + 1 del TaskMarker, calculado en src/livepreview.ts:211-220 y congelado dentro del widget. Rompe la invariante general del proyecto -- 'la presentacion no escribe' -- y lo hace en un programa cuyo criterio explicito es que el guardado sea deliberado (se quito el autoguardado el 2026-09-16 justo por esto, ESPEC.md 3). Revisar si el desplazamiento puede quedar desfasado del documento vigente, si lo que se pinta como casilla corresponde a lo que se modifica, y si ignoreEvent(): false (137-139) abre alguna via de escritura no pretendida.",
+    "entradas_no_confiables": [
+      "contenido de archivos .md de terceros (posicion y forma del marcador de tarea)"
+    ],
+    "clases_de_ataque": [
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Pending-action and user-presence confusion",
+      "ATTACK-CLASSES.md#Business logic",
+      "ATTACK-CLASSES.md#Wildcard"
+    ],
+    "tambien": ["src/livepreview.ts:211-220", "src/editor.ts:106-115"],
+    "prioridad": "baja"
+  }
+]

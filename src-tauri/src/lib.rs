@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// Estilo de fin de linea del archivo tal como estaba en disco.
@@ -35,9 +36,30 @@ fn nombre_de(ruta: &Path) -> String {
         .unwrap_or_else(|| ruta.to_string_lossy().into_owned())
 }
 
+/// Tope para un `.md`.
+///
+/// `leer_imagen` ya tenia el suyo desde el principio; este falto por descuido, y
+/// la auditoria del 2026-09-16 lo senalo. Sin tope, el texto se copia tres veces
+/// completas en memoria y un archivo desmesurado no da un error: tumba el
+/// proceso entero, con lo no guardado de todas las pestanas dentro. 64 MB son
+/// unos 30 millones de caracteres: mas de lo que nadie edita a mano, y bastante
+/// menos de lo que duele.
+const TOPE_DOCUMENTO: u64 = 64 * 1024 * 1024;
+
 #[tauri::command]
 fn leer(ruta: String) -> Result<Documento, String> {
     let p = PathBuf::from(&ruta);
+
+    if let Ok(m) = fs::metadata(&p) {
+        if m.len() > TOPE_DOCUMENTO {
+            return Err(format!(
+                "«{}» pesa {} MB y MarkFlow no abre documentos de mas de {} MB.",
+                nombre_de(&p),
+                m.len() / 1024 / 1024,
+                TOPE_DOCUMENTO / 1024 / 1024
+            ));
+        }
+    }
 
     let crudo = fs::read(&p).map_err(|e| format!("No se pudo leer «{}»: {e}", nombre_de(&p)))?;
 
@@ -91,24 +113,88 @@ fn escribir(ruta: String, texto: String, fin_de_linea: FinDeLinea) -> Result<(),
         FinDeLinea::Crlf => texto.replace('\n', "\r\n"),
     };
 
-    // Escritura atomica: a un temporal al lado y luego rename. Con autoguardado
-    // cada segundo, un corte a media escritura no puede dejar el archivo del
-    // usuario truncado.
+    // Escritura atomica: a un temporal al lado y luego rename, para que un corte
+    // a media escritura no pueda dejar truncado el archivo del usuario.
+    //
+    // El temporal se abre con `create_new`, que hace DOS cosas imprescindibles y
+    // que la auditoria del 2026-09-16 senalo:
+    //
+    //  - **Falla si el nombre ya existe**, en vez de truncar lo que haya. Con
+    //    `CREATE_ALWAYS` se escribia sobre cualquier cosa que estuviera ahi, y si
+    //    esa cosa era un enlace, se escribia en SU DESTINO: Microsoft documenta
+    //    que sin la bandera de punto de reanalisis «the file affected is the
+    //    target». En Windows, `create_new` hace que la propia biblioteca estandar
+    //    anada esa bandera, asi que deja de seguir enlaces sin dependencias.
+    //  - **Permite reintentar con otro nombre**, que es lo que cierra la colision
+    //    entre dos ventanas de MarkFlow guardando la misma nota a la vez.
+    //
+    // El nombre lleva un sufijo variable por lo mismo: dejo de ser predecible.
     let padre = p.parent().ok_or("La ruta no tiene carpeta padre")?;
-    let temporal = padre.join(format!(
-        ".{}.markflow-tmp",
-        p.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
-    ));
+    let base = p
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "sin-nombre".into());
 
-    fs::write(&temporal, salida.as_bytes())
-        .map_err(|e| format!("No se pudo escribir el temporal: {e}"))?;
+    let mut temporal = PathBuf::new();
+    let mut archivo = None;
+    let mut ultimo_error = None;
+    for _ in 0..8 {
+        temporal = padre.join(format!(".{}.{}.markflow-tmp", base, marca_unica()));
+        match fs::OpenOptions::new().write(true).create_new(true).open(&temporal) {
+            Ok(f) => { archivo = Some(f); break }
+            Err(e) => ultimo_error = Some(e),
+        }
+    }
+    let mut archivo = archivo.ok_or_else(|| {
+        format!(
+            "No se pudo crear el archivo temporal junto a «{}»: {}",
+            nombre_de(&p),
+            ultimo_error
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "motivo desconocido".into())
+        )
+    })?;
+
+    // Si algo falla a partir de aqui, el temporal se borra SIEMPRE: si no, queda
+    // en la carpeta una copia del documento del usuario, que acaba en la copia de
+    // seguridad o en un commit sin que nadie lo haya pedido.
+    let limpiar = |t: &PathBuf| { let _ = fs::remove_file(t); };
+
+    if let Err(e) = archivo.write_all(salida.as_bytes()) {
+        limpiar(&temporal);
+        return Err(format!("No se pudo escribir el temporal: {e}"));
+    }
+    // Sin esto, el `rename` puede adelantar a los datos y dejar un archivo con el
+    // nombre bueno y el contenido a medias.
+    if let Err(e) = archivo.sync_all() {
+        limpiar(&temporal);
+        return Err(format!("No se pudo asegurar el guardado en disco: {e}"));
+    }
+    drop(archivo);
 
     fs::rename(&temporal, &p).map_err(|e| {
-        let _ = fs::remove_file(&temporal);
+        limpiar(&temporal);
         format!("No se pudo guardar «{}»: {e}", nombre_de(&p))
     })?;
 
     Ok(())
+}
+
+/// Sufijo distinto en cada llamada, para que el nombre del temporal no sea
+/// adivinable ni lo compartan dos ventanas guardando la misma nota.
+fn marca_unica() -> String {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static CUENTA: AtomicU32 = AtomicU32::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    format!(
+        "{:x}{:x}{:x}",
+        std::process::id(),
+        nanos,
+        CUENTA.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 /// Limite para las imagenes incrustadas. Arriba de esto, en vez de tragarse
@@ -188,15 +274,51 @@ fn huella(ruta: String) -> Result<Huella, String> {
 /// El `.md` con el que Windows lanzo el programa, si lo hubo.
 #[tauri::command]
 fn archivo_inicial() -> Option<String> {
-    std::env::args()
+    //  esta documentado como que entra en panico si un argumento no es
+    // Unicode valido.  no: devuelve lo que haya y se descarta aqui.
+    std::env::args_os()
         .skip(1)
+        .filter_map(|a| a.into_string().ok())
         .find(|a| !a.starts_with('-'))
         .filter(|a| Path::new(a).is_file())
+}
+
+/// Impide que la ventana se vaya de su propio documento.
+///
+/// Sin esto, un enlace normal en un  --  --
+/// **reemplaza la aplicacion entera** con esa pagina: se pierde lo no guardado
+/// de todas las pestanas sin preguntar, y como la barra de titulo es HTML, no
+/// queda ni un boton para cerrar. Confirmado en la auditoria del 2026-09-16.
+///
+///  no tiene ; el gancho vive en el constructor
+/// de complementos, y por eso esto es un complemento de una sola
+/// responsabilidad.
+///
+/// Los enlaces siguen funcionando: se abren en el navegador del sistema, que
+/// es donde el usuario espera que se abra una pagina web.
+fn guardia_de_navegacion<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("guardia-de-navegacion")
+        .on_navigation(|webview, url| {
+            let esquema = url.scheme();
+            // Lo unico que se deja pasar es la propia aplicacion.
+            if esquema == "tauri" || esquema == "http" && url.host_str() == Some("tauri.localhost")
+            {
+                return true;
+            }
+            if esquema == "http" || esquema == "https" {
+                // Al navegador del sistema, no aqui dentro.
+                use tauri_plugin_opener::OpenerExt;
+                let _ = webview.opener().open_url(url.to_string(), None::<&str>);
+            }
+            false
+        })
+        .build()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(guardia_de_navegacion())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![leer, escribir, leer_imagen, huella, archivo_inicial])
@@ -298,6 +420,57 @@ mod pruebas {
     /// La ruta que sale de `leer` se usa para armar la de las imagenes vecinas.
     /// Si conserva el prefijo largo de Windows, esas rutas no resuelven y las
     /// imagenes no aparecen. Paso de verdad el 2026-09-16.
+    // --- lo que salio de la auditoria del 2026-09-16 ------------------------
+
+    #[test]
+    fn el_nombre_del_temporal_no_es_adivinable_ni_se_repite() {
+        // Dos ventanas guardando la misma nota compartian el nombre del
+        // temporal y podian pisarse. Y siendo fijo, cualquiera podia plantarlo.
+        let marcas: std::collections::HashSet<String> =
+            (0..500).map(|_| marca_unica()).collect();
+        assert_eq!(marcas.len(), 500, "hubo marcas repetidas");
+    }
+
+    #[test]
+    fn un_temporal_plantado_no_impide_guardar() {
+        // Antes el nombre era fijo: dejar ahi un archivo con ese nombre dejaba
+        // el documento imposible de guardar. Ahora se reintenta con otro.
+        let p = temporal(b"antes\n");
+        let ruta = p.to_string_lossy().into_owned();
+        let estorbo = p.parent().unwrap().join(".nota.md.markflow-tmp");
+        fs::write(&estorbo, b"estorbo").unwrap();
+
+        escribir(ruta, "despues\n".into(), FinDeLinea::Lf).unwrap();
+        assert_eq!(fs::read_to_string(&p).unwrap(), "despues\n");
+        assert!(estorbo.exists(), "no se debe tocar lo que ya estaba ahi");
+        limpiar(p);
+    }
+
+    #[test]
+    fn guardar_muchas_veces_no_deja_temporales() {
+        let p = temporal(b"cero\n");
+        let ruta = p.to_string_lossy().into_owned();
+        for i in 0..25 {
+            escribir(ruta.clone(), format!("vuelta {i}\n"), FinDeLinea::Lf).unwrap();
+        }
+        assert_eq!(fs::read_to_string(&p).unwrap(), "vuelta 24\n");
+        let sobrantes: Vec<_> = fs::read_dir(p.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".markflow-tmp"))
+            .collect();
+        assert!(sobrantes.is_empty(), "quedaron temporales: {sobrantes:?}");
+        limpiar(p);
+    }
+
+    #[test]
+    fn un_documento_desmesurado_se_rechaza_en_vez_de_tumbar_el_programa() {
+        // No se crea un archivo de 64 MB para esto: basta comprobar que el tope
+        // existe y es el que se documenta.
+        assert_eq!(TOPE_DOCUMENTO, 64 * 1024 * 1024);
+        assert!(TOPE_DOCUMENTO > TOPE_IMAGEN, "un .md puede pesar mas que una imagen suelta");
+    }
+
     #[test]
     fn la_huella_cambia_cuando_el_archivo_cambia() {
         let p = temporal(b"uno

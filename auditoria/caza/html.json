@@ -1,0 +1,67 @@
+{
+  "cazador": "salidas-a-html",
+  "unidades": ["U-01", "U-02", "U-03"],
+  "comprobaciones": [
+    {
+      "unidad": "U-01",
+      "que_revise": "Orden de las 5 sustituciones de enriquecer() (widgets.ts:64-73) y si una reinyecta un caracter ya escapado para romper el atributo href=\"$2\". esc() escapa & < > \" ANTES de todo; ningun template posterior vuelve a introducir un \" salvo el propio del enlace, que se genera en una sola pasada. Un $2 no puede aportar un \" literal (queda &quot;), asi que NO hay fuga del atributo ni inyeccion de un tag/manejador on* arbitrario. No existe XSS de auto-ejecucion al pintar la tabla.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-01",
+      "que_revise": "Lista blanca de esquemas en el href de enlaces de celda. La imagen SI filtra esquemas (rutaAbsoluta bloquea data:/blob:, widgets.ts:178; remotas bajo permiso), pero el enlace de tabla mete $2 crudo en href=\"$2\" sin ningun filtro (widgets.ts:72). javascript: y data: pasan tal cual. alPicar() deja pasar el clic sobre <a> al comportamiento por defecto (widgets.ts:22). Con csp:null y withGlobalTauri:true el origen tiene window.__TAURI__.",
+      "resultado": "candidato"
+    },
+    {
+      "unidad": "U-01",
+      "que_revise": "esc() no escapa la comilla simple '. Revisado si algun template usa atributos con comilla simple: no; el unico atributo es href=\"$2\" con comilla doble. La ' sin escapar es inocua para el breakout.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-01",
+      "que_revise": "ReDoS/retroceso catastrofico en las 5 regex de enriquecer() y en celdas() (widgets.ts:34-52). Cada regex es lineal y con clases negadas no solapadas ([^`]+, [^*]+, [^~]+, [^\\]]+, [^)]+); no hay anidamiento cuantificado que provoque retroceso exponencial. El re-analisis del documento entero por tecla es de otra unidad (livepreview.ts:384, modulo de agotamiento de recursos).",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-02",
+      "que_revise": "securityLevel:'strict' (widgets.ts:297) mas version. Mermaid resuelta = 12.0.0 (package-lock.json:2530). CVE-2025-54881 (etiqueta de diagrama de secuencia a innerHTML en calculateMathMLDimensions, afecta incluso a strict) esta arreglado en 11.10.0; CVE-2026-41159 (inyeccion CSS via themeCSS/fontFamily/altFontFamily) arreglado en 11.15.0. 12.0.0 es posterior a ambos. DOMPurify empaquetada = 3.4.15 (package-lock.json:2127), posterior a los bypass conocidos (CVE-2026-47423 afecta hasta 3.4.4; CVE-2025-15599/CVE-2026-0540 hasta 3.2.6). El SVG saneado va a innerHTML (:303) pero la limpieza intacta lo cubre.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-02",
+      "que_revise": "Si el atacante controla la configuracion de Mermaid (vector de CVE-2026-41159). widgets.ts:294-299 fija theme por el tema del sistema y un fontFamily literal; no se pasa themeCSS ni altFontFamily ni ninguna clave derivada del .md. Lo unico controlado por el atacante es el CODIGO del diagrama (m[3], livepreview.ts:191), que Mermaid parsea y cuyo SVG sanea DOMPurify en strict.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-03",
+      "que_revise": "katex.render con trust sin fijar => trust:false por omision (widgets.ts:343-347). Con trust:false KaTeX deshabilita \\href, \\url, \\includegraphics y \\html* (\\htmlData/\\htmlClass/\\htmlId/\\htmlStyle): no emiten enlaces ni atributos, solo texto de error. CVE-2024-28246 (bypass de protocolo en mayusculas hacia javascript:) y CVE-2025-23207 (\\htmlData) solo aplican con trust activo; ademas KaTeX 0.18.7 (package-lock.json:2224) es muy posterior a sus arreglos. output:'html' es la salida disenada como segura para entrada no confiable.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-03",
+      "que_revise": "throwOnError:false (widgets.ts:345): un error de parseo se dibuja como <span class=katex-error> con la formula original como textContent escapado por KaTeX, no como HTML crudo. '<', '>' dentro de la formula se tratan como operadores, no como tags. No hay sink de HTML sin sanear por esta via.",
+      "resultado": "limpio"
+    },
+    {
+      "unidad": "U-03",
+      "que_revise": "maxExpand sin fijar => 1000 por omision (bomba de expansion de macros, pregunta 4). Los bypass conocidos de maxExpand (GHSA-cvr6-37gx-v8wc via sub/superindices Unicode; GHSA-64fm-8hw2-v72w via \\edef) estan arreglados y son anteriores a 0.18.7. El agotamiento de CPU/memoria en si (DoS de un solo usuario al abrir el archivo) es autoinfligido en un escritorio monousuario y corresponde al modulo de agotamiento de recursos, no a un cruce de frontera de esta unidad de salidas a HTML.",
+      "resultado": "limpio"
+    }
+  ],
+  "candidatos": [
+    {
+      "titulo": "Enlace javascript: en celda de tabla llega a innerHTML sin lista blanca de esquemas; el clic lo ejecuta en un origen con __TAURI__ y sin CSP",
+      "unidad": "U-01",
+      "archivo": "src/widgets.ts",
+      "linea": 72,
+      "frontera_violada": "F2: el contenido de un .md de tercero (dato sin autoridad) no debe convertirse en URL ejecutable en el origen de la aplicacion. enriquecer() escapa & < > \" para impedir el breakout de tags, pero NO valida el esquema del destino del enlace, de modo que dato de tercero se transforma en un href javascript:/ data: activo.",
+      "entrada_del_atacante": "| Recurso | Descarga |\n| --- | --- |\n| Plantilla oficial | [Descargar ahora](javascript:document.title='XSS') |",
+      "cadena_hasta_el_impacto": "1) El .md se abre por doble clic (asociacion de archivo declarada, arquitectura §5) o arrastre; el cursor queda en la linea 1, asi que la tabla (lineas 3+) se dibuja como widget sin interaccion (livepreview.ts:174-183, condicion !tocado en :175). 2) livepreview.ts:176 corta el texto crudo de la tabla y construye WidgetTabla (:178). 3) widgets.ts:96-98 parte cada celda y hace celda.innerHTML = enriquecer(c). 4) enriquecer() (widgets.ts:64-73): esc() no toca ')' ':' '[' ']' ni la comilla simple; las 5 sustituciones no aplican salvo la ultima; la regex de enlace \\[([^\\]]+)\\]\\(([^)]+)\\) captura $1='Descargar ahora' y $2=\"javascript:document.title='XSS'\" y emite <a href=\"javascript:document.title='XSS'\" rel=\"noreferrer\">Descargar ahora</a>. 5) Ese HTML entra por innerHTML (widgets.ts:98). 6) alPicar() (widgets.ts:20-27) intercepta el mousedown de la caja pero retorna sin hacer nada si el objetivo esta dentro de un <a> o <input> (:22), de modo que el clic sobre el enlace llega a la navegacion por defecto del webview. 7) Al hacer clic, el manejador de navegacion de WebView2/Tauri decide que hacer con el esquema javascript: (no configurado en el repo; arquitectura §7.2). Si lo ejecuta -como hace Chromium con un <a href=javascript:> pinchado-, el codigo corre en el origen de la app, que por csp:null (tauri.conf.json:27) no tiene CSP y por withGlobalTauri:true (:13) expone window.__TAURI__ con los 5 comandos nativos que leen y escriben CUALQUIER ruta del disco (lib.rs, sin restriccion de rutas).",
+      "impacto": "Confirmado por codigo: un .md de tercero produce un enlace javascript: (o data:, o UNC \\\\host\\share) clicable, sin filtro de esquema, insertado por innerHTML en el origen de la app. Si el webview ejecuta javascript: al pinchar (lo habitual en Chromium/WebView2), el atacante logra ejecucion de script en un origen sin CSP y con acceso nativo total al disco. Impacto directo demostrable sin parentesis: cambiar el DOM/titulo, exfiltrar la ruta y el contenido del archivo abierto. Escalada a lectura/escritura arbitraria de disco via __TAURI__.core.invoke('leer'/'escribir', ...) requiere parentesis, que la captura [^)]+ prohibe en la URL; se consigue con tecnicas conocidas de JS sin parentesis (p. ej. window.onerror=eval;throw'...') que, sumadas a la ausencia de CSP, hacen plausible la RCE-adyacente (escribir en la carpeta de Inicio, sobrescribir .md del usuario, robar secretos). La restriccion [^)]+ (y que los backticks los consume antes la regex de codigo) limita el payload de una sola URL a JS sin parentesis y sin backticks, no elimina la ejecucion.",
+      "severidad": "critica",
+      "confianza": "necesita_validacion",
+      "arreglo_minimo": "En enriquecer() validar el esquema del destino ANTES de emitir el <a>: permitir solo http(s):, mailto: y rutas relativas; para todo lo demas emitir texto plano o href='#'. Regex/normalizacion robusta (minusculas, sin espacios ni controles iniciales) para no dejar pasar 'JaVaScRiPt:' ni ' javascript:'. Defensa en profundidad, no sustituto: fijar una CSP no nula en tauri.conf.json (por lo menos script-src 'self') para que un javascript: o data: navegado no ejecute; y considerar un manejador on-navigation en Tauri que rechace esquemas distintos de http(s)/mailto. Hecho independiente que falta por validar: si el manejador de navegacion de WebView2/Tauri 2 de esta compilacion ejecuta un href javascript: al hacer clic. Comprobacion segura del propietario: abrir en la app un .md con la tabla de arriba y pinchar el enlace; observar si cambia document.title (o poner un enlace [x](javascript:alert(1)) reescrito sin parentesis, p. ej. [x](javascript:document.title=1) y ver si se altera el titulo).",
+      "cadena_hasta_el_impacto_nota": "data:text/html normalmente lo bloquea Chromium en navegacion de primer nivel; javascript: es el vector vivo. UNC/file: es un impacto secundario del mismo fallo (fuga NTLM/SMB al navegar a \\\\host) y comparte la misma validacion pendiente."
+    }
+  ]
+}
