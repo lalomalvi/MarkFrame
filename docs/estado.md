@@ -252,14 +252,21 @@ proceso.
 
 1. **Reinstalar** con el `MarkFlow_0.1.0_x64-setup.exe` de las 22:57, que es el
    que lleva los arreglos de la auditoría.
-2. **Tomar la asociación a mano**, porque ningún instalador puede: clic derecho
-   en un `.md` → *Abrir con* → *Elegir otra aplicación* → MarkFlow → *Usar
-   siempre*. Windows 11 protege la asociación efectiva con un `UserChoice`
-   firmado por hash, y **hoy la sigue teniendo Zettlr**.
-3. **Fase C de la migración**: correr `migracion-zettlr/salida-zettlr.ps1
-   -Ejecutar` para desinstalar Zettlr y recuperar ~650 MB. El script **se niega
-   mientras el punto 2 no esté hecho**, a propósito: no deja a Lalo sin editor
-   de `.md`.
+2. ~~Tomar la asociación a mano.~~ **Hecho.** El `UserChoice` de `.md` ya dice
+   `MarkFlow.nota` —— comprobado por lectura del registro el 2026-09-16. Ningún
+   instalador puede ponerlo: Windows 11 lo firma con un hash, así que esto sólo
+   se hace desde *Abrir con* → *Elegir otra aplicación* → *Usar siempre*, y ya
+   está hecho.
+3. **Fase C de la migración**: correr `migracion-zettlr/salida-zettlr.ps1`
+   —primero sin argumentos para ver qué haría, luego con `-Ejecutar`— para
+   desinstalar Zettlr y recuperar **648 MB medidos**. El script comprueba el
+   punto 2 y **se niega si no se cumple**, a propósito: desinstalar antes
+   dejaría el `UserChoice` apuntando a un programa que ya no existe.
+
+   En esa carpeta hay **dos** scripts. El bueno es `salida-zettlr.ps1`. El otro,
+   `fase-c-salida-zettlr.ps1`, es el primer intento —— sin BOM y con acentos en
+   los identificadores, que es justo lo que reventó en PowerShell 5.1. Bórralo
+   para no correrlo por equivocación.
 
 ## Sin decidir
 
