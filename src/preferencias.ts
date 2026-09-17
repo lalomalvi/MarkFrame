@@ -24,7 +24,11 @@ export interface Preferencias {
   fuenteMono: string
   tamano: number
   interlineado: number
-  /** Ancho de la columna de texto, en rem. 0 = sin limite. */
+  /**
+   * Ancho maximo de la columna de texto, en rem. **0 = sin limite**, que es lo
+   * de fabrica: con un ancho fijo, maximizar la ventana solo engorda los
+   * margenes y el texto se queda igual de angosto.
+   */
   ancho: number
   numerosLinea: boolean
   /** Picar un bloque lleva el otro panel a ese mismo bloque y lo enmarca. */
@@ -46,7 +50,7 @@ export const DE_FABRICA: Preferencias = {
   fuenteMono: 'Sistema',
   tamano: 15.5,
   interlineado: 1.7,
-  ancho: 46,
+  ancho: 0,
   numerosLinea: true,
   eco: true,
   sangria: '4',

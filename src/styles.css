@@ -87,6 +87,13 @@
 
 * { box-sizing: border-box; }
 
+/* `hidden` tiene que ganar siempre.
+   El atributo aplica `display: none` con especificidad minima, asi que
+   cualquier regla que fije `display` lo anula en silencio. Paso el 2026-09-16:
+   al dar `display: inline-flex` a los botones para meterles icono, los botones
+   ocultos del dialogo volvieron a aparecer y se veian los cuatro a la vez. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0; height: 100%;
   font-family: var(--fuente-ui);
@@ -595,3 +602,91 @@ body { display: flex; flex-direction: column; }
   background-clip: content-box;
   border-width: 2px;
 }
+
+/* --- barra de pestanas ----------------------------------------------------- */
+
+/* Las flechas de deshacer y rehacer, mas grandes que el resto de iconos. */
+.ic-g { width: 18px; height: 18px; stroke-width: 1.6; }
+
+.pestanas {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 8px 0;
+  background: var(--papel-barra);
+  border-bottom: 1px solid var(--borde);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: none;
+  scrollbar-width: none;          /* la barra propia estorba aqui */
+  user-select: none;
+}
+.pestanas::-webkit-scrollbar { height: 0; }
+.pestanas[hidden] { display: none; }
+
+.pestana {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 10px;
+  border-radius: 7px 7px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  font-size: 12.5px;
+  color: var(--apagado);
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+  max-width: 15rem;
+}
+.pestana:hover { background: color-mix(in srgb, var(--tinta) 7%, transparent); }
+.pestana.activa {
+  background: var(--papel);
+  border-color: var(--borde);
+  color: var(--tinta);
+  box-shadow: inset 0 2px 0 var(--acento);
+}
+
+.pest-nombre { overflow: hidden; text-overflow: ellipsis; }
+
+/* El punto de «sin guardar» sustituye al texto que habia en la barra. */
+.pest-punto {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--acento);
+  flex: none;
+}
+.pest-punto[hidden] { display: none; }
+
+.pest-cerrar {
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 1px 4px 3px;
+  cursor: pointer;
+  opacity: .45;
+}
+.pestana:hover .pest-cerrar, .pestana.activa .pest-cerrar { opacity: .85; }
+.pest-cerrar:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--peligro-borde) 26%, transparent);
+}
+
+.pest-mas {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--apagado);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 9px 5px;
+  margin: 2px 0 4px 3px;
+  cursor: pointer;
+  flex: none;
+}
+.pest-mas:hover { background: color-mix(in srgb, var(--tinta) 9%, transparent); color: var(--tinta); }

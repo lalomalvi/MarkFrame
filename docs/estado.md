@@ -32,7 +32,11 @@ mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md)
 - Deshacer y rehacer con botones y con Ctrl+Z / Ctrl+Y.
 - **Tema claro / oscuro / sistema**, con botón que cicla los tres y recuerda la
   elección. Los diagramas de Mermaid se redibujan con el tema.
-- Arrastrar y soltar. Arranque con el archivo como argumento.
+- **Pestañas**: Ctrl+T nueva, Ctrl+W cerrar, Ctrl+Tab girar, botón central del
+  ratón para cerrar. El nombre del archivo vive ahí, no en la barra, y el punto
+  de color dice cuál tiene cambios sin guardar.
+- Arrastrar y soltar, **varios archivos a la vez**, uno por pestaña. Arranque con
+  el archivo como argumento.
 - **Divisor arrastrable** en modo Ambos, con doble clic para volver al 50/50.
 - **Panel de Opciones** (Ctrl+`,`), sin botón de aceptar: cada cambio se aplica
   y se guarda al instante.
@@ -41,6 +45,30 @@ mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md)
 
 Sale del icono del programa: tinta `#20232a` / `#191c23` y azul de `#0061f5` a
 `#12a2fc`. El acento fue ámbar hasta el 2026-09-16.
+
+### Las pestañas
+
+Cada pestaña se lleva **los dos estados completos de CodeMirror**, no sólo su
+texto: ahí viven la historia de deshacer y la selección. Volver a una pestaña la
+devuelve tal como estaba, no la reabre del disco. El editor sigue siendo uno
+solo; cambiar de pestaña guarda los estados de la que sale y le pone los de la
+que entra.
+
+**Tope: 30 pestañas.** Cada una guarda esos dos estados con su árbol sintáctico,
+y pasado ese punto el programa pesa más de lo que ayuda. Al llegar lo dice en vez
+de tragar hasta atragantarse — probado con 34 intentos seguidos.
+
+El nombre se recorta según cuántas hay: 26 caracteres con 3 o menos, y bajando
+hasta 6 con más de 16. Nunca menos de 6, porque por debajo de eso todas las
+pestañas se parecen y dejan de servir para distinguir. Al recortar se conserva la
+extensión si cabe.
+
+Abrir un archivo **ya abierto** no lo duplica: va a su pestaña. Y una pestaña en
+blanco y sin tocar se reaprovecha en vez de sumar otra.
+
+`npm run probar` corre **9 pruebas de frontera** de todo esto: nombres de 300
+caracteres, nombres vacíos, extensiones más largas que el límite entero, acentos,
+rutas con barras mezcladas y mayúsculas distintas.
 
 ### El divisor
 
@@ -127,9 +155,6 @@ abren todos, el mayor en 122 ms, y **ninguno cambia un byte** (SHA-256).
   cursor las devuelve a texto. Editar celda por celda sobre la tabla dibujada
   exigiría escribir de vuelta al markdown, que es lo que este proyecto tiene
   prohibido. Si se quiere, va como pieza aparte y muy probada.
-- **Pestañas**, al estilo del Bloc de notas nuevo. Acordado el 2026-09-16 que va
-  aparte, como su propia etapa: hoy el programa asume un documento —una ruta, un
-  estado sucio, una historia de deshacer— y con pestañas todo eso se multiplica.
 - **El icono definitivo.** El que hay es el monograma provisional; Lalo está
   afinando el suyo.
 - **Una paleta que siga al color de acento de Windows.** Se puede, pero ese color
@@ -173,6 +198,12 @@ la lista de permitidas, y eso lo hace Lalo desde Seguridad de Windows.
 `min-width: 100%`.** Sin eso, una tabla ancha empuja el ancho de `.cm-content` y
 le da scroll horizontal al panel entero, cortando títulos y diagramas. Aplica a
 `.mf-w-tabla` y a `.mf-w-mermaid`.
+
+**`hidden` necesita `!important`.** El atributo aplica `display: none` con la
+especificidad más baja posible, así que cualquier regla que fije `display` lo
+anula en silencio. Al dar `display: inline-flex` a los botones para meterles
+icono, los botones ocultos del diálogo reaparecieron y se veían los cuatro a la
+vez. Hay una regla global `[hidden] { display: none !important }`.
 
 **WebView2 pinta un fondo claro en el botón enfocado**, y queda como si
 estuviera encendido. Se sustituye por un aro de acento en `:focus-visible` y se

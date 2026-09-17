@@ -39,6 +39,10 @@ export interface Par {
   fijarSangria(s: string): void
   /** Que picar un bloque lleve el otro panel al mismo bloque. */
   activarEco(activo: boolean): void
+  /** Estados vivos de las dos vistas, para guardarlos en una pestana. */
+  capturar(): { f: EditorState; p: EditorState }
+  /** Devuelve a las vistas unos estados guardados antes. */
+  restaurar(f: EditorState, p: EditorState): void
 }
 
 export function crearPar(
@@ -190,5 +194,15 @@ export function crearPar(
       }
     },
     activarEco(v: boolean) { eco = v },
+    /**
+     * Cada pestana se lleva sus DOS estados completos, no solo su texto: ahi
+     * viven la historia de deshacer, la seleccion y los plegados. Volver a una
+     * pestana devuelve el editor tal como estaba.
+     */
+    capturar() { return { f: fuente.state, p: presentacion.state } },
+    restaurar(f: EditorState, p: EditorState) {
+      fuente.setState(f)
+      presentacion.setState(p)
+    },
   }
 }
