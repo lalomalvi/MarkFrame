@@ -91,11 +91,20 @@ const PILA_SISTEMA_TEXTO = '"Segoe UI Variable Text", "Segoe UI", system-ui, san
 const PILA_SISTEMA_MONO = '"Cascadia Code", "Consolas", ui-monospace, monospace'
 
 /** Tonos del fondo en oscuro. El suave es el del icono del programa. */
+/**
+ * Los tres tonos del oscuro.
+ *
+ * **`--linea-activa` no esta aqui a proposito.** La pone `styles.css` con alfa,
+ * y tiene que seguir asi: un color solido tapa la seleccion entera, porque
+ * CodeMirror la dibuja en una capa con `z-index: -2` y la linea activa es un
+ * fondo del flujo normal. Estos valores eran solidos hasta el 2026-09-17, y ese
+ * era el motivo de que seleccionar texto no se viera.
+ */
 const PROFUNDIDAD: Record<Profundidad,
-  { papel: string; barra: string; titulo: string; activa: string; codigo: string }> = {
-  suave:    { papel: '#20232a', barra: '#191c23', titulo: '#131519', activa: '#252a33', codigo: '#252932' },
-  normal:   { papel: '#16181e', barra: '#101217', titulo: '#0b0c10', activa: '#1c1f26', codigo: '#1d2027' },
-  profundo: { papel: '#0c0d11', barra: '#07080a', titulo: '#040507', activa: '#121419', codigo: '#131519' },
+  { papel: string; barra: string; titulo: string; codigo: string }> = {
+  suave:    { papel: '#20232a', barra: '#191c23', titulo: '#131519', codigo: '#252932' },
+  normal:   { papel: '#16181e', barra: '#101217', titulo: '#0b0c10', codigo: '#1d2027' },
+  profundo: { papel: '#0c0d11', barra: '#07080a', titulo: '#040507', codigo: '#131519' },
 }
 
 const CLAVE = 'markflow.preferencias'
@@ -189,11 +198,10 @@ export function aplicar(p: Preferencias) {
     est.setProperty('--papel', t.papel)
     est.setProperty('--papel-barra', t.barra)
     est.setProperty('--papel-titulo', t.titulo)
-    est.setProperty('--linea-activa', t.activa)
     est.setProperty('--codigo-fondo', t.codigo)
   } else {
     for (const v of ['--papel', '--papel-barra', '--papel-titulo',
-                     '--linea-activa', '--codigo-fondo']) {
+                     '--codigo-fondo']) {
       est.removeProperty(v)
     }
     est.setProperty('--papel-titulo', '#e9edf3')

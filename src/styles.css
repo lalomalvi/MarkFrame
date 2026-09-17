@@ -30,9 +30,11 @@
   --codigo-cadena: #2f7a4d;
   --codigo-numero: #1f6f9c;
   --codigo-fondo: #f1f4f9;
-  --seleccion: #cfe2ff;
-  --linea-activa: #f6f8fb;
+  --seleccion: #aacdff;
+  --linea-activa: rgba(32, 35, 42, .038);
   --resaltado: #f5d90a;
+  --resaltado-busqueda: #ffd54a;
+  --resaltado-busqueda-tinta: #20232a;
   --peligro-tinta: #9f2a2a;
   --peligro-fondo: #fdf0f0;
   --peligro-borde: #ef4444;
@@ -55,9 +57,11 @@
     --codigo-cadena: #86d19b;
     --codigo-numero: #7fc4ea;
     --codigo-fondo: #252932;
-    --seleccion: #14406e;
-    --linea-activa: #252a33;
+    --seleccion: #2f6098;
+    --linea-activa: rgba(255, 255, 255, .045);
     --resaltado: #f5d90a;
+    --resaltado-busqueda: #ffc93c;
+    --resaltado-busqueda-tinta: #20232a;
     --peligro-tinta: #ffb4b4;
     --peligro-fondo: #2c1e20;
     --peligro-borde: #ef4444;
@@ -80,13 +84,28 @@
   --codigo-cadena: #86d19b;
   --codigo-numero: #7fc4ea;
   --codigo-fondo: #252932;
-  --seleccion: #14406e;
-  --linea-activa: #252a33;
+  --seleccion: #2f6098;
+  --linea-activa: rgba(255, 255, 255, .045);
   --resaltado: #f5d90a;
+  --resaltado-busqueda: #ffc93c;
+  --resaltado-busqueda-tinta: #20232a;
   --peligro-tinta: #ffb4b4;
   --peligro-fondo: #2c1e20;
   --peligro-borde: #ef4444;
 }
+
+/* Por que la linea activa lleva alfa y no un color solido.
+
+   CodeMirror dibuja la seleccion en `.cm-selectionLayer`, una capa con
+   `z-index: -2`. `.cm-activeLine` es un fondo normal del flujo, asi que con un
+   color opaco **se pinta encima y tapa la seleccion entera**.
+
+   El sintoma era que seleccionar no se veia: el programa tenia la seleccion
+   --copiar funcionaba-- pero en pantalla no aparecia nada. Diagnosticado el
+   2026-09-17 levantando la interfaz en un navegador y apagando ese fondo para
+   ver aparecer la seleccion debajo.
+
+   Si algun dia se le vuelve a poner un color solido, esto se rompe otra vez. */
 
 * { box-sizing: border-box; }
 
@@ -224,15 +243,28 @@ body { display: flex; flex-direction: column; }
 .buscador:not(.con-texto) .buscar-paso,
 .buscador:not(.con-texto) .buscar-cuenta { display: none; }
 
-/* Lo encontrado. La coincidencia donde está el cursor va con el acento; las
-   demás, apenas marcadas, para que se vea dónde estás sin perder las otras. */
-.cm-searchMatch {
-  background: color-mix(in srgb, var(--acento) 26%, transparent);
-  border-radius: 2px;
+/* Lo encontrado se pinta en `tema.ts`, no aqui.
+
+   No es capricho: el tema base de CodeMirror trae `.ͼ2 .cm-searchMatch`, que son
+   dos clases, y una regla suelta aqui es una sola. Pierde por especificidad y no
+   avisa. Es el mismo motivo por el que la seleccion no se veia. */
+
+/* El panel de busqueda de CodeMirror, escondido.
+
+   Tiene que EXISTIR para que el resaltado de coincidencias se encienda --sin el
+   la busqueda salta sin marcar nada-- pero no tiene que verse: la caja de
+   buscar vive en la barra de arriba. */
+.mf-panel-busqueda-oculto { display: none; }
+.cm-panels:has(.mf-panel-busqueda-oculto) {
+  display: none;
+  border: 0;
+  height: 0;
 }
-.cm-searchMatch-selected {
-  background: color-mix(in srgb, var(--acento) 62%, transparent);
-  outline: 1px solid var(--acento);
+
+/* El destello de la coincidencia a la que acabas de saltar. Se apaga solo. */
+@keyframes mf-destello {
+  0%   { box-shadow: inset 0 0 0 2px var(--acento), 0 0 0 5px color-mix(in srgb, var(--acento) 45%, transparent); }
+  100% { box-shadow: inset 0 0 0 2px var(--acento), 0 0 0 0 transparent; }
 }
 /* Cuando no hay ninguna coincidencia, el borde lo dice sin ocupar sitio. */
 .buscador.sin-nada { border-color: var(--peligro-borde); }

@@ -29,8 +29,52 @@ export const temaBase = EditorView.theme({
   },
   '&.cm-focused': { outline: 'none' },
   '.cm-cursor, .cm-dropCursor': { borderLeft: '2px solid var(--acento)' },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
+
+  /*
+   * La selección, **con el mismo selector largo que usa CodeMirror**.
+   *
+   * Esto no es rebuscado, es obligatorio: el tema base trae
+   * `.ͼ2.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground`,
+   * que son cinco clases. Un `&.cm-focused .cm-selectionBackground` son tres y
+   * **pierde por especificidad**, sin avisar de nada.
+   *
+   * El efecto era que seleccionar no se veía: la selección existía —el programa
+   * la tenía, copiar funcionaba—, pero se pintaba del lila de fábrica de
+   * CodeMirror, que sobre el papel claro casi no se distingue y sobre el oscuro
+   * desaparece. Diagnosticado el 2026-09-17 leyendo las reglas aplicadas en el
+   * navegador, no a ojo.
+   */
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
     backgroundColor: 'var(--seleccion)',
+  },
+  '& > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+    backgroundColor: 'var(--seleccion)',
+  },
+  '.cm-content ::selection': { backgroundColor: 'var(--seleccion)' },
+
+  /*
+   * Lo que encuentra el buscador. Mismo problema de especificidad que arriba:
+   * el tema base trae `.ͼ2 .cm-searchMatch`, y una regla suelta en `styles.css`
+   * es una sola clase y pierde. Por eso vive aquí y cuelga de `.cm-content`.
+   *
+   * La coincidencia en la que está el cursor **da un destello al llegar**: sin
+   * él, buscar te deja en la zona correcta y tienes que encontrar la palabra
+   * con la vista. El destello dura poco y no se repite.
+   */
+  '.cm-content .cm-searchMatch': {
+    backgroundColor: 'color-mix(in srgb, var(--acento) 30%, transparent)',
+    borderRadius: '2px',
+    // Un contorno del color del texto: en amarillo puro sobre papel blanco, el
+    // relleno solo no basta para ver donde acaba la palabra.
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--acento) 45%, transparent)',
+  },
+  '.cm-content .cm-searchMatch-selected': {
+    backgroundColor: 'var(--resaltado-busqueda)',
+    color: 'var(--resaltado-busqueda-tinta)',
+    boxShadow: 'inset 0 0 0 2px var(--acento)',
+    borderRadius: '2px',
+    fontWeight: '600',
+    animation: 'mf-destello .55s ease-out',
   },
   '.cm-activeLine': { backgroundColor: 'var(--linea-activa)' },
   '.cm-gutters': {

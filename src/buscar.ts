@@ -17,17 +17,33 @@
 import { EditorView } from '@codemirror/view'
 import {
   SearchQuery, setSearchQuery, findNext, findPrevious, search,
+  openSearchPanel, searchPanelOpen,
 } from '@codemirror/search'
 import type { Extension } from '@codemirror/state'
 
 /**
  * La extension que hay que montar en la vista para que la busqueda funcione.
  *
- * `top: false` y el panel propio apagado: la caja la dibuja `index.html`, y un
- * panel de CodeMirror abriendose por su cuenta encima seria otra barra mas.
+ * El panel propio de CodeMirror se sustituye por un `div` vacio, que el CSS
+ * esconde: la caja de buscar vive en la barra, y un panel abriendose debajo
+ * seria otra barra mas.
+ *
+ * **Pero el panel tiene que existir igual**, aunque no se vea. El resaltado de
+ * coincidencias de CodeMirror sólo se dibuja mientras el panel esta abierto ——
+ * si no lo esta, la busqueda salta de una coincidencia a otra sin marcar
+ * ninguna. Eso era justo lo que pasaba: el contador decia «5/5» y en el texto
+ * no se veia nada. Por eso `conectarBuscador` lo abre en cuanto hay algo que
+ * buscar. Encontrado el 2026-09-17 probando la aplicacion instalada.
  */
 export function busqueda(): Extension {
-  return search({ top: false, createPanel: () => ({ dom: document.createElement('div') }) })
+  return search({
+    top: false,
+    createPanel: () => {
+      const dom = document.createElement('div')
+      dom.className = 'mf-panel-busqueda-oculto'
+      return { dom }
+    },
+  })
 }
 
 export type Controles = {
@@ -93,6 +109,15 @@ export function conectarBuscador(
   function aplicar(saltar: boolean) {
     const vista = vistaActiva()
     const texto = c.campo.value
+
+    // Sin el panel abierto, CodeMirror no marca las coincidencias. Se abre
+    // vacío y escondido, sólo para encender el resaltado —— y se le devuelve el
+    // foco a la caja, porque abrirlo se lo lleva.
+    if (texto !== '' && !searchPanelOpen(vista.state)) {
+      openSearchPanel(vista)
+      c.campo.focus()
+    }
+
     vista.dispatch({
       effects: setSearchQuery.of(new SearchQuery({
         search: texto,

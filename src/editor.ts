@@ -95,7 +95,22 @@ export function crearPar(
       busqueda(),
       temaBase,
       atajos,
-      keymap.of([...defaultKeymap, ...searchKeymap, indentWithTab]),
+      // `Mod-f` se saca del keymap de búsqueda de CodeMirror **a propósito**.
+      //
+      // Ese atajo abre el panel de búsqueda propio de CodeMirror, que aquí está
+      // sustituido por uno vacío porque la caja vive en la barra. El efecto era
+      // que Ctrl+F no hacía nada visible: CodeMirror se quedaba el evento, el
+      // manejador de `main.ts` no llegaba a ejecutarse, y lo que se escribía a
+      // continuación **entraba en el documento**, encima de lo que hubiera
+      // seleccionado. Encontrado el 2026-09-17 probando la interfaz.
+      //
+      // El resto del keymap se queda: F3 y Mod-g siguen saltando entre
+      // coincidencias, que es lo que se espera de ellos.
+      keymap.of([
+        ...defaultKeymap,
+        ...searchKeymap.filter((b) => b.key !== 'Mod-f'),
+        indentWithTab,
+      ]),
       EditorView.updateListener.of((u) => { if (u.docChanged) alEditar() }),
     ]
   }

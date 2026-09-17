@@ -454,6 +454,34 @@ las historias.
 inicio daba por tapado al nodo raíz del documento y cortaba el recorrido del
 árbol desde la raíz.
 
+**Un tema de CodeMirror pierde contra el suyo si el selector es más corto.** El
+tema base trae cosas como
+`.ͼ2.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground` ——
+cinco clases—— y un `&.cm-focused .cm-selectionBackground` son tres. **Gana el
+suyo, y no avisa de nada.** Pasó con la selección y con el resaltado de
+búsqueda: los dos se pintaban con los colores de fábrica de CodeMirror, que sobre
+esta paleta casi no se ven. Si un color del editor «no hace caso», mira la
+especificidad antes que el valor.
+
+**La selección se dibuja en una capa con `z-index: -2`, así que cualquier fondo
+opaco del flujo la tapa.** `.cm-activeLine` con color sólido la escondía entera:
+el programa tenía la selección —copiar funcionaba— y en pantalla no salía nada.
+Por eso `--linea-activa` va con alfa, y por eso `PROFUNDIDAD` en
+`preferencias.ts` ya no la define.
+
+**El resaltado de coincidencias de CodeMirror sólo se dibuja con su panel de
+búsqueda abierto.** Con la caja de buscar en la barra y el panel sustituido por
+un `div` vacío, la búsqueda saltaba de una coincidencia a otra sin marcar
+ninguna: el contador decía «5/5» y el texto no cambiaba. El panel se abre igual,
+escondido por CSS, sólo para encender el resaltado.
+
+**Para depurar la interfaz, levanta `npm run dev` y ábrela en un navegador**: ahí
+se pueden leer las reglas CSS aplicadas, que es como se encontraron los tres
+fallos de arriba en una tarde. **Pero sirve para el CSS, no para el
+comportamiento**: fuera de Tauri, `getCurrentWindow()` lanza y corta el arranque
+a media página, así que los atajos y todo lo que venga después no llegan a
+registrarse. Lo que falle ahí puede estar bien en la aplicación.
+
 **Si el aspecto de un widget depende de algo que no sea el texto, ese algo tiene
 que entrar en `eq()`.** CodeMirror reutiliza el DOM de un widget cuando `eq()`
 dice que el nuevo es igual al viejo. El botón *Mostrarla* anotaba el permiso,
