@@ -34,7 +34,7 @@ function prueba(nombre: string, fn: () => void) {
   console.log('  ok  ' + nombre)
 }
 
-const CLAVE = 'markflow.preferencias'
+const CLAVE = 'markframe.preferencias'
 const limpiar = () => almacen.clear()
 /** Escribe en el almacén lo que escribiría una versión vieja, o alguien a mano. */
 const plantar = (obj: unknown) => almacen.set(CLAVE, JSON.stringify(obj))

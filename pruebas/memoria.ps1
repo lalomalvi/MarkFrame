@@ -1,4 +1,4 @@
-﻿# Mide la memoria que usa MarkFlow, sumando sus procesos de WebView2.
+﻿# Mide la memoria que usa MarkFrame, sumando sus procesos de WebView2.
 #
 # ESTE ARCHIVO VA EN UTF-8 *CON BOM* y sin acentos en los identificadores.
 # Windows PowerShell 5.1 lee como ANSI cualquier .ps1 sin BOM.
@@ -7,21 +7,21 @@
 # WebView2 arranca varios procesos y **los comparte con otras aplicaciones**.
 # En esta maquina hay dos docenas de msedgewebview2.exe, casi todos de otras
 # cosas. Sumarlos todos da una cifra alarmante y falsa; hay que seguir el arbol
-# de padres desde markflow.exe.
+# de padres desde markframe.exe.
 #
 # Uso:
 #   powershell -ExecutionPolicy Bypass -File pruebas\memoria.ps1
 
-$mf = Get-Process markflow -ErrorAction SilentlyContinue
+$mf = Get-Process markframe -ErrorAction SilentlyContinue
 if (-not $mf) {
-    Write-Host "MarkFlow no esta abierto. Abrelo y vuelve a correr esto." -ForegroundColor Yellow
+    Write-Host "MarkFrame no esta abierto. Abrelo y vuelve a correr esto." -ForegroundColor Yellow
     exit 1
 }
 
 Write-Host ""
-Write-Host "Memoria de MarkFlow" -ForegroundColor Cyan
+Write-Host "Memoria de MarkFrame" -ForegroundColor Cyan
 Write-Host ("  " + "-" * 44)
-Write-Host ("  {0,-24} {1,8:N1} MB" -f "markflow.exe (Rust)", ($mf.WorkingSet64 / 1MB))
+Write-Host ("  {0,-24} {1,8:N1} MB" -f "markframe.exe (Rust)", ($mf.WorkingSet64 / 1MB))
 
 # Los WebView2 que cuelgan de ESE proceso, no todos los de la maquina.
 $todos = Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" |
@@ -50,6 +50,6 @@ Write-Host ("  " + "-" * 44)
 Write-Host ("  {0,-24} {1,8:N1} MB" -f "TOTAL", $total) -ForegroundColor Green
 Write-Host ("  {0,-24} {1,8:N1} MB" -f "  de eso, Chromium", ($suma / 1MB))
 Write-Host ""
-Write-Host ("  procesos de WebView2 de MarkFlow : " + $mios.Count)
+Write-Host ("  procesos de WebView2 de MarkFrame : " + $mios.Count)
 Write-Host ("  procesos de WebView2 de otras app: " + ($todos.Count - $mios.Count))
 Write-Host ""

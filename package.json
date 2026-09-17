@@ -1,7 +1,10 @@
 {
-  "name": "markflow",
+  "name": "markframe",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "Editor y lector de Markdown para Windows: abre cualquier .md de cualquier carpeta, sin bovedas.",
+  "repository": { "type": "git", "url": "https://github.com/lalomalvi/MarkFrame.git" },
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MarkFlow",
-  "version": "0.1.0",
-  "identifier": "com.lalomalvi.markflow",
+  "productName": "MarkFrame",
+  "version": "1.0.0",
+  "identifier": "com.lalomalvi.markframe",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "MarkFlow",
+        "title": "MarkFrame",
         "width": 1200,
         "height": 800,
         "minWidth": 480,
@@ -47,7 +47,7 @@
           "mdown",
           "mkd"
         ],
-        "name": "MarkFlow.nota",
+        "name": "MarkFrame.nota",
         "description": "Nota Markdown",
         "mimeType": "text/markdown",
         "role": "Editor"

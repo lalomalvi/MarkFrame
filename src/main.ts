@@ -137,7 +137,7 @@ function activar(i: number) {
   // `revisarCambiosDeFuera` solo mira LA ACTIVA y hasta ahora solo corria al
   // recuperar el foco de la ventana. Una pestaña de fondo podia quedarse
   // semanas con una copia vieja: se vuelve a ella, se escribe encima y se
-  // pierde lo que otro programa --o otra ventana de MarkFlow-- ya habia
+  // pierde lo que otro programa --o otra ventana de MarkFrame-- ya habia
   // guardado. Es el patron de trabajo normal aqui: un editor y un agente sobre
   // la misma carpeta.
   void revisarCambiosDeFuera()
@@ -160,7 +160,7 @@ function nuevaVacia() {
 function avisoTope() {
   return avisar(
     'Demasiadas pestañas',
-    `MarkFlow no abre más de ${pest.TOPE} a la vez. Cada pestaña guarda el ` +
+    `MarkFrame no abre más de ${pest.TOPE} a la vez. Cada pestaña guarda el ` +
     'documento entero con su historia de deshacer, y pasado ese punto el ' +
     'programa empieza a pesar más de lo que ayuda. Cierra alguna y vuelve a ' +
     'intentarlo.',
@@ -193,7 +193,7 @@ let guardando = false
 function pintar(mensaje?: string, fallo = false) {
   const p = laActiva()
   btGuardar.disabled = !p || !p.sucio || p.soloLectura || guardando
-  document.title = p ? `${p.nombre} — MarkFlow` : 'MarkFlow'
+  document.title = p ? `${p.nombre} — MarkFrame` : 'MarkFrame'
 
   if (mensaje !== undefined) {
     elEstado.textContent = mensaje
@@ -405,7 +405,7 @@ async function abrirRuta(destino: string) {
     par.enfocar()
   } catch (e) {
     pintar('No se abrió', true)
-    await avisar('No se pudo abrir el archivo', 'MarkFlow no pudo leerlo.', String(e))
+    await avisar('No se pudo abrir el archivo', 'MarkFrame no pudo leerlo.', String(e))
   }
 }
 
@@ -426,6 +426,7 @@ function ponerModo(m: Modo, recordarlo = true) {
   paneles.className = `paneles modo-${m}`
   for (const [k, id] of Object.entries(MODOS)) $(id).classList.toggle('activo', k === m)
   if (m === 'ambos') aplicarDivision(P.division)
+  else soltarDivision()
   if (recordarlo) recordar()
   // La vista tapada no recalcula su alto; al destaparla hay que avisarle.
   requestAnimationFrame(() => { par.fuente.requestMeasure(); par.presentacion.requestMeasure() })
@@ -454,6 +455,23 @@ function aplicarDivision(f: number) {
   cajaFuente.style.flexShrink = '0'
   cajaFuente.style.flexBasis = `${(f * 100).toFixed(3)}%`
   cajaPresentacion.style.flex = '1 1 0'
+}
+
+/**
+ * Devuelve el reparto al CSS, que da `flex: 1` a los dos paneles.
+ *
+ * **Por qué hace falta.** `aplicarDivision` deja `flex-grow: 0` en el panel de
+ * fuente —— tiene que ser así, o el reparto del divisor no se sostendria. Pero
+ * ese cero es en linea y sobrevive al cambio de modo: al pasar a modo Fuente el
+ * panel se quedaba clavado en su porcion del reparto, con media ventana en
+ * negro. El de presentacion no lo sufria porque recibe `flex: 1 1 0`, y de ahi
+ * que Vista se ampliara y Fuente no. Lo vio Lalo el 2026-09-17.
+ */
+function soltarDivision() {
+  cajaFuente.style.flexGrow = ''
+  cajaFuente.style.flexShrink = ''
+  cajaFuente.style.flexBasis = ''
+  cajaPresentacion.style.flex = ''
 }
 
 division.addEventListener('dblclick', () => {
@@ -592,7 +610,7 @@ veloOp.addEventListener('click', () => abrirOpciones(false))
 /**
  * Comprueba si otro programa toco el archivo de la pestana activa.
  *
- * Esto es lo que permite que MarkFlow convive con un agente sobre la misma
+ * Esto es lo que permite que MarkFrame convive con un agente sobre la misma
  * carpeta, que es el patron de trabajo real hoy. Se mira al recuperar el foco
  * de la ventana -- exactamente cuando el usuario vuelve del otro programa --
  * en vez de vigilar el disco todo el rato: mas simple y cubre el caso de uso.
@@ -881,7 +899,7 @@ for (const v of [par.fuente, par.presentacion]) {
 // --- una sola ventana --------------------------------------------------------
 
 /**
- * Cuando Windows lanza MarkFlow y ya hay uno en marcha, el proceso nuevo se
+ * Cuando Windows lanza MarkFrame y ya hay uno en marcha, el proceso nuevo se
  * apaga y le manda aqui sus archivos: se abren como pestañas de esta ventana.
  *
  * Es el mismo recorrido que el de soltar archivos encima, en serie y no en

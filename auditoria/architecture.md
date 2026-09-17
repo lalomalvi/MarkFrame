@@ -1,7 +1,7 @@
-# MarkFlow — mapa de arquitectura para la auditoría
+# MarkFrame — mapa de arquitectura para la auditoría
 
 **Fase 1 (reconocimiento). Fecha: 2026-09-16.**
-Objetivo: `C:\Users\Luis Martinez\Desktop\PROYECTOS DE CODIGO\04. PERSONALES\MarkFlow`
+Objetivo: la raíz de este repositorio.
 Revisión leída: `23561e2` («Seguridad de renderizado y la sintaxis que faltaba»), árbol de
 trabajo **limpio** (`git status` sin cambios; `auditoria/` sin seguimiento).
 Método: **sólo lectura de código.** No se compiló, no se ejecutó, no se instalaron
@@ -21,7 +21,7 @@ raro.
 |---|---|
 | Lalo (el usuario del escritorio) | Todo: abre, edita y guarda cualquier ruta que su cuenta pueda tocar |
 | Un `.md` de terceros (contenido) | Ninguna. Es dato a dibujar |
-| Otro proceso local de la misma cuenta (agente, script) | Escribe el archivo abierto y el perfil de WebView2; MarkFlow lo detecta y reconcilia |
+| Otro proceso local de la misma cuenta (agente, script) | Escribe el archivo abierto y el perfil de WebView2; MarkFrame lo detecta y reconcilia |
 | Un servidor remoto (imágenes) | Ninguna hasta que se autorice una imagen; entonces recibe una petición |
 
 Recursos protegidos: la **integridad de los `.md` del usuario** (prioridad declarada del
@@ -41,7 +41,7 @@ esfuerzo, no para descartar hallazgos.
 ## 2. Componentes y cómo se comunican
 
 ```
-  Windows                                      Proceso MarkFlow.exe
+  Windows                                      Proceso MarkFrame.exe
   ───────                                      ─────────────────────
   Explorador (doble clic .md)
   línea de comandos            ┌──────────────────── Rust / Tauri 2 ────────────────────┐
@@ -108,7 +108,7 @@ desde cualquier script del webview:
 | Comando | Líneas | Entrada | Efecto |
 |---|---|---|---|
 | `leer` | 39-83 | `ruta: String` | Lee cualquier ruta; descarta BOM, exige UTF-8, normaliza CRLF, devuelve ruta canónica sin `\\?\` |
-| `escribir` | 86-112 | `ruta`, `texto`, `fin_de_linea` | Escribe cualquier ruta: temporal `.<nombre>.markflow-tmp` junto al destino (98-101) y `fs::rename` encima (106) |
+| `escribir` | 86-112 | `ruta`, `texto`, `fin_de_linea` | Escribe cualquier ruta: temporal `.<nombre>.markframe-tmp` junto al destino (98-101) y `fs::rename` encima (106) |
 | `leer_imagen` | 139-162 | `ruta: String` | Lee cualquier ruta, decide el tipo MIME **por la extensión** (118-131, incluye `image/svg+xml` en la 125) y devuelve `data:` en base64 |
 | `huella` | 177-186 | `ruta: String` | `mtime` en ms y tamaño |
 | `archivo_inicial` | 190-195 | `std::env::args()` | Primer argumento que no empiece por `-` y sea archivo |
@@ -157,7 +157,7 @@ desde cualquier script del webview:
 
 **Estado persistente** (`src/preferencias.ts`)
 
-- `101` clave `markflow.preferencias`; `103-113` lectura; `115-117` escritura.
+- `101` clave `markframe.preferencias`; `103-113` lectura; `115-117` escritura.
 - `127-158` `aplicar()`: vuelca valores a atributos `data-*` y a variables CSS con
   `setProperty` (138-142).
 - Consumidores sensibles: `src/main.ts:26` (arranque), `:186` (`permitirRemotas`),

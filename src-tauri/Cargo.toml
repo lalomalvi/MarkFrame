@@ -1,8 +1,10 @@
 [package]
-name = "markflow"
-version = "0.1.0"
+name = "markframe"
+version = "1.0.0"
 description = "Editor y lector de archivos Markdown para Windows"
 authors = ["Luis Eduardo Martinez Villasenor"]
+license = "MIT"
+repository = "https://github.com/lalomalvi/MarkFrame"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,7 +13,7 @@ edition = "2021"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "markflow_lib"
+name = "markframe_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -25,7 +27,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
-# Una sola ventana: abrir un .md con MarkFlow ya en marcha lo manda como
+# Una sola ventana: abrir un .md con MarkFrame ya en marcha lo manda como
 # pestana nueva a la ventana que ya existe, en vez de levantar otra. Decision
 # de Lalo del 2026-09-16, sobre el hallazgo que la auditoria dejo abierto.
 tauri-plugin-single-instance = "2"

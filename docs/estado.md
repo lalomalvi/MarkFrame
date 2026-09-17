@@ -1,8 +1,13 @@
 # Estado vigente
 
-**Última actualización: 2026-09-17.** MarkFlow v0.1.0, en uso diario. La
+**Última actualización: 2026-09-17.** MarkFrame **v1.0.0**, en uso diario. La
 auditoría de seguridad está cerrada del todo y el programa lleva la marca de
-Lalo. Lo único que espera decisión suya es publicarlo.
+Lalo. **Se publica con licencia MIT**, y ya no hay nada esperando decisión suya.
+
+**Se llamaba MarkFlow hasta el 2026-09-17.** El nombre estaba tomado por
+`drl990114/MarkFlowy` —— 2 393 estrellas, editor de markdown **también en
+Tauri**—— y por `vorojar/MarkFlow`. Los registros crudos de la auditoría
+conservan el nombre viejo a propósito: son evidencia fechada.
 
 Esto es **estado**, no bitácora. El relato de cómo se llegó aquí está en los
 mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md);
@@ -14,13 +19,13 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 
 | | |
 |---|---|
-| Repo | `lalomalvi/MarkFlow`, privado. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
-| Ejecutable | `markflow.exe`, **7.79 MB** |
-| Instalador | `MarkFlow_0.1.0_x64-setup.exe`, **4.93 MB**, NSIS, **sin UAC** |
+| Repo | `lalomalvi/MarkFrame`, privado. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
+| Ejecutable | `markframe.exe`, **7.79 MB** |
+| Instalador | `MarkFrame_0.1.0_x64-setup.exe`, **4.93 MB**, NSIS, **sin UAC** |
 | Cadena | Rust 1.98.1 (MSVC), Node 22, Tauri 2, Vite 8, TypeScript 6 |
 | WebView2 | ya venía en la máquina, v153 |
 
-> **Instalado y en uso** en `%LOCALAPPDATA%\MarkFlow`, con los arreglos de la
+> **Instalado y en uso** en `%LOCALAPPDATA%\MarkFrame`, con los arreglos de la
 > auditoría dentro —— comprobado contra el binario, no contra el reporte del
 > instalador. Ver *La migración, cerrada*.
 
@@ -51,7 +56,7 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
   pestaña activa y sólo al recuperar el foco de la ventana, así que una pestaña
   de fondo podía quedarse indefinidamente con una copia vieja —— y escribir encima
   de lo que el agente ya había guardado.
-- **Una sola ventana.** Abrir un `.md` con MarkFlow en marcha lo manda como
+- **Una sola ventana.** Abrir un `.md` con MarkFrame en marcha lo manda como
   pestaña a la ventana existente, en vez de levantar otra.
 - **Imágenes de internet bloqueadas de fábrica** y caracteres invisibles marcados.
 - **Guardado explícito**: botón *Guardar*, Ctrl+S, punto en el título cuando hay
@@ -79,7 +84,7 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 nada: si el logo cambia, llega uno nuevo y se regenera todo con
 `npx tauri icon marca/icono-fuente-1024.png`.
 
-**El icono lleva sólo el símbolo, sobre baldosa blanca.** La palabra «MarkFlow»
+**El icono lleva sólo el símbolo, sobre baldosa blanca.** La palabra «MarkFrame»
 no entra: a 16 píxeles es una mancha gris. La baldosa se eligió comparando cuatro
 variantes a tamaños reales sobre fondo claro y oscuro —— sin fondo, la M negra
 **desaparece en la barra de tareas oscura**, y sobre baldosa azul la F del logo
@@ -368,7 +373,7 @@ La detección de formato del panel tarda **0.01 ms** —— ni se mide.
 
 | | |
 |---|---|
-| `markflow.exe` (el núcleo propio) | **30 MB** |
+| `markframe.exe` (el núcleo propio) | **30 MB** |
 | WebView2 principal | 134 MB |
 | proceso de GPU | 116 MB |
 | renderizador | 89 MB |
@@ -376,7 +381,7 @@ La detección de formato del panel tarda **0.01 ms** —— ni se mide.
 | **total** | **436 MB** |
 
 Medido con `pruebas\memoria.ps1`, que **suma sólo los procesos de WebView2 que
-cuelgan de MarkFlow**: WebView2 los comparte con otras aplicaciones, y en esta
+cuelgan de MarkFrame**: WebView2 los comparte con otras aplicaciones, y en esta
 máquina hay dieciocho de otras cosas. Sumarlos todos da 1.5 GB, que es una cifra
 alarmante y falsa.
 
@@ -459,8 +464,8 @@ proceso.
 
 ## La máquina, puesta
 
-**MarkFlow es el editor de `.md` de esta máquina desde el 2026-09-16.** Zettlr
-desinstalado sin residuos, la asociación de `.md` en `MarkFlow.nota`, y su
+**MarkFrame es el editor de `.md` de esta máquina desde el 2026-09-16.** Zettlr
+desinstalado sin residuos, la asociación de `.md` en `MarkFrame.nota`, y su
 configuración respaldada en `migracion-zettlr/config-zettlr/`. Comprobado leyendo
 el registro y el disco, no el reporte del script.
 
@@ -472,15 +477,18 @@ marca.
 
 ## Lo que sigue
 
-**La cola de trabajo está vacía.** Lo único abierto espera una decisión de Lalo:
+**Ya no hay nada esperando una decisión de Lalo.** El 2026-09-17 cerró las tres
+que bloqueaban publicar: **se publica**, el programa **se llama MarkFrame** —— el
+nombre anterior estaba tomado por un editor de markdown en Tauri con 2 393
+estrellas—— y la licencia es **MIT**. Va como **1.0.0**.
 
-**Publicar el repositorio.** Hoy es privado y sin licencia. Si se decide que sí,
-hay media sesión de trabajo antes: un README escrito para alguien que no es Lalo,
-quitar las rutas personales de `auditoria/architecture.md`, y elegir licencia ——
-recomendación: MIT. Detalle y opciones en [pendientes.md](pendientes.md).
+Lo que queda es trabajo, con su estado en [pendientes.md](pendientes.md):
+capturas, el paquete de publicación, recompilar, y reescribir el historial con
+`filter-repo` para sacar `migracion-zettlr/` antes de que el repo sea público.
 
-De ahí cuelga **firmar el instalador**, que sólo importa al publicar y está
-decidido en «no por ahora».
+**Fuera del alcance de la 1.0, pero decidido y escrito:** la traducción a inglés
+y portugués, exportar a PDF, Mermaid en `sandbox` y el soporte multiplataforma.
+El corrector ortográfico está **descartado**.
 
 ## Decidido, para no volver a discutirlo
 
@@ -642,3 +650,13 @@ y si no, cae al renglón.
 identificadores.** PowerShell 5.1 lee como ANSI un `.ps1` sin BOM, y un
 `$claveElección` se vuelve un error de sintaxis sin relación aparente con la
 línea que lo causa.
+
+**Un `flex-grow: 0` en línea sobrevive al cambio de modo.** `aplicarDivision()`
+fija el reparto del divisor con estilos en línea sobre el panel de fuente, y
+entre ellos un `flex-grow: 0` que es imprescindible para que el arrastre
+funcione. Al pasar a modo Fuente ese cero seguía puesto y el panel se quedaba
+clavado en su porción, con media ventana en negro. El panel de presentación no lo
+sufría porque recibe `flex: 1 1 0` —— de ahí que Vista se ampliara y Fuente no.
+Lo arregla `soltarDivision()`, que devuelve el reparto al CSS al salir de Ambos.
+**La lección general: un estilo en línea puesto para un modo hay que quitarlo al
+salir de ese modo, porque el CSS ya no puede ganarle.**

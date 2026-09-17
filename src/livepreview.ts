@@ -60,7 +60,7 @@ const TRAMO: Record<string, string> = {
  * escribe en mayuscula; GitLab los escribe en minuscula. Aqui se aceptan las
  * dos formas y tambien el espanol, porque lo que se teclea en esta maquina
  * esta en espanol. **Ojo al exportar: `[!NOTA]` no lo renderiza nadie fuera
- * de MarkFlow y se degrada a cita.**
+ * de MarkFrame y se degrada a cita.**
  */
 const AVISOS: Record<string, string> = {
   nota: 'nota', note: 'nota', info: 'nota', informacion: 'nota',

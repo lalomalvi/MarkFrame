@@ -1,4 +1,4 @@
-//! MarkFlow — nucleo nativo.
+//! MarkFrame — nucleo nativo.
 //!
 //! Aqui NO hay restriccion de rutas a proposito. Es un editor de los archivos
 //! del usuario: abre lo que le den, donde sea. Ver ESPEC.md §2.
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 /// Estilo de fin de linea del archivo tal como estaba en disco.
 ///
-/// Se conserva y se restaura al guardar. Si no, MarkFlow convertiria en
+/// Se conserva y se restaura al guardar. Si no, MarkFrame convertiria en
 /// silencio todos los CRLF de la maquina a LF y ensuciaria cualquier diff.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -53,7 +53,7 @@ fn leer(ruta: String) -> Result<Documento, String> {
     if let Ok(m) = fs::metadata(&p) {
         if m.len() > TOPE_DOCUMENTO {
             return Err(format!(
-                "«{}» pesa {} MB y MarkFlow no abre documentos de mas de {} MB.",
+                "«{}» pesa {} MB y MarkFrame no abre documentos de mas de {} MB.",
                 nombre_de(&p),
                 m.len() / 1024 / 1024,
                 TOPE_DOCUMENTO / 1024 / 1024
@@ -71,7 +71,7 @@ fn leer(ruta: String) -> Result<Documento, String> {
 
     let texto = String::from_utf8(sin_bom.to_vec()).map_err(|_| {
         format!(
-            "«{}» no esta en UTF-8. MarkFlow no lo abre para no corromperlo al guardar.",
+            "«{}» no esta en UTF-8. MarkFrame no lo abre para no corromperlo al guardar.",
             nombre_de(&p)
         )
     })?;
@@ -126,7 +126,7 @@ fn escribir(ruta: String, texto: String, fin_de_linea: FinDeLinea) -> Result<(),
     //    target». En Windows, `create_new` hace que la propia biblioteca estandar
     //    anada esa bandera, asi que deja de seguir enlaces sin dependencias.
     //  - **Permite reintentar con otro nombre**, que es lo que cierra la colision
-    //    entre dos ventanas de MarkFlow guardando la misma nota a la vez.
+    //    entre dos ventanas de MarkFrame guardando la misma nota a la vez.
     //
     // El nombre lleva un sufijo variable por lo mismo: dejo de ser predecible.
     let padre = p.parent().ok_or("La ruta no tiene carpeta padre")?;
@@ -139,7 +139,7 @@ fn escribir(ruta: String, texto: String, fin_de_linea: FinDeLinea) -> Result<(),
     let mut archivo = None;
     let mut ultimo_error = None;
     for _ in 0..8 {
-        temporal = padre.join(format!(".{}.{}.markflow-tmp", base, marca_unica()));
+        temporal = padre.join(format!(".{}.{}.markframe-tmp", base, marca_unica()));
         match fs::OpenOptions::new().write(true).create_new(true).open(&temporal) {
             Ok(f) => { archivo = Some(f); break }
             Err(e) => ultimo_error = Some(e),
@@ -670,7 +670,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![leer, escribir, leer_imagen, huella, archivo_inicial])
         .run(tauri::generate_context!())
-        .expect("error al arrancar MarkFlow");
+        .expect("error al arrancar MarkFrame");
 }
 
 #[cfg(test)]
@@ -685,7 +685,7 @@ mod pruebas {
     /// otro y falla sin que haya nada roto.
     fn temporal(bytes: &[u8]) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "markflow-prueba-{}-{}",
+            "markframe-prueba-{}-{}",
             std::process::id(),
             N.fetch_add(1, Ordering::SeqCst)
         ));
@@ -758,7 +758,7 @@ mod pruebas {
         let sobrantes: Vec<_> = fs::read_dir(p.parent().unwrap())
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_string_lossy().ends_with(".markflow-tmp"))
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".markframe-tmp"))
             .collect();
         assert!(sobrantes.is_empty(), "quedaron temporales: {sobrantes:?}");
         limpiar(p);
@@ -784,7 +784,7 @@ mod pruebas {
         // el documento imposible de guardar. Ahora se reintenta con otro.
         let p = temporal(b"antes\n");
         let ruta = p.to_string_lossy().into_owned();
-        let estorbo = p.parent().unwrap().join(".nota.md.markflow-tmp");
+        let estorbo = p.parent().unwrap().join(".nota.md.markframe-tmp");
         fs::write(&estorbo, b"estorbo").unwrap();
 
         escribir(ruta, "despues\n".into(), FinDeLinea::Lf).unwrap();
@@ -804,7 +804,7 @@ mod pruebas {
         let sobrantes: Vec<_> = fs::read_dir(p.parent().unwrap())
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_string_lossy().ends_with(".markflow-tmp"))
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".markframe-tmp"))
             .collect();
         assert!(sobrantes.is_empty(), "quedaron temporales: {sobrantes:?}");
         limpiar(p);
@@ -850,7 +850,7 @@ o\existe\esto.md".to_string());
 
     #[test]
     fn una_imagen_se_entrega_como_dato_listo_para_pintar() {
-        let dir = std::env::temp_dir().join(format!("markflow-img-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("markframe-img-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let p = dir.join("punto.png");
         // PNG de 1x1 valido.
@@ -876,7 +876,7 @@ o\existe\esto.md".to_string());
     #[test]
     fn se_puede_escribir_fuera_de_toda_carpeta_del_proyecto() {
         // No hay bovedas: esta prueba existe para que quede fijado por contrato.
-        let p = std::env::temp_dir().join("markflow-suelto.md");
+        let p = std::env::temp_dir().join("markframe-suelto.md");
         let ruta = p.to_string_lossy().into_owned();
         escribir(ruta, "# Suelto\n".into(), FinDeLinea::Lf).unwrap();
         assert_eq!(fs::read_to_string(&p).unwrap(), "# Suelto\n");

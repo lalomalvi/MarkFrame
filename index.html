@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MarkFlow</title>
+    <title>MarkFrame</title>
     <link rel="stylesheet" href="/src/tipografias.css" />
     <link rel="stylesheet" href="/src/styles.css" />
     <script type="module" src="/src/main.ts" defer></script>
@@ -14,7 +14,7 @@
          ventana; lo que tiene evento propio, no. -->
     <header id="titulo" class="titulo" data-tauri-drag-region>
       <span class="titulo-marca" data-tauri-drag-region>
-        <!-- El simbolo del logo, sacado de `marca/logo-markflow.svg`. La M va
+        <!-- El simbolo del logo, sacado de `marca/logo-markframe.svg`. La M va
              con `currentColor` para que tome el color del texto de la barra:
              en negro fijo desapareceria con el tema oscuro. El gradiente lleva
              nombre propio porque los de Illustrator traen identificadores de
@@ -60,6 +60,16 @@
     </header>
 
     <header class="barra">
+      <!-- El indice abre la barra. Lo pidio Lalo el 2026-09-17: es lo primero
+           que se usa al abrir un documento largo, y en el extremo izquierdo cae
+           donde la vista ya esta mirando. -->
+      <button id="v-indice" class="boton icono" title="Índice del documento (Ctrl+Shift+O)"
+              aria-label="Índice del documento" aria-pressed="false">
+        <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.4 4h1.2M2.4 8h1.2M2.4 12h1.2" />
+          <path d="M6.2 4h7.4M6.2 8h5.6M6.2 12h6.4" />
+        </svg>
+      </button>
       <button id="abrir" class="boton" title="Abrir un archivo (Ctrl+O)">
         <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M1.6 12.4V4a1.3 1.3 0 0 1 1.3-1.3h2.9L7.2 4.4h5.9A1.3 1.3 0 0 1 14.4 5.7v6.7a1.3 1.3 0 0 1-1.3 1.3H2.9a1.3 1.3 0 0 1-1.3-1.3Z" />
@@ -87,16 +97,6 @@
         <svg class="ic ic-g" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M13.4 6.6H6.3a3.7 3.7 0 0 0 0 7.4h3.5" />
           <path d="M10.1 3.3l3.3 3.3-3.3 3.3" />
-        </svg>
-      </button>
-
-      <span class="separador"></span>
-
-      <button id="v-indice" class="boton icono" title="Índice del documento (Ctrl+Shift+O)"
-              aria-label="Índice del documento" aria-pressed="false">
-        <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2.4 4h1.2M2.4 8h1.2M2.4 12h1.2" />
-          <path d="M6.2 4h7.4M6.2 8h5.6M6.2 12h6.4" />
         </svg>
       </button>
 
@@ -136,7 +136,7 @@
           <path d="M10.4 10.4 13.8 13.8" />
         </svg>
         <input id="buscar" class="buscar-campo" type="text" spellcheck="false"
-               placeholder="Buscar (Ctrl+F)" aria-label="Buscar en esta nota" />
+               placeholder="Buscar" aria-label="Buscar en esta nota" />
         <span id="buscar-cuenta" class="buscar-cuenta" aria-live="polite"></span>
         <button id="buscar-antes" class="boton icono buscar-paso" title="Anterior (Shift+Enter)"
                 aria-label="Coincidencia anterior">
@@ -305,7 +305,7 @@
             <input id="op-remotas" type="checkbox" />
           </label>
           <p class="op-nota">
-            Apagado, MarkFlow no pide ninguna imagen remota hasta que tú lo
+            Apagado, MarkFrame no pide ninguna imagen remota hasta que tú lo
             autorices. Pedirla avisa a ese servidor de que abriste el archivo y
             le revela tu IP. Las imágenes del disco no tienen ese problema.
           </p>

@@ -1,4 +1,4 @@
-/* MarkFlow — paleta y armazon.
+/* MarkFrame — paleta y armazon.
  *
  * Los colores salen del icono del programa: la tinta #20232a / #191c23 y el
  * azul que va de #0061f5 a #12a2fc. El acento era ambar hasta el 2026-09-16.
@@ -966,7 +966,10 @@ body { display: flex; flex-direction: column; }
   background: var(--papel-barra);
   border-color: var(--borde);
   color: var(--tinta);
-  box-shadow: inset 0 2px 0 var(--acento);
+  /* 1.5px y no 2: el trazo de 2 pesaba de mas al lado de un rotulo de 12px.
+     Bajado el 2026-09-17 a peticion de Lalo, y no a 1px porque entonces se
+     pierde en pantallas sin escalado. */
+  box-shadow: inset 0 1.5px 0 var(--acento);
 }
 
 .pest-nombre { overflow: hidden; text-overflow: ellipsis; }

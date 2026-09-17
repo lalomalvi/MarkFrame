@@ -110,7 +110,7 @@ const PROFUNDIDAD: Record<Profundidad,
   profundo: { papel: '#0c0d11', barra: '#07080a', titulo: '#040507', codigo: '#131519' },
 }
 
-const CLAVE = 'markflow.preferencias'
+const CLAVE = 'markframe.preferencias'
 
 /**
  * Comprueba lo que viene de `localStorage` antes de usarlo.

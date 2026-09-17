@@ -24,7 +24,7 @@ export interface Pestana {
   estadoF: EditorState | null
   estadoP: EditorState | null
   /**
-   * Huella del archivo tal como estaba la ultima vez que MarkFlow lo leyo o lo
+   * Huella del archivo tal como estaba la ultima vez que MarkFrame lo leyo o lo
    * escribio. Si la de disco no coincide, alguien mas lo edito.
    */
   visto: { modificado: number; tamano: number } | null

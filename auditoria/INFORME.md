@@ -1,4 +1,26 @@
-# Auditoría de seguridad de MarkFlow
+# Auditoría de seguridad de MarkFrame
+
+> ## Nota de cierre · 2026-09-17
+>
+> **Este informe es del día siguiente a la auditoría, y su última sección —«Lo
+> que queda abierto»— ya no describe el programa.** Se deja tal cual porque un
+> informe es un documento fechado y reescribirlo sería falsificarlo. Lo que
+> cambió desde entonces:
+>
+> | Lo que el informe dejó abierto | Hoy |
+> |---|---|
+> | **Las funciones no probadas con la política puesta** | **Cerrado.** Ejercitadas en el binario instalado: tablas, KaTeX, los dos tipos de Mermaid, imágenes, avisos, casillas, notas al pie y código. `https:` y `mailto:` se abren en el navegador del sistema; `javascript:` y `data:` salen como texto plano |
+> | **`leer_imagen` no mira las dimensiones declaradas** | **Cerrado.** `TOPE_PIXELES` = 180 millones, con lectura de cabecera para PNG, GIF, BMP, JPEG, WEBP y AVIF —— y una prueba que fija que un A0 a 300 ppp (139 millones) **sí abre** |
+> | **Sin control de instancia única** | **Cerrado** con el plugin `single-instance`: el segundo `.md` va a una pestaña de la ventana que ya existe |
+> | **El instalador no va firmado** | **Sigue siendo verdad, y es una decisión, no un descuido.** Windows avisará de «editor desconocido». Decidido el 2026-09-17: no se firma por ahora —— es un gasto recurrente, y el código, este informe y el SHA-256 del instalador dan más confianza que una firma comprada |
+>
+> **Y el programa se llamaba MarkFlow cuando se auditó.** Pasó a llamarse
+> MarkFrame el 2026-09-17, al descubrir que el nombre estaba tomado por otro
+> editor de markdown. Los registros crudos de `caza/` y `validacion/` conservan
+> el nombre viejo a propósito: son evidencia de unas corridas fechadas.
+>
+> Los precedentes de cada mitigación —qué CVE le costó a quién lo que aquí se
+> cerró— están en [precedentes.md](precedentes.md).
 
 **16 de septiembre de 2026.** Revisión auditada: `23561e2`. Protocolo: el de
 auditoría de seguridad de Cloudflare, seis fases.
@@ -67,7 +89,7 @@ Era el mismo daño que la puerta existe para evitar, por la puerta de al lado.
 
 Sin manejador de navegación, un `https://` en una tabla **reemplazaba la
 aplicación** con esa página: pérdida de todo lo no guardado, sin preguntar, y sin
-señal de que eso ya no era MarkFlow.
+señal de que eso ya no era MarkFrame.
 
 > **Arreglado** con un complemento de navegación: los enlaces se abren en el
 > navegador del sistema. `tauri::Builder` no tiene ese gancho — el arreglo que

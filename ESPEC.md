@@ -1,4 +1,4 @@
-# MarkFlow — especificación
+# MarkFrame — especificación
 
 Editor y lector de archivos Markdown para Windows 11.
 Decidido el **2026-09-16**.
@@ -56,10 +56,14 @@ Por defecto **dos paneles lado a lado**, ambos editables, con opción a dejar s�
 uno. El de la derecha usa la edición *inside* de Obsidian: los marcadores se
 ocultan y reaparecen cuando el cursor entra al renglón.
 
-**La decisión que hace que esto no se rompa:** no son dos documentos
-sincronizados, es **un solo documento con dos ventanas**. Ambos paneles son vistas
-de CodeMirror 6 sobre el **mismo `EditorState`**. El panel derecho no es HTML
-renderizado: es el mismo texto con los marcadores decorados.
+**La decisión que hace que esto no se rompa:** el panel derecho **no es HTML
+renderizado**, es el mismo texto con los marcadores decorados. Por eso editarlo
+es editar markdown, y no hay conversión inversa que pueda comerse un renglón.
+
+Son **dos `EditorState`**, uno por panel, y cada cambio se refleja en el otro con
+una anotación que corta el rebote —— CodeMirror 6 no deja compartir un estado
+entre dos vistas, y este es el patrón que documenta para el caso. Hasta el
+2026-09-17 este párrafo decía «el mismo `EditorState`»: era falso.
 
 > **Por qué importa.** El editor Folio (`notasynodos`, 2026-08) sí intentó editar
 > sobre la vista formateada, convirtiendo lo editado *de vuelta* a markdown. Hubo
@@ -68,11 +72,11 @@ renderizado: es el mismo texto con los marcadores decorados.
 > así que es imposible perder un renglón de una tabla.
 >
 > Estado: **doctrina** — razonada sobre evidencia de Folio, aún no verificada
-> en MarkFlow. Se confirma al terminar la etapa 2.
+> en MarkFrame. Se confirma al terminar la etapa 2.
 
 ### Sin restricción de rutas
 
-A diferencia de Folio —cuya `rutaSegura()` ancla todo a `contenido/`— MarkFlow
+A diferencia de Folio —cuya `rutaSegura()` ancla todo a `contenido/`— MarkFrame
 lee y escribe en cualquier ruta. Es un editor de archivos del usuario, y esa es
 su función. La decisión es consciente y consta aquí.
 
@@ -131,4 +135,8 @@ Mermaid y KaTeX **se cargan la primera vez que hacen falta**, no al arrancar: un
 ## 6. Fuera de la v1
 
 A propósito, para que no se extrañen sin aviso: búsqueda global, explorador de
-carpetas, pestañas y exportar a PDF. Ninguno sirve al «abre rápido y edita».
+carpetas y exportar a PDF. Ninguno sirve al «abre rápido y edita».
+
+**Las pestañas sí se hicieron**, el 2026-09-16, y con 9 pruebas: abrir un
+segundo `.md` desde el Explorador tenía que ir a algún sitio, y una ventana
+nueva por archivo era peor.

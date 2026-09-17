@@ -10,7 +10,7 @@ fn main() {
     // anterior**, aunque `icons/icon.ico` ya sea el nuevo y el instalador diga
     // que todo fue bien.
     //
-    // Paso el 2026-09-17 con el logo de MarkFlow: el `.ico` del proyecto era el
+    // Paso el 2026-09-17 con el logo de MarkFrame: el `.ico` del proyecto era el
     // bueno desde las 00:52 y el `resource.lib` seguia siendo del dia anterior.
     // Se vio extrayendo el icono del `.exe` instalado, no mirando los archivos
     // del proyecto —— que es lo que llevaba a dar por bueno algo que no lo era.
