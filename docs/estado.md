@@ -33,6 +33,10 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
   (`[!NOTA]`, `[!AVISO]`, `[!PELIGRO]`, `[!TIP]`, `[!EJEMPLO]`, `[!CITA]`) y
   **casillas de tarea** que se pican. El frontmatter YAML sale como metadatos.
 - **Tablas editables**: un clic en una celda la edita. Ver más abajo.
+- **Buscar dentro de la nota** (Ctrl+F), en la barra arriba a la derecha. Enter y
+  Shift+Enter recorren, con contador de coincidencias.
+- **Panel de formato al seleccionar**: resaltar, negrita, cursiva y tachado, sin
+  salir de la vista.
 - **Sintaxis**: notas al pie `[^1]`, `==resaltado==`, avisos con los 13 tipos de
   Obsidian y título propio, en inglés y español, mayúscula o minúscula.
 - **Convivencia con agentes**: al recuperar el foco **y al volver a una pestaña**,
@@ -75,8 +79,9 @@ variantes a tamaños reales sobre fondo claro y oscuro —— sin fondo, la M ne
 **desaparece en la barra de tareas oscura**, y sobre baldosa azul la F del logo
 se funde con ella.
 
-> El cuadrito «MF» de la barra de título sigue siendo el provisional de texto,
-> anotado como B5 en [pendientes.md](pendientes.md).
+**El símbolo también está en la barra de título**, con la M en `currentColor`
+para que tome el color del texto: en negro fijo desaparecería con el tema
+oscuro.
 
 ### Paleta
 
@@ -194,6 +199,33 @@ nunca.
 
 Retrasar el primer clic para ver si venía otro habría metido medio segundo de
 espera en cada clic del programa, y eso choca con su razón de ser.
+
+### Buscar y dar formato
+
+**El buscador mira este archivo y ninguno más.** Decisión de Lalo del
+2026-09-17, sobre tres opciones: sólo el archivo, la carpeta al vuelo, o un
+índice persistente de carpetas registradas. La tercera habría sido una bóveda.
+
+Vive en la barra y no en un panel que aparece y desaparece: es el gesto que más
+se repite. Ctrl+F lleva el foco ahí, Enter y Shift+Enter recorren, Escape limpia.
+El contador dice «3/17», y por encima de mil coincidencias pone `1000+` —— contar
+todas en cada tecla se paga, y el número exacto ya no le dice nada a nadie.
+Trabaja sobre **el panel que se está mirando**.
+
+**El panel de formato** sale al soltar el ratón sobre texto seleccionado, y se va
+al picar fuera, al hacer scroll o con Escape. Lleva resaltar, **N**, *K* y ~~S~~,
+y cada botón se ve como lo que hace.
+
+Las cuatro marcas son **markdown de toda la vida**: `==resaltado==`,
+`**negrita**`, `*cursiva*` y `~~tachado~~`. Lalo eligió un solo color de
+resaltado en vez de inventar sintaxis propia para tres, y tachado en lugar de
+subrayado —— que en markdown no existe sin meter HTML. La ganancia es que un `.md`
+tocado aquí se abre igual en Obsidian, en GitHub o en el Bloc de notas.
+
+> Escribe con el mismo principio que las tablas: **reemplaza tramos conocidos**,
+> nunca reconstruye. Y para saber si algo ya está envuelto mira **por fuera** de
+> la selección, porque quien selecciona una palabra en negrita selecciona la
+> palabra, no los asteriscos. Sin eso saldría `****texto****`.
 
 ### El eco entre paneles
 

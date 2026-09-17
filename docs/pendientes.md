@@ -99,19 +99,11 @@ nunca como serializador general. Ver *Las tablas editables* en
 
 ## B · No bloqueado · lo que sigue, en este orden
 
-### B5 · El monograma de la barra de título · **lo único vivo aquí**
+### ~~B5 · El monograma de la barra de título~~ · HECHO el 2026-09-17
 
-El cuadrito de arriba a la izquierda sigue siendo un «MF» de texto sobre un
-cuadrado de acento, dibujado a mano antes de que existiera el logo. Ahora el
-icono de la aplicación lleva el símbolo real y ese cuadrito no.
-
-Para usarlo hay que sacar el símbolo del SVG, que trae once `path` con gradientes
-de Illustrator y nombres generados, y dejarlo en algo que pese poco y funcione
-**en los dos temas** —— la M es negra y en la barra oscura desaparecería, así que
-tendría que tomar el color del texto y dejar la F en azul.
-
-A 17 píxeles la ganancia es de coherencia, no de legibilidad. Por eso va aquí y
-no en deuda urgente.
+El símbolo salió del SVG en tres `path` y 1.5 KB, con la M en `currentColor` y
+el gradiente renombrado —— los de Illustrator traen identificadores de cincuenta
+caracteres, y dos iguales en la misma página se pisan.
 
 ### ~~B1 · Pruebas de la presentación~~ · HECHO
 
