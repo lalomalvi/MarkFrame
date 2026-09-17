@@ -1,6 +1,6 @@
 [package]
 name = "markframe"
-version = "1.0.0"
+version = "1.0.1"
 description = "Editor y lector de archivos Markdown para Windows"
 authors = ["Luis Eduardo Martinez Villasenor"]
 license = "MIT"

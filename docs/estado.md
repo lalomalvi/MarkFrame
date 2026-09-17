@@ -1,6 +1,6 @@
 # Estado vigente
 
-**Última actualización: 2026-09-17.** MarkFrame **v1.0.0**, en uso diario y
+**Última actualización: 2026-09-17.** MarkFrame **v1.0.1**, en uso diario y
 **publicado**: https://github.com/lalomalvi/MarkFrame (MIT). La
 auditoría de seguridad está cerrada del todo y el programa lleva la marca de
 Lalo. Ya no hay nada esperando decisión suya.
@@ -22,8 +22,8 @@ la auditoría, en [auditoria/INFORME.md](../auditoria/INFORME.md).
 |---|---|
 | Repo | `lalomalvi/MarkFrame`, **público, MIT**, sin issues. Remoto por **HTTPS** con el token de `gh`: la clave SSH no está disponible desde la sesión de trabajo |
 | Ejecutable | `markframe.exe`, **7.80 MB** |
-| Instalador | `MarkFrame_1.0.0_x64-setup.exe`, **4.94 MB**, NSIS, **sin UAC**. SHA-256 `d6a49e17…` |
-| Release | [v1.0.0](https://github.com/lalomalvi/MarkFrame/releases/tag/v1.0.0), con el instalador y su hash |
+| Instalador | `MarkFrame_1.0.1_x64-setup.exe`, **4.94 MB**, NSIS, **sin UAC**. SHA-256 `c155bfca…` |
+| Release | [v1.0.1](https://github.com/lalomalvi/MarkFrame/releases/tag/v1.0.1), con el instalador y su hash |
 | Cadena | Rust 1.98.1 (MSVC), Node 22, Tauri 2, Vite 8, TypeScript 6 |
 | WebView2 | ya venía en la máquina, v153 |
 
@@ -662,3 +662,12 @@ sufría porque recibe `flex: 1 1 0` —— de ahí que Vista se ampliara y Fuent
 Lo arregla `soltarDivision()`, que devuelve el reparto al CSS al salir de Ambos.
 **La lección general: un estilo en línea puesto para un modo hay que quitarlo al
 salir de ese modo, porque el CSS ya no puede ganarle.**
+
+**Ocultar el marcador no basta: hay que ocultar también lo que el marcador
+etiquetaba.** `MARCADORES` esconde `CodeMark` —las comillas invertidas de un
+bloque cercado— pero `CodeInfo`, que es el nombre del lenguaje, se quedaba
+visible **dentro** del bloque: un ` ```python ` se dibujaba con «python» como
+primer renglón del código, con el mismo estilo. El código ya documentaba la
+misma trampa para los enlaces —si sólo se ocultan los corchetes, la URL queda
+pegada al texto—, y aun así se repitió. **Cuando ocultes un marcador, pregunta
+qué más pertenecía a esa sintaxis y no es contenido.**

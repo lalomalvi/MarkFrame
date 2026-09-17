@@ -25,9 +25,18 @@ import { refrescarPresentacion } from './refresco.ts'
 
 export { refrescarPresentacion } from './refresco.ts'
 
-/** Marcadores que se esconden cuando el cursor no esta en su renglon. */
+/**
+ * Marcadores que se esconden cuando el cursor no esta en su renglon.
+ *
+ * **`CodeInfo` es el nombre del lenguaje** de un bloque cercado —— el `python`
+ * de ```` ```python ````. Va aqui por lo mismo que la direccion de un enlace
+ * (ver mas abajo): ocultar solo `CodeMark` dejaba las comillas invertidas fuera
+ * y **la etiqueta dentro**, asi que el bloque empezaba con un renglon que decia
+ * «python» con el mismo estilo que el codigo. Lo vio Lalo el 2026-09-17 en las
+ * capturas del README, y salia en cualquier bloque con lenguaje declarado.
+ */
 const MARCADORES = new Set([
-  'HeaderMark', 'EmphasisMark', 'StrongEmphasisMark', 'CodeMark',
+  'HeaderMark', 'EmphasisMark', 'StrongEmphasisMark', 'CodeMark', 'CodeInfo',
   'StrikethroughMark', 'QuoteMark', 'LinkMark', 'SubscriptMark',
   'SuperscriptMark',
 ])

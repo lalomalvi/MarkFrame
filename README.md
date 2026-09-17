@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/markframe-1024.png" alt="MarkFrame" width="120" />
+<img src="marca/icono-fuente-1024.png" alt="MarkFrame" width="110" />
 
 # MarkFrame
 
@@ -12,7 +12,9 @@ Como el Bloc de notas, pero que entiende markdown.
 
 </div>
 
-![Los dos paneles, con el aviso de imagen remota](assets/capturas/imagen-remota.png)
+![Los dos paneles, los dos editables](assets/capturas/ambos-claro.png)
+
+<sub>Los dos paneles a la vez, con la fórmula de KaTeX ya dibujada a la derecha y su fuente a la izquierda.</sub>
 
 ---
 
@@ -74,12 +76,38 @@ declarado: **un archivo markdown de procedencia desconocida.**
 - **El HTML embebido en un `.md` nunca se renderiza.**
 - KaTeX con `trust: false` y Mermaid saneado.
 
+![El aviso de imagen remota](assets/capturas/imagen-remota.png)
+
+<sub>El documento pide una imagen a un servidor ajeno. MarkFrame no la trae: avisa, explica qué pasaría, y deja la decisión.</sub>
+
 El informe completo, con lo que se encontró y lo que sigue abierto, está en
 [`auditoria/INFORME.md`](auditoria/INFORME.md). Los precedentes —qué CVE le
 costó a quién cada cosa que aquí se cierra— en
 [`auditoria/precedentes.md`](auditoria/precedentes.md).
 
 **112 pruebas** automatizadas: 81 de interfaz y 31 del núcleo en Rust.
+
+## Cómo se ve
+
+**Los tres modos.** Sólo la fuente, los dos paneles, o sólo el texto formateado:
+
+![Modo fuente](assets/capturas/fuente.png)
+
+**El índice del documento**, con la sección actual marcada —— y el modo Vista detrás:
+
+![Índice](assets/capturas/indice.png)
+
+**Diagramas de Mermaid**, que siguen al tema:
+
+![Mermaid](assets/capturas/mermaid.png)
+
+**Buscar dentro del archivo**, con contador y la coincidencia marcada en los dos paneles:
+
+![Buscador](assets/capturas/buscador.png)
+
+**Y en tema oscuro**, que es donde vive la mitad del tiempo:
+
+![Tema oscuro](assets/capturas/buscador-oscuro.png)
 
 ## Instalación
 

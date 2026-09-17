@@ -58,21 +58,44 @@ empieza ninguno antes de publicar.
 | 10 | **Historial reescrito** con `filter-branch`, repo renombrado, issues apagados, `push --force`, público y release | ✅ |
 | 11 | **Capturas** | ⏳ falta todo menos la del aviso de imagen remota |
 
-### Lo único que queda: las capturas
+### El pendiente abierto: el logo con el texto nuevo
 
-Para las capturas de los tres modos, los dos temas, el panel de formato, el
-índice y las tablas editables **hacen falta clics en la ventana**, y el permiso
-del sistema sólo alcanza a aplicaciones que su índice conoce —— ese índice se
-construye al arrancar la sesión, así que no veía MarkFrame recién instalado.
-**En una sesión nueva sí lo verá.**
+Los archivos `marca/logo-markframe.*` llevan dibujada la palabra **«MarkFlow»**,
+el nombre viejo —— se renombró el archivo, no el dibujo. **Lalo va a pasar el logo
+con el texto nuevo.** Cuando llegue: sustituir los tres, y entonces se puede usar
+la versión con palabra en el README y donde haga falta ancho.
 
-Hay dos formas de rodearlo y las dos se descartaron: automatizar el ratón desde
+Mientras tanto, todo lo publicado usa `marca/icono-fuente-1024.png`, que es sólo
+el símbolo y **por eso no envejeció con el nombre**. El monograma provisional
+`assets/markframe-1024.png` se borró: era el «MF» de antes del logo, y estuvo
+unos minutos en la cabecera del README público.
+
+### Las capturas: hechas, y las hizo Lalo
+
+**Siete capturas en `assets/capturas/`**, tomadas por él con `capturar.ps1` el
+2026-09-17: los dos paneles en claro con KaTeX, el modo Fuente, el índice sobre
+el modo Vista, Mermaid, el buscador en claro y en oscuro, y el aviso de imagen
+remota.
+
+**Por qué no las tomé yo:** hacen falta clics en la ventana, y el permiso del
+sistema sólo alcanza a aplicaciones que su índice conoce —— ese índice se
+construye al arrancar la sesión, así que no veía MarkFrame recién instalado. Hay
+dos formas de rodearlo y las dos se descartaron: automatizar el ratón desde
 PowerShell, o copiar el ejecutable nuevo encima del viejo para colarlo en el
 permiso ya concedido. Las dos son saltarse el control que existe para que un
 agente no haga clics por su cuenta.
 
 El script que captura la ventana exacta —sin bordes ni escritorio— es
 `capturar.ps1`, y vive fuera del repo a propósito: es herramienta, no producto.
+
+**Y las capturas encontraron un fallo**, que es la moraleja de siempre: en el
+panel formateado, un bloque ` ```python ` mostraba **«python» como primer
+renglón del código**. `MARCADORES` ocultaba `CodeMark` —los backticks— pero no
+`CodeInfo`, la etiqueta del lenguaje. Salía en cualquier bloque con lenguaje
+declarado, o sea en casi todos. Arreglado en 1.0.1.
+
+Faltan, y no son urgentes: el panel de formato con un botón encendido, una celda
+de tabla en edición, y el panel de Configuración.
 
 ### El respaldo del historial
 
