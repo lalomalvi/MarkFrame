@@ -19,6 +19,7 @@ import { syntaxHighlighting, defaultHighlightStyle, bracketMatching,
          indentUnit } from '@codemirror/language'
 import { searchKeymap } from '@codemirror/search'
 import { vistaPresentacion } from './livepreview'
+import { bloqueEn, campoEco, marcarEco } from './resalte'
 import { temaBase, resaltadoMarkdown } from './tema'
 
 /** Marca una transaccion que ya viene reflejada de la otra vista: no se reenvia. */
@@ -36,8 +37,8 @@ export interface Par {
   verNumeros(ver: boolean): void
   /** `'tab'` o el numero de espacios, como cadena. */
   fijarSangria(s: string): void
-  /** Que el scroll de un panel arrastre al del otro. */
-  ligarScroll(ligado: boolean): void
+  /** Que picar un bloque lleve el otro panel al mismo bloque. */
+  activarEco(activo: boolean): void
 }
 
 export function crearPar(
@@ -82,6 +83,7 @@ export function crearPar(
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       EditorView.lineWrapping,
       sangria.of(indentUnit.of('    ')),
+      campoEco(),
       temaBase,
       atajos,
       keymap.of([...defaultKeymap, ...searchKeymap, indentWithTab]),
@@ -130,31 +132,36 @@ export function crearPar(
     dispatchTransactions: reflejar(() => fuente),
   })
 
-  // --- scroll ligado ---------------------------------------------------------
+  // --- eco entre paneles -----------------------------------------------------
 
-  let ligado = false
-  let sincronizando = false
+  let eco = true
+  let temporizador: number | undefined
+  const DURACION_ECO = 2600
 
   /**
-   * Se liga POR RENGLON, no por pixeles.
+   * Lleva el otro panel al bloque que se acaba de picar y lo enmarca.
    *
-   * Los dos paneles no miden lo mismo de alto: una tabla dibujada ocupa mas que
-   * su markdown y un diagrama mucho mas. Igualar `scrollTop` los desalinea a los
-   * pocos bloques. Llevando el renglon de arriba al renglon de arriba, la
-   * correspondencia se mantiene fiel por largo que sea el documento.
+   * Se dispara con el clic, no con el scroll: asi el otro panel solo se mueve
+   * cuando se le pide. Es lo que sustituyo al scroll ligado.
    */
-  const seguir = (origen: EditorView, destino: EditorView) => () => {
-    if (!ligado || sincronizando) return
-    const caja = origen.scrollDOM.getBoundingClientRect()
-    const pos = origen.posAtCoords({ x: caja.left + 8, y: caja.top + 2 })
+  const ecoAlPicar = (origen: EditorView, destino: EditorView) => (e: MouseEvent) => {
+    if (!eco) return
+    // Si el destino esta tapado (modo de un solo panel), no hay nada que hacer.
+    if ((destino.dom.parentElement as HTMLElement)?.offsetParent === null) return
+    const pos = origen.posAtCoords({ x: e.clientX, y: e.clientY })
     if (pos == null) return
-    sincronizando = true
-    destino.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'start' }) })
-    requestAnimationFrame(() => { sincronizando = false })
+    const b = bloqueEn(origen.state, pos)
+    window.clearTimeout(temporizador)
+    destino.dispatch({
+      effects: [EditorView.scrollIntoView(b.desde, { y: 'center' }), marcarEco.of(b)],
+    })
+    temporizador = window.setTimeout(() => {
+      destino.dispatch({ effects: marcarEco.of(null) })
+    }, DURACION_ECO)
   }
 
-  fuente.scrollDOM.addEventListener('scroll', seguir(fuente, presentacion), { passive: true })
-  presentacion.scrollDOM.addEventListener('scroll', seguir(presentacion, fuente), { passive: true })
+  fuente.dom.addEventListener('mouseup', ecoAlPicar(fuente, presentacion))
+  presentacion.dom.addEventListener('mouseup', ecoAlPicar(presentacion, fuente))
 
   return {
     fuente,
@@ -182,6 +189,6 @@ export function crearPar(
         v.dispatch({ effects: sangria.reconfigure(indentUnit.of(unidad)) })
       }
     },
-    ligarScroll(v: boolean) { ligado = v },
+    activarEco(v: boolean) { eco = v },
   }
 }

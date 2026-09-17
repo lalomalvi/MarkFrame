@@ -67,7 +67,7 @@ function aplicarTodo() {
   prefs.aplicar(P)
   par.verNumeros(P.numerosLinea)
   par.fijarSangria(P.sangria)
-  par.ligarScroll(P.scroll === 'ligado')
+  par.activarEco(P.eco)
   btTema.classList.toggle('tema-oscuro', prefs.oscuroActivo(P))
   btTema.title = P.tema === 'sistema' ? 'Tema: sigue a Windows'
     : P.tema === 'claro' ? 'Tema: claro' : 'Tema: oscuro'
@@ -333,7 +333,7 @@ function pintarOpciones() {
   $('op-ancho-v').textContent = P.ancho > 0 ? `${P.ancho} rem` : 'sin límite'
   $<HTMLInputElement>('op-numeros').checked = P.numerosLinea
   $<HTMLSelectElement>('op-sangria').value = P.sangria
-  $<HTMLSelectElement>('op-scroll').value = P.scroll
+  $<HTMLInputElement>('op-eco').checked = P.eco
   $<HTMLInputElement>('op-reabrir').checked = P.reabrir
 }
 
@@ -360,7 +360,7 @@ function conectarOpciones() {
   cambia('op-ancho', 'ancho', (el) => Number(el.value), 'input')
   cambia('op-numeros', 'numerosLinea', (el) => el.checked)
   cambia('op-sangria', 'sangria', (el) => el.value)
-  cambia('op-scroll', 'scroll', (el) => el.value)
+  cambia('op-eco', 'eco', (el) => el.checked)
   cambia('op-reabrir', 'reabrir', (el) => el.checked)
 
   $('op-fabrica').addEventListener('click', () => {

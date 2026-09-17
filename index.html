@@ -56,10 +56,12 @@
           <path id="tema-luna" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8Z" />
         </svg>
       </button>
-      <button id="opciones" class="boton icono" title="Opciones" aria-label="Opciones">
+      <button id="opciones" class="boton icono" title="Configuración (Ctrl+,)" aria-label="Configuración">
+        <!-- Engranaje de 8 dientes, calculado para que queden parejos. El icono
+             anterior era un circulo con rayos y se confundia con el sol del tema. -->
         <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
-          <circle cx="8" cy="8" r="2.2" />
-          <path d="M8 1.2v1.6M8 13.2v1.6M14.8 8h-1.6M2.8 8H1.2M12.8 3.2l-1.1 1.1M4.3 11.7l-1.1 1.1M12.8 12.8l-1.1-1.1M4.3 4.3 3.2 3.2" />
+          <path d="M6.85 1.09 L9.15 1.09 L9.21 2.79 L10.83 3.46 L12.07 2.30 L13.70 3.93 L12.54 5.17 L13.21 6.79 L14.91 6.85 L14.91 9.15 L13.21 9.21 L12.54 10.83 L13.70 12.07 L12.07 13.70 L10.83 12.54 L9.21 13.21 L9.15 14.91 L6.85 14.91 L6.79 13.21 L5.17 12.54 L3.93 13.70 L2.30 12.07 L3.46 10.83 L2.79 9.21 L1.09 9.15 L1.09 6.85 L2.79 6.79 L3.46 5.17 L2.30 3.93 L3.93 2.30 L5.17 3.46 L6.79 2.79 Z" />
+          <circle cx="8" cy="8" r="2.5" />
         </svg>
       </button>
     </header>
@@ -75,10 +77,10 @@
 
     <!-- panel de opciones -->
     <div id="velo-op" class="velo-op" hidden></div>
-    <aside id="panel-op" class="panel-op" hidden aria-label="Opciones">
+    <aside id="panel-op" class="panel-op" hidden aria-label="Configuración">
       <header class="op-cabeza">
-        <h2>Opciones</h2>
-        <button id="op-cerrar" class="boton icono" aria-label="Cerrar opciones">
+        <h2>Configuración</h2>
+        <button id="op-cerrar" class="boton icono" aria-label="Cerrar configuración">
           <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
           </svg>
@@ -154,12 +156,13 @@
             </select>
           </label>
           <label class="op-fila">
-            <span>Scroll en pantalla dividida</span>
-            <select id="op-scroll">
-              <option value="independiente">Independiente</option>
-              <option value="ligado">Ligado — el mismo renglón en los dos</option>
-            </select>
+            <span>Al picar un bloque, llevar el otro panel ahí</span>
+            <input id="op-eco" type="checkbox" />
           </label>
+          <p class="op-nota">
+            Picas una tabla en la vista y el markdown salta a ella y la enmarca
+            un momento. Funciona en los dos sentidos.
+          </p>
           <label class="op-fila">
             <span>Reabrir el último archivo al arrancar</span>
             <input id="op-reabrir" type="checkbox" />

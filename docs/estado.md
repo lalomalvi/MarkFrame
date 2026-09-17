@@ -56,7 +56,7 @@ vez de topar contra un muro.
 |---|---|---|
 | Tema: sistema · claro · oscuro | Texto: 5 familias | Números de línea |
 | Profundidad del oscuro: suave · normal · profundo | Mono: 3 familias | Sangría: 2 · 4 · tabulador |
-| Colores del código: tinta · Notas y Nodos · sobria | Tamaño 11–26 px | Scroll: independiente · ligado |
+| Colores del código: tinta · Notas y Nodos · sobria | Tamaño 11–26 px | **Eco al picar un bloque** |
 | | Interlineado 1.2–2.4 | Reabrir el último archivo |
 | | Ancho de columna (0 = sin límite) | |
 
@@ -77,9 +77,20 @@ Las **ligaduras van apagadas** en todo el editor: JetBrains Mono convierte `->`
 en flecha y `!=` en un símbolo, y en un `.md` con Mermaid eso confunde la vista
 aunque no cambie el texto guardado.
 
-El **scroll ligado va por renglón, no por píxeles**: los dos paneles no miden lo
-mismo de alto —una tabla dibujada ocupa más que su markdown, un diagrama mucho
-más— así que igualar `scrollTop` los desalinea a los pocos bloques.
+### El eco entre paneles
+
+Picar un bloque en un panel lleva el otro a ese mismo bloque, lo centra y lo
+enmarca con una barra de acento durante 2.6 s. Funciona en los dos sentidos y no
+hace nada si el otro panel está oculto.
+
+> **Sustituyó al scroll ligado, quitado el 2026-09-16.** Ligar los dos scrolls se
+> sentía como una resistencia rara al mover la rueda, y la causa era de diseño:
+> el `scrollIntoView` del panel de destino competía con el gesto del usuario por
+> el mismo scroll. Con el eco, el otro panel sólo se mueve cuando se le pide.
+
+El bloque se busca subiendo por el árbol del documento hasta el hijo directo de
+la raíz —el párrafo, la tabla, la lista entera—, que es la unidad que uno
+reconoce como «esto de aquí».
 
 ### Números medidos, no supuestos
 
@@ -166,3 +177,8 @@ le da scroll horizontal al panel entero, cortando títulos y diagramas. Aplica a
 **WebView2 pinta un fondo claro en el botón enfocado**, y queda como si
 estuviera encendido. Se sustituye por un aro de acento en `:focus-visible` y se
 suelta el foco tras el clic.
+
+**`resolveInner` devuelve la raíz del documento cuando la posición cae en un
+hueco entre bloques.** Tomarla por «el bloque» enmarcaba el archivo entero. Por
+eso `bloqueEn` comprueba raíz, nodo vacío y nodo desmesurado antes de aceptarlo,
+y si no, cae al renglón.

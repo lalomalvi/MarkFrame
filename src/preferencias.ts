@@ -13,7 +13,6 @@
 export type Tema = 'sistema' | 'claro' | 'oscuro'
 export type Profundidad = 'suave' | 'normal' | 'profundo'
 export type Paleta = 'tinta' | 'notas' | 'sobria'
-export type Scroll = 'independiente' | 'ligado'
 export type Sangria = '2' | '4' | 'tab'
 
 export interface Preferencias {
@@ -28,7 +27,8 @@ export interface Preferencias {
   /** Ancho de la columna de texto, en rem. 0 = sin limite. */
   ancho: number
   numerosLinea: boolean
-  scroll: Scroll
+  /** Picar un bloque lleva el otro panel a ese mismo bloque y lo enmarca. */
+  eco: boolean
   sangria: Sangria
   /** Reabrir el ultimo archivo al arrancar. */
   reabrir: boolean
@@ -48,7 +48,7 @@ export const DE_FABRICA: Preferencias = {
   interlineado: 1.7,
   ancho: 46,
   numerosLinea: true,
-  scroll: 'independiente',
+  eco: true,
   sangria: '4',
   reabrir: false,
   ultimoArchivo: null,
