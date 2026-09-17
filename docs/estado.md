@@ -454,6 +454,13 @@ las historias.
 inicio daba por tapado al nodo raíz del documento y cortaba el recorrido del
 árbol desde la raíz.
 
+**El formato recorta la selección antes de envolver.** En markdown
+`** texto **` no es negrita —— las marcas tienen que tocar el texto—, y en la
+vista los marcadores están ocultos, así que lo que se selecciona con el ratón no
+coincide con los límites del documento: seleccionar un título empezaba en el
+espacio que sigue al `#` y salía `#==Título==`, que ya no es un título. Por eso
+`acotada()` salta espacios, tabuladores y saltos de línea en los extremos.
+
 **El icono va incrustado en el `.exe`, y cambiarlo no basta con cambiar el
 `.ico`.** El recurso de Windows lo genera `build.rs`, y Cargo cachea ese script
 por sus entradas declaradas —— que no incluían la carpeta de iconos. El `.ico` era

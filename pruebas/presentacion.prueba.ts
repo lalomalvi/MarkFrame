@@ -30,6 +30,7 @@ import { construir } from '../src/livepreview.ts'
 import { destinoSeguro, rutaAbsoluta, permitirRemotas, olvidarPermisosSueltos,
          celdasCon, saneadaParaCelda,
          WidgetImagen, WidgetTabla } from '../src/widgets.ts'
+import { acotada, MARCAS } from '../src/formato.ts'
 
 let hechas = 0
 function prueba(nombre: string, fn: () => void) {
@@ -370,6 +371,63 @@ prueba('el texto de un widget de tabla es el de su tramo', () => {
     w.texto,
     'el widget tiene que llevar exactamente el texto que tapa',
   )
+})
+
+// --- el panel de formato ----------------------------------------------------
+//
+// Lo que se prueba es el recorte de la selección, que es lo único capaz de
+// estropear el documento: si los límites están mal, la marca cae donde no debe.
+
+/** Una vista de mentira: `acotada` sólo necesita leer el documento. */
+const vistaDe = (texto: string) =>
+  ({ state: EditorState.create({ doc: texto }) }) as unknown as Parameters<typeof acotada>[0]
+
+prueba('la seleccion se recorta por los dos lados', () => {
+  const v = vistaDe('  hola mundo  ')
+  assert.deepEqual(acotada(v, 0, 14), { desde: 2, hasta: 12 })
+})
+
+prueba('resaltar un titulo no le quita el espacio a la almohadilla', () => {
+  // ESTE es el fallo del 2026-09-17. En la vista el `# ` está oculto, así que
+  // seleccionar el título empezaba en el espacio y salía `#==Titulo==`, que ya
+  // no es un título para markdown.
+  const doc = '# Pasada de funciones'
+  const v = vistaDe(doc)
+  const { desde, hasta } = acotada(v, 1, doc.length)   // desde el espacio
+  assert.equal(desde, 2, 'tiene que saltarse el espacio que sigue al #')
+  const nuevo = doc.slice(0, desde) + '==' + doc.slice(desde, hasta) + '==' + doc.slice(hasta)
+  assert.equal(nuevo, '# ==Pasada de funciones==')
+  assert.ok(nuevo.startsWith('# '), 'sigue siendo un titulo')
+})
+
+prueba('las marcas quedan pegadas al texto, como pide markdown', () => {
+  // `** texto **` no es negrita: las marcas tienen que tocar el texto.
+  const doc = 'con  espacios  alrededor'
+  const v = vistaDe(doc)
+  const { desde, hasta } = acotada(v, 3, 15)
+  const envuelto = doc.slice(desde, hasta)
+  assert.ok(!envuelto.startsWith(' '), envuelto)
+  assert.ok(!envuelto.endsWith(' '), envuelto)
+})
+
+prueba('un salto de linea no se queda dentro de la marca', () => {
+  const doc = 'primera\nsegunda'
+  const v = vistaDe(doc)
+  assert.deepEqual(acotada(v, 7, 15), { desde: 8, hasta: 15 })
+})
+
+prueba('una seleccion de puro espacio se queda vacia y no se envuelve', () => {
+  const v = vistaDe('a     b')
+  const { desde, hasta } = acotada(v, 1, 6)
+  assert.ok(desde >= hasta, 'sin nada que marcar, `alternar` se retira')
+})
+
+prueba('las cuatro marcas son markdown de siempre', () => {
+  // Si alguien cambia esto por sintaxis propia, un .md tocado aquí deja de
+  // abrirse igual en Obsidian o GitHub. Era la condición de Lalo.
+  assert.deepEqual({ ...MARCAS }, {
+    resaltar: '==', negrita: '**', cursiva: '*', tachado: '~~',
+  })
 })
 
 console.log(`\n${hechas} pruebas, todas pasan.\n`)

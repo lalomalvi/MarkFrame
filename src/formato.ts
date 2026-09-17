@@ -26,7 +26,7 @@ import { EditorView } from '@codemirror/view'
 import type { EditorSelection } from '@codemirror/state'
 
 /** Las marcas que envuelven a cada formato. Abren y cierran igual. */
-const MARCAS = {
+export const MARCAS = {
   resaltar: '==',
   negrita: '**',
   cursiva: '*',
@@ -59,10 +59,42 @@ function yaEnvuelto(vista: EditorView, desde: number, hasta: number, marca: stri
   )
 }
 
+/**
+ * Recorta los huecos de los extremos de la seleccion antes de envolverla.
+ *
+ * Dos motivos, y los dos importan:
+ *
+ * 1. **En markdown, `** texto **` no es negrita.** Las marcas tienen que ir
+ *    pegadas al texto. Envolver una seleccion con espacios de sobra produce
+ *    algo que no se ve como el usuario esperaba.
+ *
+ * 2. **En la vista los marcadores estan ocultos**, asi que lo que se selecciona
+ *    con el raton no coincide con los limites del documento. Al seleccionar el
+ *    texto de un titulo, la seleccion empezaba en el espacio que sigue a la
+ *    almohadilla y salia `#==Titulo==` —— sin espacio detras del `#`, que **deja
+ *    de ser un titulo**. Visto el 2026-09-17 en un archivo de prueba de Lalo.
+ *
+ * Los saltos de linea se recortan por lo mismo: una marca justo antes de un
+ * salto no envuelve nada.
+ */
+export function acotada(vista: EditorView, desde: number, hasta: number) {
+  const doc = vista.state.doc
+  const hueco = (p: number) => /[ \t\r\n]/.test(doc.sliceString(p, p + 1))
+  while (desde < hasta && hueco(desde)) desde++
+  while (hasta > desde && hueco(hasta - 1)) hasta--
+  return { desde, hasta }
+}
+
 /** Pone o quita la marca alrededor de lo seleccionado. */
 function alternar(vista: EditorView, formato: Formato) {
-  const sel = vista.state.selection.main
-  if (sel.empty) return
+  const bruta = vista.state.selection.main
+  if (bruta.empty) return
+
+  const { desde, hasta } = acotada(vista, bruta.from, bruta.to)
+  // Una seleccion de puros espacios no se envuelve: no hay nada que marcar.
+  if (desde >= hasta) return
+
+  const sel = { from: desde, to: hasta }
   const marca = MARCAS[formato]
   const largo = marca.length
 
