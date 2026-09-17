@@ -9,6 +9,42 @@
     <script type="module" src="/src/main.ts" defer></script>
   </head>
   <body>
+    <!-- Barra de titulo propia: la nativa se apago para que las pestanas
+         vivan aqui arriba. Lo que lleva `data-tauri-drag-region` arrastra la
+         ventana; lo que tiene evento propio, no. -->
+    <header id="titulo" class="titulo" data-tauri-drag-region>
+      <span class="titulo-marca" data-tauri-drag-region>
+        <svg viewBox="0 0 16 16" aria-hidden="true" class="marca-mf">
+          <rect x="0" y="0" width="16" height="16" rx="3.6" fill="var(--acento)" />
+          <text x="8" y="11.4" text-anchor="middle" font-size="8.2"
+                font-weight="800" fill="var(--acento-tinta)"
+                font-family="Segoe UI, system-ui, sans-serif">MF</text>
+        </svg>
+      </span>
+
+      <nav id="pestanas" class="pestanas" aria-label="Archivos abiertos"></nav>
+
+      <div class="titulo-resto" data-tauri-drag-region></div>
+
+      <div class="ventana-botones">
+        <button id="win-min" class="win-bt" aria-label="Minimizar" title="Minimizar">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 6h9" /></svg>
+        </button>
+        <button id="win-max" class="win-bt" aria-label="Maximizar" title="Maximizar">
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <rect id="win-max-uno" x="1.8" y="1.8" width="8.4" height="8.4" rx="1.2" />
+            <g id="win-max-dos" hidden>
+              <rect x="1.4" y="3.4" width="7.2" height="7.2" rx="1.1" />
+              <path d="M3.9 3.4V2.3a1 1 0 0 1 1-1h4.8a1 1 0 0 1 1 1v4.8a1 1 0 0 1-1 1H8.6" />
+            </g>
+          </svg>
+        </button>
+        <button id="win-cerrar" class="win-bt cerrar" aria-label="Cerrar" title="Cerrar">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.2 2.2l7.6 7.6M9.8 2.2l-7.6 7.6" /></svg>
+        </button>
+      </div>
+    </header>
+
     <header class="barra">
       <button id="abrir" class="boton" title="Abrir un archivo (Ctrl+O)">
         <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
@@ -78,18 +114,18 @@
         </svg>
         <span id="tema-texto">Tema</span>
       </button>
-      <button id="opciones" class="boton" title="Configuración (Ctrl+,)" aria-label="Configuración">
-        <!-- Engranaje de 8 dientes, calculado para que queden parejos. El icono
-             anterior era un circulo con rayos y se confundia con el sol del tema. -->
-        <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M6.85 1.09 L9.15 1.09 L9.21 2.79 L10.83 3.46 L12.07 2.30 L13.70 3.93 L12.54 5.17 L13.21 6.79 L14.91 6.85 L14.91 9.15 L13.21 9.21 L12.54 10.83 L13.70 12.07 L12.07 13.70 L10.83 12.54 L9.21 13.21 L9.15 14.91 L6.85 14.91 L6.79 13.21 L5.17 12.54 L3.93 13.70 L2.30 12.07 L3.46 10.83 L2.79 9.21 L1.09 9.15 L1.09 6.85 L2.79 6.79 L3.46 5.17 L2.30 3.93 L3.93 2.30 L5.17 3.46 L6.79 2.79 Z" />
-          <circle cx="8" cy="8" r="2.5" />
+      <button id="opciones" class="boton icono" title="Configuración (Ctrl+,)" aria-label="Configuración">
+        <!-- Dos deslizadores en un marco, del SVG que trajo Lalo. Se paso a
+             trazo con `currentColor` para que siga al color del boton; los
+             tiradores se rellenan del fondo de la barra para cortar el riel. -->
+        <svg class="ic ic-24" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2.9" y="2.9" width="18.2" height="18.2" rx="4.4" />
+          <path d="M8 7.1v9.8M16 7.1v9.8" />
+          <circle cx="8" cy="11" r="1.95" fill="var(--papel-barra)" />
+          <circle cx="16" cy="13" r="1.95" fill="var(--papel-barra)" />
         </svg>
-        <span>Configuración</span>
       </button>
     </header>
-
-    <nav id="pestanas" class="pestanas" aria-label="Archivos abiertos"></nav>
 
     <main id="paneles" class="paneles modo-ambos">
       <section id="caja-fuente" class="panel"></section>

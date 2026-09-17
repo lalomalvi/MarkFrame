@@ -79,10 +79,11 @@ const PILA_SISTEMA_TEXTO = '"Segoe UI Variable Text", "Segoe UI", system-ui, san
 const PILA_SISTEMA_MONO = '"Cascadia Code", "Consolas", ui-monospace, monospace'
 
 /** Tonos del fondo en oscuro. El suave es el del icono del programa. */
-const PROFUNDIDAD: Record<Profundidad, { papel: string; barra: string; activa: string; codigo: string }> = {
-  suave:    { papel: '#20232a', barra: '#191c23', activa: '#252a33', codigo: '#252932' },
-  normal:   { papel: '#16181e', barra: '#101217', activa: '#1c1f26', codigo: '#1d2027' },
-  profundo: { papel: '#0c0d11', barra: '#07080a', activa: '#121419', codigo: '#131519' },
+const PROFUNDIDAD: Record<Profundidad,
+  { papel: string; barra: string; titulo: string; activa: string; codigo: string }> = {
+  suave:    { papel: '#20232a', barra: '#191c23', titulo: '#131519', activa: '#252a33', codigo: '#252932' },
+  normal:   { papel: '#16181e', barra: '#101217', titulo: '#0b0c10', activa: '#1c1f26', codigo: '#1d2027' },
+  profundo: { papel: '#0c0d11', barra: '#07080a', titulo: '#040507', activa: '#121419', codigo: '#131519' },
 }
 
 const CLAVE = 'markflow.preferencias'
@@ -133,11 +134,14 @@ export function aplicar(p: Preferencias) {
     const t = PROFUNDIDAD[p.profundidad]
     est.setProperty('--papel', t.papel)
     est.setProperty('--papel-barra', t.barra)
+    est.setProperty('--papel-titulo', t.titulo)
     est.setProperty('--linea-activa', t.activa)
     est.setProperty('--codigo-fondo', t.codigo)
   } else {
-    for (const v of ['--papel', '--papel-barra', '--linea-activa', '--codigo-fondo']) {
+    for (const v of ['--papel', '--papel-barra', '--papel-titulo',
+                     '--linea-activa', '--codigo-fondo']) {
       est.removeProperty(v)
     }
+    est.setProperty('--papel-titulo', '#e9edf3')
   }
 }

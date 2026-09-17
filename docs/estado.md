@@ -32,9 +32,12 @@ mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md)
 - Deshacer y rehacer con botones y con Ctrl+Z / Ctrl+Y.
 - **Tema claro / oscuro / sistema**, con botón que cicla los tres y recuerda la
   elección. Los diagramas de Mermaid se redibujan con el tema.
-- **Pestañas**: Ctrl+T nueva, Ctrl+W cerrar, Ctrl+Tab girar, botón central del
-  ratón para cerrar. El nombre del archivo vive ahí, no en la barra, y el punto
-  de color dice cuál tiene cambios sin guardar.
+- **Pestañas en la barra de título**, como el Bloc de notas nuevo: Ctrl+T nueva,
+  Ctrl+W cerrar, Ctrl+Tab girar, botón central del ratón para cerrar. El nombre
+  del archivo vive ahí, y el punto de color dice cuál tiene cambios sin guardar.
+- **Barra de título propia.** La ventana va sin decoraciones para que las
+  pestañas quepan arriba, así que minimizar, maximizar y cerrar los dibuja el
+  programa, con las medidas de Windows 11.
 - Arrastrar y soltar, **varios archivos a la vez**, uno por pestaña. Arranque con
   el archivo como argumento.
 - **Divisor arrastrable** en modo Ambos, con doble clic para volver al 50/50.
@@ -66,9 +69,23 @@ extensión si cabe.
 Abrir un archivo **ya abierto** no lo duplica: va a su pestaña. Y una pestaña en
 blanco y sin tocar se reaprovecha en vez de sumar otra.
 
-`npm run probar` corre **9 pruebas de frontera** de todo esto: nombres de 300
-caracteres, nombres vacíos, extensiones más largas que el límite entero, acentos,
-rutas con barras mezcladas y mayúsculas distintas.
+`npm run probar` corre **13 pruebas**: 9 de frontera de las pestañas —nombres de
+300 caracteres, vacíos, extensiones más largas que el límite entero, acentos,
+rutas con barras mezcladas y mayúsculas distintas— y 4 que comprueban que todo
+`id` que busca el código exista en el HTML.
+
+### La barra de título
+
+`decorations: false` en la configuración de Tauri. A cambio hay que dibujar los
+botones de ventana y manejar el arrastre con `data-tauri-drag-region`.
+
+**Cerrar llama a `close`, no a `destroy`.** `close` dispara `onCloseRequested`,
+que es donde se pregunta por las pestañas con cambios sin guardar; `destroy` se
+lo saltaría y perdería trabajo.
+
+El botón de tema alterna **dos** estados, claro y oscuro, partiendo de lo que se
+ve para que el primer clic siempre cambie algo. «Sigue a Windows» está en
+Configuración, que es donde se elige a propósito.
 
 ### El divisor
 
@@ -198,6 +215,16 @@ la lista de permitidas, y eso lo hace Lalo desde Seguridad de Windows.
 `min-width: 100%`.** Sin eso, una tabla ancha empuja el ancho de `.cm-content` y
 le da scroll horizontal al panel entero, cortando títulos y diagramas. Aplica a
 `.mf-w-tabla` y a `.mf-w-mermaid`.
+
+**Un `id` que no existe corta el arranque entero.** El atajo `$()` afirma el
+tipo con un `as`, así que TypeScript no avisa: en ejecución devuelve `null`, el
+`addEventListener` revienta, y como eso pasa en el cuerpo del módulo se lleva por
+delante todo lo que venía después. Pasó con `$('titulo')` cuando ese `<header>`
+sólo tenía la clase. Lo cubre `pruebas/ids.prueba.ts`.
+
+**Cuidado con los reemplazos de texto por indentación.** Al mover las pestañas al
+título, el reemplazo que debía borrar el `<nav>` viejo coincidió también con el
+nuevo, porque la única diferencia era la sangría. Borró los dos.
 
 **`hidden` necesita `!important`.** El atributo aplica `display: none` con la
 especificidad más baja posible, así que cualquier regla que fije `display` lo

@@ -159,9 +159,7 @@ let guardando = false
 function pintar(mensaje?: string, fallo = false) {
   const p = laActiva()
   btGuardar.disabled = !p || !p.sucio || p.soloLectura || guardando
-  document.title = p
-    ? (p.sucio ? '• ' : '') + `${p.nombre} — MarkFlow`
-    : 'MarkFlow'
+  document.title = p ? `${p.nombre} — MarkFlow` : 'MarkFlow'
 
   if (mensaje !== undefined) {
     elEstado.textContent = mensaje
@@ -514,6 +512,41 @@ $('opciones').addEventListener('click', (e) => {
 $('op-cerrar').addEventListener('click', () => abrirOpciones(false))
 veloOp.addEventListener('click', () => abrirOpciones(false))
 
+// --- botones de la ventana ---------------------------------------------------
+
+/**
+ * La ventana va sin decoraciones para que las pestañas vivan en la barra de
+ * titulo, asi que minimizar, maximizar y cerrar los hace el programa.
+ *
+ * Cerrar llama a `close`, no a `destroy`: `close` dispara `onCloseRequested`,
+ * que es donde se pregunta por las pestañas con cambios sin guardar.
+ */
+const ventana = getCurrentWindow()
+
+async function pintarMaximizar() {
+  const max = await ventana.isMaximized()
+  $('win-max-uno').hidden = max
+  $('win-max-dos').hidden = !max
+  $('win-max').title = max ? 'Restaurar' : 'Maximizar'
+}
+
+$('win-min').addEventListener('click', () => ventana.minimize())
+$('win-max').addEventListener('click', async () => {
+  await ventana.toggleMaximize()
+  pintarMaximizar()
+})
+$('win-cerrar').addEventListener('click', () => ventana.close())
+
+// Doble clic en la barra de titulo: maximizar o restaurar, como en Windows.
+$('titulo').addEventListener('dblclick', async (e) => {
+  if ((e.target as HTMLElement).closest('.pestana, .win-bt, .pest-mas')) return
+  await ventana.toggleMaximize()
+  pintarMaximizar()
+})
+
+ventana.onResized(() => pintarMaximizar())
+pintarMaximizar()
+
 // --- barra -------------------------------------------------------------------
 
 $('abrir').addEventListener('click', elegirYAbrir)
@@ -521,10 +554,12 @@ btGuardar.addEventListener('click', () => { guardar().then(() => par.enfocar()) 
 $('deshacer').addEventListener('click', () => { par.deshacer(); par.enfocar() })
 $('rehacer').addEventListener('click', () => { par.rehacer(); par.enfocar() })
 
-const CICLO: prefs.Tema[] = ['sistema', 'claro', 'oscuro']
 btTema.addEventListener('click', () => {
   btTema.blur()
-  P.tema = CICLO[(CICLO.indexOf(P.tema) + 1) % CICLO.length]
+  // Dos estados, no tres: desde el boton se alterna claro y oscuro. Partir de
+  // lo que se ve ahora hace que el primer clic siempre cambie algo, tambien
+  // cuando se venia de «sigue a Windows».
+  P.tema = prefs.oscuroActivo(P) ? 'claro' : 'oscuro'
   aplicarTodo()
   pintarOpciones()
   recordar()

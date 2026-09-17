@@ -610,14 +610,13 @@ body { display: flex; flex-direction: column; }
 
 .pestanas {
   display: flex;
-  align-items: stretch;
+  align-items: flex-end;
   gap: 2px;
-  padding: 4px 8px 0;
-  background: var(--papel-barra);
-  border-bottom: 1px solid var(--borde);
+  height: 100%;
+  padding: 5px 0 0;
   overflow-x: auto;
   overflow-y: hidden;
-  flex: none;
+  min-width: 0;
   scrollbar-width: none;          /* la barra propia estorba aqui */
   user-select: none;
 }
@@ -641,7 +640,7 @@ body { display: flex; flex-direction: column; }
 }
 .pestana:hover { background: color-mix(in srgb, var(--tinta) 7%, transparent); }
 .pestana.activa {
-  background: var(--papel);
+  background: var(--papel-barra);
   border-color: var(--borde);
   color: var(--tinta);
   box-shadow: inset 0 2px 0 var(--acento);
@@ -690,3 +689,56 @@ body { display: flex; flex-direction: column; }
   flex: none;
 }
 .pest-mas:hover { background: color-mix(in srgb, var(--tinta) 9%, transparent); color: var(--tinta); }
+
+/* --- barra de titulo propia ------------------------------------------------ */
+
+/* La ventana no tiene decoraciones: esta franja hace de barra de titulo, y las
+   pestanas viven aqui. Todo lo que lleva `data-tauri-drag-region` arrastra la
+   ventana; los botones y las pestanas no, porque tienen evento propio. */
+.titulo {
+  display: flex;
+  align-items: stretch;
+  height: 38px;
+  background: var(--papel-titulo, var(--papel-barra));
+  border-bottom: 1px solid var(--borde);
+  flex: none;
+  user-select: none;
+  padding-left: 9px;
+}
+
+.titulo-marca { display: flex; align-items: center; padding-right: 9px; flex: none; }
+.marca-mf { width: 17px; height: 17px; display: block; }
+
+/* Zona muerta a la derecha de las pestanas: sirve para arrastrar la ventana. */
+.titulo-resto { flex: 1; min-width: 24px; }
+
+.ventana-botones { display: flex; flex: none; }
+
+/* Medidas de Windows 11: 46 x alto de la barra, sin redondeo, y el de cerrar
+   en rojo al pasar por encima. */
+.win-bt {
+  width: 46px;
+  border: none;
+  background: transparent;
+  color: var(--tinta);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.win-bt svg {
+  width: 11px; height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.win-bt:hover { background: color-mix(in srgb, var(--tinta) 11%, transparent); }
+.win-bt:active { background: color-mix(in srgb, var(--tinta) 17%, transparent); }
+.win-bt.cerrar:hover { background: #c42b1c; color: #fff; }
+.win-bt.cerrar:active { background: #b2251a; color: #fff; }
+
+/* El icono de configuracion viene en un lienzo de 24: el trazo se engorda para
+   que se vea del mismo peso que los de 16. */
+.ic-24 { stroke-width: 1.9; }
