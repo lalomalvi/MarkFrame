@@ -12,6 +12,8 @@
   --fuente-texto: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --fuente-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
   --cuerpo: 15.5px;
+  --interlineado: 1.7;
+  --ancho-columna: 46rem;
 
   /* --- claro --- */
   --papel: #ffffff;
@@ -124,6 +126,11 @@ body { display: flex; flex-direction: column; }
   color: var(--acento);
 }
 .boton.icono { padding: 5px 8px; }
+/* WebView2 pinta un fondo claro en el boton enfocado y queda como si estuviera
+   encendido. Se sustituye por un aro del color de acento, y solo al navegar
+   con teclado. */
+.boton:focus { outline: none; }
+.boton:focus-visible { outline: 2px solid var(--acento); outline-offset: 1px; }
 .boton:disabled { opacity: .38; cursor: default; }
 .boton:disabled:hover { background: transparent; }
 
@@ -149,8 +156,20 @@ body { display: flex; flex-direction: column; }
 .separador { width: 1px; height: 20px; background: var(--borde); margin: 0 6px; }
 .relleno { flex: 1; }
 
-.nombre { font-size: 12.5px; color: var(--apagado); margin-right: 12px; }
-.estado { font-size: 12px; color: var(--tenue); min-width: 5.5rem; text-align: right; }
+/* Un nombre largo partia la barra en dos renglones y empujaba los paneles
+   hacia abajo. Se recorta con puntos suspensivos; la ruta completa vive en el
+   `title`. Verificado con 121 caracteres el 2026-09-16. */
+.nombre {
+  font-size: 12.5px;
+  color: var(--apagado);
+  margin-right: 12px;
+  max-width: min(38ch, 32vw);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: none;
+}
+.estado { font-size: 12px; color: var(--tenue); min-width: 5.5rem; text-align: right; flex: none; }
 .estado.fallo { color: var(--peligro-borde); font-weight: 600; }
 
 /* el icono de tema cambia segun el modo en curso */
@@ -162,7 +181,23 @@ body { display: flex; flex-direction: column; }
 
 .paneles { flex: 1; display: flex; min-height: 0; }
 .panel { flex: 1; min-width: 0; height: 100%; overflow: hidden; }
-.division { width: 1px; background: var(--borde); flex: none; }
+/* --- divisor arrastrable --- */
+.division {
+  width: 1px;
+  background: var(--borde);
+  flex: none;
+  position: relative;
+  cursor: col-resize;
+}
+/* zona de agarre mas ancha que la linea visible, para no pelearse con el raton */
+.division::after {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+.division:hover, .division.agarrada { background: var(--acento); }
+.paneles.arrastrando { cursor: col-resize; user-select: none; }
+.paneles.arrastrando .cm-editor { pointer-events: none; }
 
 .modo-fuente #caja-presentacion,
 .modo-fuente .division { display: none; }
@@ -246,11 +281,24 @@ body { display: flex; flex-direction: column; }
 }
 
 /* tablas */
-.mf-w-tabla { overflow-x: auto; }
+/* `width: 0` + `min-width: 100%` es el truco clasico para una caja con scroll
+   propio dentro de un contenedor que se mide por su contenido: la caja ocupa
+   todo el ancho disponible pero NO empuja el ancho del padre. Sin esto, una
+   tabla ancha le daba scroll horizontal al panel entero y cortaba los titulos
+   y el diagrama. */
+.mf-w-tabla {
+  width: 0;
+  min-width: 100%;
+  overflow-x: auto;
+}
 .mf-w-tabla table {
   border-collapse: collapse;
   font-size: .95em;
-  min-width: min(100%, 22rem);
+  /* La tabla pide su ancho natural y el contenedor de arriba le da scroll.
+     Sin esto, en un panel angosto las celdas se comprimen y parten las
+     palabras por la mitad. */
+  width: max-content;
+  min-width: 100%;
 }
 .mf-w-tabla th,
 .mf-w-tabla td {
@@ -278,6 +326,9 @@ body { display: flex; flex-direction: column; }
   padding: .8em;
   background: var(--codigo-fondo);
   border-radius: 8px;
+  width: 0;
+  min-width: 100%;
+  overflow-x: auto;
 }
 .mf-w-mermaid svg { max-width: 100%; height: auto; }
 
@@ -395,3 +446,113 @@ body { display: flex; flex-direction: column; }
 /* Los enlaces de dentro de una tabla se generan como <a> sueltos: sin esto
    toman el azul por omision del navegador, ilegible sobre fondo oscuro. */
 .mf-w-tabla a { color: var(--enlace); }
+
+/* --- paletas del resaltado de codigo -------------------------------------- */
+
+:root[data-paleta="notas"] {
+  --codigo: #1d6f8b;
+  --codigo-clave: #8a5cd6;
+  --codigo-cadena: #2f7a4d;
+  --codigo-numero: #b0563a;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-paleta="notas"]:not([data-tema="claro"]) {
+    --codigo: #7fd4e8;
+    --codigo-clave: #c2a4f5;
+    --codigo-cadena: #9ad6a8;
+    --codigo-numero: #f0b48c;
+  }
+}
+:root[data-tema="oscuro"][data-paleta="notas"] {
+  --codigo: #7fd4e8;
+  --codigo-clave: #c2a4f5;
+  --codigo-cadena: #9ad6a8;
+  --codigo-numero: #f0b48c;
+}
+
+/* Sobria: todo el codigo en un solo acento, nada de arcoiris. */
+:root[data-paleta="sobria"] {
+  --codigo: var(--apagado);
+  --codigo-clave: var(--acento);
+  --codigo-cadena: var(--apagado);
+  --codigo-numero: var(--apagado);
+}
+
+/* JetBrains Mono trae ligaduras: convierten -> en flecha y != en simbolo.
+   No cambian el texto guardado, pero en un .md con Mermaid confunden. */
+.cm-editor, .mf-codigo, .mf-bloque-codigo, .mf-w-tabla code {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+
+/* --- panel de opciones ---------------------------------------------------- */
+
+.velo-op {
+  position: fixed; inset: 0;
+  background: color-mix(in srgb, #000 28%, transparent);
+  z-index: 8;
+}
+.velo-op[hidden] { display: none; }
+
+.panel-op {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: min(23rem, 92vw);
+  background: var(--papel);
+  border-left: 1px solid var(--borde);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, .28);
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+}
+.panel-op[hidden] { display: none; }
+
+.op-cabeza {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .8rem 1rem .7rem 1.15rem;
+  border-bottom: 1px solid var(--borde);
+  flex: none;
+}
+.op-cabeza h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+
+.op-cuerpo { overflow-y: auto; padding: .4rem 1.15rem 2rem; }
+
+.op-grupo { padding: .9rem 0; border-bottom: 1px solid var(--borde); }
+.op-grupo:last-child { border-bottom: none; }
+.op-grupo h3 {
+  margin: 0 0 .7rem;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+
+.op-fila {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .8rem;
+  padding: .32rem 0;
+  font-size: .87rem;
+}
+.op-fila > span { flex: 1; min-width: 0; }
+.op-fila b { color: var(--acento); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.op-fila select {
+  font: inherit; font-size: .84rem;
+  color: var(--tinta);
+  background: var(--codigo-fondo);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: .3em .5em;
+  max-width: 11.5rem;
+  cursor: pointer;
+}
+.op-fila input[type="range"] { width: 9.5rem; accent-color: var(--acento); cursor: pointer; }
+.op-fila input[type="checkbox"] { width: 1.05em; height: 1.05em; accent-color: var(--acento); cursor: pointer; }
+
+.op-nota {
+  margin: .4rem 0 0;
+  font-size: .76rem;
+  color: var(--tenue);
+  line-height: 1.45;
+}

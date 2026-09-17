@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MarkFlow</title>
+    <link rel="stylesheet" href="/src/tipografias.css" />
     <link rel="stylesheet" href="/src/styles.css" />
     <script type="module" src="/src/main.ts" defer></script>
   </head>
@@ -46,7 +47,7 @@
       <span id="nombre" class="nombre">Sin archivo</span>
       <span id="estado" class="estado"></span>
 
-      <button id="tema" class="boton icono" title="Tema: sigue a Windows" aria-label="Cambiar tema">
+      <button id="tema" class="boton icono" title="Tema" aria-label="Cambiar tema">
         <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
           <circle id="tema-disco" cx="8" cy="8" r="3.4" />
           <g id="tema-rayos">
@@ -55,16 +56,123 @@
           <path id="tema-luna" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8Z" />
         </svg>
       </button>
+      <button id="opciones" class="boton icono" title="Opciones" aria-label="Opciones">
+        <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="2.2" />
+          <path d="M8 1.2v1.6M8 13.2v1.6M14.8 8h-1.6M2.8 8H1.2M12.8 3.2l-1.1 1.1M4.3 11.7l-1.1 1.1M12.8 12.8l-1.1-1.1M4.3 4.3 3.2 3.2" />
+        </svg>
+      </button>
     </header>
 
     <main id="paneles" class="paneles modo-ambos">
       <section id="caja-fuente" class="panel"></section>
-      <div class="division" aria-hidden="true"></div>
+      <div id="division" class="division" role="separator" aria-orientation="vertical"
+           title="Arrastra para repartir. Doble clic: mitad y mitad"></div>
       <section id="caja-presentacion" class="panel"></section>
     </main>
 
     <div id="soltar" class="soltar" hidden><span>Suelta el archivo para abrirlo</span></div>
 
+    <!-- panel de opciones -->
+    <div id="velo-op" class="velo-op" hidden></div>
+    <aside id="panel-op" class="panel-op" hidden aria-label="Opciones">
+      <header class="op-cabeza">
+        <h2>Opciones</h2>
+        <button id="op-cerrar" class="boton icono" aria-label="Cerrar opciones">
+          <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+          </svg>
+        </button>
+      </header>
+
+      <div class="op-cuerpo">
+        <section class="op-grupo">
+          <h3>Aspecto</h3>
+          <label class="op-fila">
+            <span>Tema</span>
+            <select id="op-tema">
+              <option value="sistema">Sigue a Windows</option>
+              <option value="claro">Claro</option>
+              <option value="oscuro">Oscuro</option>
+            </select>
+          </label>
+          <label class="op-fila">
+            <span>Profundidad del oscuro</span>
+            <select id="op-profundidad">
+              <option value="suave">Suave — el del icono</option>
+              <option value="normal">Normal</option>
+              <option value="profundo">Profundo — casi negro</option>
+            </select>
+          </label>
+          <label class="op-fila">
+            <span>Colores del código</span>
+            <select id="op-paleta">
+              <option value="tinta">Tinta — azul y rosa</option>
+              <option value="notas">Notas y Nodos</option>
+              <option value="sobria">Sobria — un solo acento</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="op-grupo">
+          <h3>Letra</h3>
+          <label class="op-fila">
+            <span>Texto</span>
+            <select id="op-fuente-texto"></select>
+          </label>
+          <label class="op-fila">
+            <span>Monoespaciada</span>
+            <select id="op-fuente-mono"></select>
+          </label>
+          <label class="op-fila">
+            <span>Tamaño <b id="op-tamano-v"></b></span>
+            <input id="op-tamano" type="range" min="11" max="26" step="0.5" />
+          </label>
+          <label class="op-fila">
+            <span>Interlineado <b id="op-interlineado-v"></b></span>
+            <input id="op-interlineado" type="range" min="1.2" max="2.4" step="0.05" />
+          </label>
+          <label class="op-fila">
+            <span>Ancho de columna <b id="op-ancho-v"></b></span>
+            <input id="op-ancho" type="range" min="0" max="80" step="2" />
+          </label>
+          <p class="op-nota">Ancho 0 = sin límite: el texto ocupa todo el panel.</p>
+        </section>
+
+        <section class="op-grupo">
+          <h3>Editor</h3>
+          <label class="op-fila">
+            <span>Números de línea</span>
+            <input id="op-numeros" type="checkbox" />
+          </label>
+          <label class="op-fila">
+            <span>Sangría</span>
+            <select id="op-sangria">
+              <option value="2">2 espacios</option>
+              <option value="4">4 espacios</option>
+              <option value="tab">Tabulador</option>
+            </select>
+          </label>
+          <label class="op-fila">
+            <span>Scroll en pantalla dividida</span>
+            <select id="op-scroll">
+              <option value="independiente">Independiente</option>
+              <option value="ligado">Ligado — el mismo renglón en los dos</option>
+            </select>
+          </label>
+          <label class="op-fila">
+            <span>Reabrir el último archivo al arrancar</span>
+            <input id="op-reabrir" type="checkbox" />
+          </label>
+        </section>
+
+        <section class="op-grupo">
+          <button id="op-fabrica" class="boton">Volver a los valores de fábrica</button>
+        </section>
+      </div>
+    </aside>
+
+    <!-- dialogo de cambios sin guardar / avisos -->
     <div id="velo" class="velo" hidden>
       <div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="dlg-titulo">
         <h2 id="dlg-titulo">Hay cambios sin guardar</h2>

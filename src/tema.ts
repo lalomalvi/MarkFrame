@@ -17,11 +17,16 @@ export const temaBase = EditorView.theme({
   },
   '.cm-scroller': {
     fontFamily: 'var(--fuente-texto)',
-    lineHeight: '1.7',
+    lineHeight: 'var(--interlineado)',
     padding: '1.4rem 1.2rem 40vh',
     overflow: 'auto',
   },
-  '.cm-content': { caretColor: 'var(--acento)', maxWidth: '46rem', margin: '0 auto' },
+  // El ancho lo manda el panel de opciones: `none` deja el texto a lo ancho.
+  '.cm-content': {
+    caretColor: 'var(--acento)',
+    maxWidth: 'var(--ancho-columna)',
+    margin: '0 auto',
+  },
   '&.cm-focused': { outline: 'none' },
   '.cm-cursor, .cm-dropCursor': { borderLeft: '2px solid var(--acento)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
