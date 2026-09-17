@@ -1,7 +1,8 @@
 # Estado vigente
 
-**Última actualización: 2026-09-16.** MarkFlow v0.1.0, las cuatro etapas cerradas
-y la auditoría de seguridad aplicada.
+**Última actualización: 2026-09-17.** MarkFlow v0.1.0, en uso diario. La
+auditoría de seguridad está cerrada del todo y el programa lleva la marca de
+Lalo. Lo único que espera decisión suya es publicarlo.
 
 Esto es **estado**, no bitácora. El relato de cómo se llegó aquí está en los
 mensajes de los commits; las decisiones y su porqué, en [ESPEC.md](../ESPEC.md);
@@ -305,36 +306,16 @@ título propia convierte un cuelgue en una ventana que no se puede cerrar, y la
 escritura atómica con temporal abre la vía del enlace simbólico. No hay decisión
 sin contrapartida; hay contrapartidas que no se ven al decidir.
 
-### La pasada de funciones · 2026-09-16
+### Lo verificado, y lo único que queda abierto
 
-Se ejercitaron las 13 secciones de un `.md` de prueba **en el binario instalado,
-con la política puesta**. Tablas, KaTeX en línea y en bloque, los dos tipos de
-Mermaid, imagen local, avisos, casillas, notas al pie, resaltado y código: todo
-dibuja. **La política no rompió nada.**
+**Las funciones están ejercitadas con la política puesta**, en el binario
+instalado: tablas, KaTeX, los dos tipos de Mermaid, imágenes, avisos, casillas,
+notas al pie y código. Los enlaces `https:` y `mailto:` viven y se abren en el
+navegador del sistema; `javascript:` y `data:` salen como texto plano.
 
-Los enlaces, que eran el punto: `https:` y `mailto:` viven; `javascript:` y
-`data:` salen como texto plano. Al pinchar el `https:` se abrió **Chrome** y
-MarkFlow siguió en pie.
-
-**Pero la pasada encontró un fallo propio**, que no venía de la auditoría: el
-botón *Mostrarla* de las imágenes de internet no hacía nada. Ver la trampa del
-`eq()` más abajo.
-
-### Lo que la auditoría dejó abierto
-
-- ~~La política y el guardián sin probar con todas las funciones.~~ **Hecho**,
-  arriba.
-- ~~`leer_imagen` no mira las dimensiones declaradas.~~ **Cerrado** con
-  `TOPE_PIXELES`. Verificado con un PNG de **74 bytes** que declara 20000×20000:
-  sale rechazado con un mensaje que explica el porqué, y el resto del documento
-  se dibuja igual.
-- ~~Sin control de instancia única.~~ **Cerrado**, por decisión de Lalo del
-  2026-09-16: **una sola ventana**. Abrir un `.md` con MarkFlow en marcha lo
-  manda como pestaña a la ventana que ya existe y la trae al frente. Verificado:
-  dos lanzamientos, **un proceso**, dos pestañas.
-- **El instalador no va firmado.** Al publicar, Windows mostrará el aviso de
-  editor desconocido en cada instalación. **Es lo único que queda abierto**, y
-  depende de un certificado.
+**Todo lo que la auditoría abrió está cerrado menos una cosa: el instalador no va
+firmado**, así que al publicar Windows avisará de editor desconocido. Decidido el
+2026-09-17: **no se firma por ahora** —— ver [pendientes.md](pendientes.md).
 
 ### Las dimensiones declaradas
 
@@ -442,15 +423,24 @@ arranque son 110 ms con 279 KB de entrada.
 | Línea base del esqueleto vacío | 111 ms |
 | Bundle de entrada | 279 KB — Mermaid y KaTeX cargan aparte, bajo demanda |
 | Pruebas del núcleo | **31 de 31** (`cargo test --lib`) |
-| Pruebas del frontend | **37 de 37** (`npm run probar`) — 9 de pestañas, 4 de `id`, **24 de la presentación** |
+| Pruebas del frontend | **81 de 81** (`npm run probar`) |
+
+**Las 81 del frontend, por archivo** —— y cada una está donde está por un motivo:
+
+| | |
+|---|---|
+| `pestanas.prueba.ts` | 9 · frontera de los nombres de pestaña |
+| `ids.prueba.ts` | 4 · que todo `id` que pide el código exista en el HTML |
+| `presentacion.prueba.ts` | 46 · widgets, decoraciones, formato e índice |
+| `preferencias.prueba.ts` | 8 · que lo guardado sobreviva y que un valor imposible no mate el arranque |
+| `frontera.prueba.ts` | 14 · documentos absurdos, alfabetos, emoji, marcas sin cerrar |
+
+Y dos comandos que **no son pruebas** —— no fallan, imprimen números:
+`npm run medir` (rendimiento del panel de presentación) y
+`pruebas\memoria.ps1` (memoria real del programa).
 
 El criterio de la medición llega hasta que la ventana existe con su título; los
 diagramas se dibujan un instante después.
-
-Las 13 del frontend son 9 de frontera de las pestañas —nombres de 300
-caracteres, vacíos, extensiones más largas que el límite entero, acentos, rutas
-con barras mezcladas y mayúsculas distintas— y 4 que comprueban que todo `id` que
-busca el código exista en el HTML.
 
 **Prueba de aceptación:** los cinco archivos que quedaron abiertos en Zettlr
 —acentos, tildes en mayúsculas, paréntesis, espacios, uno en `D:`, uno de 83 KB—
@@ -467,50 +457,43 @@ proceso.
 
 ---
 
-## La migración, cerrada
+## La máquina, puesta
 
-**El 2026-09-16 quedó terminada.** MarkFlow es el editor de `.md` de la máquina y
-Zettlr ya no está.
+**MarkFlow es el editor de `.md` de esta máquina desde el 2026-09-16.** Zettlr
+desinstalado sin residuos, la asociación de `.md` en `MarkFlow.nota`, y su
+configuración respaldada en `migracion-zettlr/config-zettlr/`. Comprobado leyendo
+el registro y el disco, no el reporte del script.
 
-| Comprobado por lectura, no por el reporte del script | |
-|---|---|
-| `AppData\Local\Programs\Zettlr` · `Roaming\Zettlr` · acceso directo | los tres, ausentes |
-| Entradas de desinstalación y ProgIds de Zettlr en el registro | ninguna |
-| `UserChoice` de `.md` | `MarkFlow.nota` |
-| Ejecutable instalado | idéntico al compilado **salvo 3 bytes** de 8 140 800 |
-
-Esos 3 bytes son `__TAURI_BUNDLE_TYPE_VAR_NSS` contra `…_UNK`: la marca que NSIS
-estampa para que Tauri sepa cómo se instaló. **Es la forma de verificar que un
-build llegó de verdad a la máquina** —— comparar por huella da distinto siempre, y
-no significa nada malo.
-
-La política de contenido, extraída del `.exe` instalado, lleva `script-src
-'self'`: el arreglo del hallazgo crítico está en lo que corre.
-
-La configuración de Zettlr quedó respaldada en `migracion-zettlr/config-zettlr/`.
+**Cómo verificar que un build llegó de verdad a la máquina:** el `.exe` instalado
+y el compilado difieren **siempre en 3 bytes** —— `__TAURI_BUNDLE_TYPE_VAR_NSS`
+contra `…_UNK`, la marca que NSIS estampa para Tauri. Comparar por huella da
+distinto y no significa nada malo; hay que comparar byte a byte y reconocer esa
+marca.
 
 ## Lo que sigue
 
-Las tres etapas de puesta en marcha —instalar, asociar, sacar Zettlr— están
-cerradas, y con ellas todo lo que la auditoría dejó abierto **menos una cosa**:
+**La cola de trabajo está vacía.** Lo único abierto espera una decisión de Lalo:
 
-1. **Firmar el instalador.** Sin firma, Windows muestra el aviso de editor
-   desconocido en cada instalación. Es lo único que separa a MarkFlow de poder
-   publicarse, y depende de conseguir un certificado —— decisión de Lalo, no
-   trabajo de código.
+**Publicar el repositorio.** Hoy es privado y sin licencia. Si se decide que sí,
+hay media sesión de trabajo antes: un README escrito para alguien que no es Lalo,
+quitar las rutas personales de `auditoria/architecture.md`, y elegir licencia ——
+recomendación: MIT. Detalle y opciones en [pendientes.md](pendientes.md).
 
-Todo lo demás de esta lista se cerró el 2026-09-16: la pasada de funciones con la
-política puesta, el tope de dimensiones y la instancia única.
+De ahí cuelga **firmar el instalador**, que sólo importa al publicar y está
+decidido en «no por ahora».
 
-## Sin decidir
+## Decidido, para no volver a discutirlo
 
-- ~~Tablas editables desde la presentación.~~ **Decidido el 2026-09-17: se
-  hacen.** Ver más abajo.
-- **El icono definitivo.** El que hay es el monograma provisional; Lalo está
-  afinando el suyo.
-- **Una paleta que siga al color de acento de Windows.** Se puede, pero ese color
-  se elige pensando en la barra de tareas, no en leer código: en rojo o verde
-  lima el resaltado se vuelve ilegible.
+| | |
+|---|---|
+| **Tablas editables** | Se hacen. Hechas |
+| **El icono** | El logo llegó el 2026-09-17. Ya está en el `.exe` y en la barra |
+| **Buscador** | Sólo el archivo abierto. Un índice de carpetas sería una bóveda |
+| **Resaltado** | Un solo color, con `==texto==`. Nada de sintaxis propia |
+| **Subrayado** | No existe en markdown: la S del panel es tachado |
+| **Paleta del acento de Windows** | No se hace. Ese color se elige pensando en la barra de tareas; en rojo o verde lima el resaltado de código es ilegible |
+| **Firmar** | No por ahora. Gasto recurrente para un programa sin usuarios fuera de esta máquina |
+| **Rendimiento** | Medido: nada que mejorar sin pagar con seguridad o fluidez. **No reabrir sin un dato nuevo** |
 
 ---
 
