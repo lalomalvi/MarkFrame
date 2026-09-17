@@ -431,12 +431,20 @@ prueba('una seleccion de puro espacio se queda vacia y no se envuelve', () => {
   assert.ok(desde >= hasta, 'sin nada que marcar, `alternar` se retira')
 })
 
-prueba('las cuatro marcas son markdown de siempre', () => {
+prueba('las marcas son markdown de siempre', () => {
   // Si alguien cambia esto por sintaxis propia, un .md tocado aquí deja de
-  // abrirse igual en Obsidian o GitHub. Era la condición de Lalo.
+  // abrirse igual en Obsidian o GitHub. Era la condición de Lalo, y esta
+  // prueba está para que añadir un formato obligue a pensarlo otra vez —— saltó
+  // al añadir el código en línea, que es justo lo que se le pide.
   assert.deepEqual({ ...MARCAS }, {
-    resaltar: '==', negrita: '**', cursiva: '*', tachado: '~~',
+    resaltar: '==', negrita: '**', cursiva: '*', tachado: '~~', codigo: '`',
   })
+})
+
+prueba('reconoce el codigo en linea', () => {
+  assert.deepEqual([...activosEn('esto es `codigo` en linea', 'codigo')], ['codigo'])
+  // Y dentro de una cerca de varias lineas NO es código en línea.
+  assert.deepEqual([...activosEn('```\nno es en linea\n```', 'no es')], [])
 })
 
 // --- saber qué formato lleva ya lo seleccionado ----------------------------- //

@@ -11,7 +11,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { conectarBuscador } from './buscar.ts'
-import { panelDeFormato } from './formato.ts'
+import { panelDeFormato, ATAJOS } from './formato.ts'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -751,6 +751,48 @@ getCurrentWebview().onDragDropEvent((ev) => {
   }
 })
 
+/**
+ * La lista de atajos de Configuracion.
+ *
+ * Se arma **desde la tabla de `formato.ts`**, no a mano: una ayuda escrita
+ * aparte acaba mintiendo en cuanto alguien cambia una tecla y se olvida de la
+ * otra copia. Los de archivo y ventana se listan aqui porque viven en el
+ * manejador global de `main.ts`.
+ */
+const ATAJOS_GENERALES: { muestra: string; nombre: string }[] = [
+  { muestra: 'Ctrl+O', nombre: 'Abrir un archivo' },
+  { muestra: 'Ctrl+S', nombre: 'Guardar' },
+  { muestra: 'Ctrl+F', nombre: 'Buscar en esta nota' },
+  { muestra: 'Enter', nombre: 'Buscar: coincidencia siguiente' },
+  { muestra: 'Shift+Enter', nombre: 'Buscar: coincidencia anterior' },
+  { muestra: 'Ctrl+T', nombre: 'Pestaña nueva' },
+  { muestra: 'Ctrl+W', nombre: 'Cerrar la pestaña' },
+  { muestra: 'Ctrl+Tab', nombre: 'Girar entre pestañas' },
+  { muestra: 'Ctrl+Z', nombre: 'Deshacer' },
+  { muestra: 'Ctrl+Y', nombre: 'Rehacer' },
+  { muestra: 'Ctrl+,', nombre: 'Configuración' },
+]
+
+function llenarAtajos() {
+  const caja = $('op-atajos')
+  const filas: { muestra: string; nombre: string }[] = [
+    ...ATAJOS.map((a) => ({ muestra: a.muestra, nombre: a.nombre })),
+    ...ATAJOS_GENERALES,
+  ]
+  caja.replaceChildren(
+    ...filas.map(({ muestra, nombre }) => {
+      const fila = document.createElement('div')
+      fila.className = 'op-atajo'
+      const tecla = document.createElement('kbd')
+      tecla.textContent = muestra
+      const que = document.createElement('span')
+      que.textContent = nombre
+      fila.append(tecla, que)
+      return fila
+    }),
+  )
+}
+
 // --- buscar y dar formato ----------------------------------------------------
 
 /**
@@ -793,6 +835,7 @@ void listen<string[]>('abrir-archivos', (ev) => {
 // --- arranque ----------------------------------------------------------------
 
 llenarFuentes()
+llenarAtajos()
 conectarOpciones()
 aplicarTodo()
 ponerModo(P.modo, false)

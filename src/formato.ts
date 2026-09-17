@@ -24,8 +24,8 @@
  * en el Bloc de notas. Este programa no crea documentos que solo el entienda.
  */
 
-import { EditorView } from '@codemirror/view'
-import { EditorState, type EditorSelection } from '@codemirror/state'
+import { EditorView, keymap } from '@codemirror/view'
+import { EditorState, Prec, type EditorSelection, type Extension } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 
 /** Las marcas que envuelven a cada formato. Abren y cierran igual. */
@@ -34,6 +34,7 @@ export const MARCAS = {
   negrita: '**',
   cursiva: '*',
   tachado: '~~',
+  codigo: '`',
 } as const
 
 export type Formato = keyof typeof MARCAS
@@ -50,6 +51,7 @@ const NODO: Record<Formato, string | null> = {
   negrita: 'StrongEmphasis',
   cursiva: 'Emphasis',
   tachado: 'Strikethrough',
+  codigo: 'InlineCode',
   resaltar: null,
 }
 
@@ -58,6 +60,7 @@ const BOTONES: { formato: Formato; letra: string; titulo: string; clase: string 
   { formato: 'negrita', letra: 'N', titulo: 'Negrita (**texto**)', clase: 'fmt-negrita' },
   { formato: 'cursiva', letra: 'K', titulo: 'Cursiva (*texto*)', clase: 'fmt-cursiva' },
   { formato: 'tachado', letra: 'S', titulo: 'Tachado (~~texto~~)', clase: 'fmt-tachado' },
+  { formato: 'codigo', letra: '‹›', titulo: 'Codigo en linea (`texto`)', clase: 'fmt-codigo' },
 ]
 
 /**
@@ -216,6 +219,69 @@ function alternar(vista: EditorView, formato: Formato) {
     ],
     selection: { anchor: desde + largo, head: hasta + largo },
   })
+}
+
+/**
+ * Convierte lo seleccionado en un enlace, y deja `url` marcado para escribirlo.
+ *
+ * No pide la direccion en un dialogo ni la saca del portapapeles: inserta la
+ * plantilla y **deja seleccionada la palabra `url`**, asi que lo siguiente que
+ * se teclee la sustituye. Un paso menos que cualquier dialogo, y sin permisos
+ * de portapapeles que pedir.
+ */
+function enlazar(vista: EditorView) {
+  const bruta = vista.state.selection.main
+  const { desde, hasta } = acotada(vista.state, bruta.from, bruta.to)
+  const seleccionado = vista.state.doc.sliceString(desde, hasta)
+  const etiqueta = seleccionado || 'texto'
+  const inserto = `[${etiqueta}](url)`
+  // Donde cae la palabra `url` dentro de lo insertado: tras `[etiqueta](`.
+  const posUrl = desde + etiqueta.length + 3
+  vista.dispatch({
+    changes: { from: desde, to: hasta, insert: inserto },
+    selection: { anchor: posUrl, head: posUrl + 3 },
+  })
+  vista.focus()
+}
+
+/**
+ * Los atajos de formato, **con su nombre**, porque la lista se ensena en
+ * Configuracion.
+ *
+ * Que existan no basta: un atajo que nadie sabe que esta ahi no sirve de nada.
+ * Lalo pidio el 2026-09-17 que se vieran en Configuracion, y por eso esta tabla
+ * es la unica fuente —— la interfaz la lee de aqui en vez de repetirla a mano,
+ * que es como se acaba con una ayuda que miente.
+ *
+ * Las combinaciones son las de siempre: Ctrl+B y Ctrl+I las conoce todo el
+ * mundo, Ctrl+E para codigo y Ctrl+K para enlace vienen de VS Code, y
+ * Ctrl+Shift+X para tachado, de GitHub.
+ */
+export const ATAJOS: { tecla: string; muestra: string; que: Formato | 'enlace'; nombre: string }[] = [
+  { tecla: 'Mod-b', muestra: 'Ctrl+B', que: 'negrita', nombre: 'Negrita' },
+  { tecla: 'Mod-i', muestra: 'Ctrl+I', que: 'cursiva', nombre: 'Cursiva' },
+  { tecla: 'Mod-e', muestra: 'Ctrl+E', que: 'codigo', nombre: 'Codigo en linea' },
+  { tecla: 'Mod-Shift-x', muestra: 'Ctrl+Shift+X', que: 'tachado', nombre: 'Tachado' },
+  { tecla: 'Mod-Shift-h', muestra: 'Ctrl+Shift+H', que: 'resaltar', nombre: 'Resaltar' },
+  { tecla: 'Mod-k', muestra: 'Ctrl+K', que: 'enlace', nombre: 'Enlace' },
+]
+
+/**
+ * El keymap de formato, para montarlo en las dos vistas.
+ *
+ * `Prec.high` porque algunas de estas combinaciones ya significan algo en
+ * CodeMirror —— `Mod-i` y `Mod-k` entre otras—— y aqui manda lo nuestro.
+ */
+export function atajosDeFormato(): Extension {
+  return Prec.high(keymap.of(ATAJOS.map((a) => ({
+    key: a.tecla,
+    preventDefault: true,
+    run: (vista: EditorView) => {
+      if (a.que === 'enlace') enlazar(vista)
+      else alternar(vista, a.que)
+      return true
+    },
+  }))))
 }
 
 /**

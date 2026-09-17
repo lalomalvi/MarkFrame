@@ -270,6 +270,42 @@ body { display: flex; flex-direction: column; }
 .buscador.sin-nada { border-color: var(--peligro-borde); }
 .buscador.sin-nada .buscar-cuenta { color: var(--peligro-tinta); }
 
+/* --- la lista de atajos en Configuracion ---------------------------------- */
+
+.op-atajos {
+  display: grid;
+  /* Dos columnas en cuanto hay sitio: la lista es larga y en una sola columna
+     obliga a hacer scroll para ver los de abajo. */
+  grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+  gap: 3px 18px;
+  margin: .3em 0 1.4em;
+}
+.op-atajo {
+  display: flex;
+  align-items: center;
+  gap: .6em;
+  font-size: 12.5px;
+  color: var(--apagado);
+  padding: 2px 0;
+}
+.op-atajo kbd {
+  font-family: var(--fuente-mono);
+  font-size: 11px;
+  color: var(--tinta);
+  background: var(--codigo-fondo);
+  border: 1px solid var(--borde);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  min-width: 6.6rem;
+  text-align: center;
+  flex: none;
+}
+
+/* El de codigo en linea lleva dos chevrones, no una letra: monoespaciada para
+   que se lea como lo que hace. */
+.fmt-codigo { font-family: var(--fuente-mono); font-size: 12px; letter-spacing: -1px; }
+
 /* --- panel de formato al seleccionar --------------------------------------- */
 
 .panel-formato {

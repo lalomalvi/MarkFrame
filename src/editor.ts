@@ -22,6 +22,7 @@ import { vistaPresentacion } from './livepreview.ts'
 import { bloqueEn, campoEco, marcarEco } from './resalte.ts'
 import { temaBase, resaltadoMarkdown } from './tema.ts'
 import { busqueda } from './buscar.ts'
+import { atajosDeFormato } from './formato.ts'
 
 /** Marca una transaccion que ya viene reflejada de la otra vista: no se reenvia. */
 const espejo = Annotation.define<boolean>()
@@ -93,6 +94,9 @@ export function crearPar(
       // busca sobre el mismo documento, y el resaltado tiene que verse en la
       // que se esté mirando.
       busqueda(),
+      // Ctrl+B, Ctrl+I y compania. Van en las dos vistas: dar negrita tiene
+      // que funcionar igual en el markdown que en la presentacion.
+      atajosDeFormato(),
       temaBase,
       atajos,
       // `Mod-f` se saca del keymap de búsqueda de CodeMirror **a propósito**.
