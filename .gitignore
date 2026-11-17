@@ -32,3 +32,6 @@ capturar.ps1
 
 # Instrucciones de agente propias de esta maquina. Lo publico va en AGENTS.md.
 CLAUDE.md
+
+# Cola de trabajo interna: vive en el disco, no en el repo publico.
+docs/pendientes.md
