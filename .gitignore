@@ -29,3 +29,6 @@ migracion-zettlr/
 
 # Herramienta local para las capturas del README. No es producto.
 capturar.ps1
+
+# Instrucciones de agente propias de esta maquina. Lo publico va en AGENTS.md.
+CLAUDE.md
