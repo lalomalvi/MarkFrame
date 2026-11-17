@@ -322,7 +322,8 @@ navegador del sistema; `javascript:` y `data:` salen como texto plano.
 
 **Todo lo que la auditoría abrió está cerrado menos una cosa: el instalador no va
 firmado**, así que al publicar Windows avisará de editor desconocido. Decidido el
-2026-09-17: **no se firma por ahora** —— ver [pendientes.md](pendientes.md).
+2026-09-17: **no se firma por ahora** —— ver `pendientes.md` (cola interna, fuera del
+repo público).
 
 ### Las dimensiones declaradas
 
@@ -484,7 +485,8 @@ que bloqueaban publicar: **se publica**, el programa **se llama MarkFrame** —�
 nombre anterior estaba tomado por un editor de markdown en Tauri con 2 393
 estrellas—— y la licencia es **MIT**. Va como **1.0.0**.
 
-Lo que queda es trabajo, con su estado en [pendientes.md](pendientes.md):
+Lo que queda es trabajo, con su estado en `pendientes.md` (cola interna, fuera
+del repo público):
 capturas, el paquete de publicación, recompilar, y reescribir el historial con
 `filter-repo` para sacar `migracion-zettlr/` antes de que el repo sea público.
 
